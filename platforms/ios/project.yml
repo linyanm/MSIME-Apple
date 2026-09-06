@@ -11,13 +11,14 @@ settings:
     CURRENT_PROJECT_VERSION: 1
     # Bumped by release-please alongside CMakeLists.txt. It used to be pinned at 0.1.0 while the
     # project shipped 0.45.x, so any iOS artifact would have carried a version that matched nothing.
-    MARKETING_VERSION: 0.47.2 # x-release-please-version
+    MARKETING_VERSION: 0.48.0 # x-release-please-version
     SWIFT_VERSION: 6.0
     IPHONEOS_DEPLOYMENT_TARGET: 15.0
     # Xcode 26 no longer falls back to the target name when a target leaves PRODUCT_NAME unset, so a
     # target without it links as a bare `-l` and builds products named `.xctest` or `-Runner.app`.
     # Targets that publish a different product name still override this below.
     PRODUCT_NAME: $(TARGET_NAME)
+    DEVELOPMENT_TEAM: LXCL4Z68GU
 
 targets:
   MetasequoiaAppleBridge:
@@ -102,6 +103,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: $(PROJECT_DIR)/../../platforms/ios/App/Resources/MetasequoiaImeIOS.entitlements
         PRODUCT_BUNDLE_IDENTIFIER: com.houko.metasequoiaime.ios
         PRODUCT_NAME: MetasequoiaIME
+        CODE_SIGN_STYLE: Automatic
     dependencies:
       - target: MetasequoiaKeyboard
 
@@ -126,6 +128,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: $(PROJECT_DIR)/../../platforms/ios/KeyboardExtension/Resources/MetasequoiaKeyboard.entitlements
         PRODUCT_BUNDLE_IDENTIFIER: com.houko.metasequoiaime.ios.keyboard
         PRODUCT_NAME: MetasequoiaKeyboard
+        CODE_SIGN_STYLE: Automatic
         SWIFT_OBJC_BRIDGING_HEADER: $(PROJECT_DIR)/../../platforms/ios/KeyboardExtension/Sources/MetasequoiaKeyboard-Bridging-Header.h
         HEADER_SEARCH_PATHS:
           - $(inherited)
