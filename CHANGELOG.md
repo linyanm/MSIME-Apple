@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.46.0](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.45.2...v0.46.0) (2026-09-06)
+
+
+### Features
+
+* **ios:** publish an unsigned iOS archive with every release ([496ecec](https://github.com/metasequoiaime/MSIME-Apple/commit/496ecec6d45d678681865a74e2da4f467bf23c9d))
+
+
+### Bug Fixes
+
+* **ci:** stop the engine bump triage from executing engine file names ([58f743b](https://github.com/metasequoiaime/MSIME-Apple/commit/58f743b5a46235fa2d000b3eedbaea461a23c73c))
+* **ios:** stop discarding the composition on the keyboard's own edits ([ecc03fc](https://github.com/metasequoiaime/MSIME-Apple/commit/ecc03fc854fbf96e34e467b3e42adab2ff706a10))
+* **mac:** dispatch the punctuation keys the engine gained, and repair the toolbar menu ([1298b90](https://github.com/metasequoiaime/MSIME-Apple/commit/1298b90a506ac891b5cbaf8169adc541c7de81ad))
+
 ## [0.45.2](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.45.1...v0.45.2) (2026-09-06)
 
 
