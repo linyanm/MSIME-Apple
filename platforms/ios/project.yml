@@ -104,6 +104,11 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.msime.ios
         PRODUCT_NAME: MetasequoiaIME
         CODE_SIGN_STYLE: Automatic
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: MSIME iOS TestFlight v2
     dependencies:
       - target: MetasequoiaKeyboard
 
@@ -133,6 +138,11 @@ targets:
         HEADER_SEARCH_PATHS:
           - $(inherited)
           - $(PROJECT_DIR)/../../shared/apple-bridge
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: MSIME iOS Keyboard TestFlight
     dependencies:
       - target: MetasequoiaAppleBridge
       - sdk: libsqlite3.tbd
