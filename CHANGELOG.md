@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.48.1](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.48.0...v0.48.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* **ios:** switch to app.msime bundle identifiers ([#292](https://github.com/metasequoiaime/MSIME-Apple/issues/292)) ([17281c6](https://github.com/metasequoiaime/MSIME-Apple/commit/17281c6265c0b2c4d2b6b1820fced183a49babb8))
+
 ## [0.48.0](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.47.2...v0.48.0) (2026-09-06)
 
 
