@@ -417,6 +417,7 @@ class ReleasePublicationTests(unittest.TestCase):
         existing_notes="",
         corrupt_checksum=False,
         misdirected_checksum=False,
+        release_trigger="workflow_dispatch",
     ):
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary = Path(temporary_directory)
@@ -483,6 +484,7 @@ fi
                     "TAG_NAME": "v1.2.3",
                     "ASSET_SUFFIX": asset_suffix,
                     "SIGNING_ENABLED": signing_enabled,
+                    "RELEASE_TRIGGER": release_trigger,
                     "DIST_DIR": str(dist),
                     "RUNNER_TEMP": str(temporary),
                     "FAKE_GH_LOG": str(log),
@@ -587,6 +589,49 @@ fi
         result, calls, notes = self.run_publication("false", "-unsigned", misdirected_checksum=True)
 
         self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(calls, "")
+        self.assertEqual(notes, "")
+
+    def test_push_publishes_into_the_build_channel(self):
+        result, calls, notes = self.run_publication(
+            "true", "", existing_notes="Existing notes", release_trigger="push"
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--prerelease", calls)
+        self.assertNotIn("--latest", calls)
+        self.assertIn("（自动构建）", calls)
+        self.assertIn("metasequoia-build-channel:v1", notes)
+        self.assertIn("未经人工挑选", notes)
+
+    def test_dispatch_publishes_into_the_release_channel(self):
+        result, calls, notes = self.run_publication(
+            "true", "", existing_notes="Existing notes", release_trigger="workflow_dispatch"
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--prerelease=false", calls)
+        self.assertIn("--latest", calls)
+        self.assertNotIn("（自动构建）", calls)
+        self.assertNotIn("metasequoia-build-channel", notes)
+
+    def test_build_channel_note_is_not_repeated_on_a_retry(self):
+        _, _, notes = self.run_publication(
+            "true",
+            "",
+            existing_notes="Existing notes <!-- metasequoia-build-channel:v1 --> 未经人工挑选",
+            release_trigger="push",
+        )
+
+        self.assertLessEqual(notes.count("metasequoia-build-channel:v1"), 1)
+
+    def test_publication_requires_knowing_which_channel_it_is_publishing_into(self):
+        # Defaulting would silently pick a channel, and picking the release channel by accident
+        # puts an uncurated build behind the Latest badge, which is what Sparkle follows.
+        result, calls, notes = self.run_publication("true", "", release_trigger="")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("RELEASE_TRIGGER", result.stderr)
         self.assertEqual(calls, "")
         self.assertEqual(notes, "")
 
