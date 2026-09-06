@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.45.2](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.45.1...v0.45.2) (2026-09-06)
+
+
+### Bug Fixes
+
+* **consolidation:** align data notices and release checks with Engine ([47362d3](https://github.com/metasequoiaime/MSIME-Apple/commit/47362d30aeb4580a8cde3c4d88dc6a61550daec9))
+* **release:** accept the current semantic dictionary tag in configuration checks ([e89e205](https://github.com/metasequoiaime/MSIME-Apple/commit/e89e205d4963a410531eaf573566e83d3c03e6dc))
+
+## [0.45.1](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.45.0...v0.45.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **build:** fail loudly on inputs that used to break the build silently ([bd0ec42](https://github.com/metasequoiaime/MSIME-Apple/commit/bd0ec423e670ea2c8c3519f4910e33a7fcf28a11))
+* **ios:** only insert a newline when Return did not commit a composition ([c86049f](https://github.com/metasequoiaime/MSIME-Apple/commit/c86049f0b9845c03631f5605187c8e006e7ac631))
+* **mac:** discard the replaced dictionary's journal and sweep install temporaries ([05fada3](https://github.com/metasequoiaime/MSIME-Apple/commit/05fada3db2d62fbd9f9eba70cd005dd915e59322))
+* **mac:** stop discarding voice polish results and leaking voice API keys ([221305f](https://github.com/metasequoiaime/MSIME-Apple/commit/221305fd43fa83eb78fd233165470f067d867045))
+* **mac:** stop full-width mode from disabling Chinese input ([17a883f](https://github.com/metasequoiaime/MSIME-Apple/commit/17a883f89df99ba40edfba3a0267932004365992))
+* **release:** resolve packaging inputs from the project root and keep update checks on ([13f0440](https://github.com/metasequoiaime/MSIME-Apple/commit/13f04402251a9c534b014206b1cdb037d6ea4480))
+
 ## [0.45.0](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.44.0...v0.45.0) (2026-09-05)
 
 
