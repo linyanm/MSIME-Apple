@@ -116,6 +116,8 @@ cat > "$export_options" <<EOF
 </plist>
 EOF
 
+export_log="$build_root/export.log"
+set +e
 xcodebuild -exportArchive \
     -archivePath "$archive_path" \
     -exportPath "$export_path" \
@@ -123,7 +125,22 @@ xcodebuild -exportArchive \
     -allowProvisioningUpdates \
     -authenticationKeyPath "$METASEQUOIA_IOS_AUTH_KEY_PATH" \
     -authenticationKeyID "$METASEQUOIA_IOS_AUTH_KEY_ID" \
-    -authenticationKeyIssuerID "$METASEQUOIA_IOS_AUTH_KEY_ISSUER_ID"
+    -authenticationKeyIssuerID "$METASEQUOIA_IOS_AUTH_KEY_ISSUER_ID" 2>&1 | tee "$export_log"
+export_status=${PIPESTATUS[0]}
+set -e
+if [[ "$export_status" -ne 0 ]]; then
+    if grep -Eq 'Cloud signing permission error|No profiles for ' "$export_log"; then
+        printf '%s\n' 'TestFlight upload skipped: App Store Connect could not provide distribution profiles for the iOS targets.' >&2
+        if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            {
+                echo '### TestFlight upload skipped'
+                echo 'The App Store Connect key could not obtain distribution profiles for the iOS targets. The unsigned iOS artifacts remain available in this release.'
+            } >> "$GITHUB_STEP_SUMMARY"
+        fi
+        exit 0
+    fi
+    exit "$export_status"
+fi
 
 ipa=$(find "$export_path" -maxdepth 1 -type f -name '*.ipa' -print -quit)
 if [[ -z "$ipa" ]]; then

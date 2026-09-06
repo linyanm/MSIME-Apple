@@ -39,7 +39,9 @@ The public release assets remain unsigned and reproducible. When the repository 
 `IOS_APP_PROVISIONING_PROFILE_BASE64` and `IOS_KEYBOARD_PROVISIONING_PROFILE_BASE64`, `release.yml`
 uses the matching distribution profiles on the macOS runner and uploads the build to TestFlight. The
 API key must be a Team API key with permission to manage signing assets; the App ID records and the
-profiles must exist for `app.msime.ios` and `app.msime.ios.keyboard`.
+profiles must exist for `app.msime.ios` and `app.msime.ios.keyboard`. If the signing permissions are
+unavailable, the release keeps its unsigned iOS artifacts and records the skipped TestFlight upload
+in the workflow summary.
 
 To create the base64 secret without printing the private key:
 
