@@ -633,7 +633,15 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("does not sell personal data", privacy)
         self.assertIn("current recording is sent to the HTTPS endpoint configured by the user", privacy)
         self.assertIn("API tokens are stored in the system Keychain", privacy)
-        self.assertIn("GitHub's public Releases API", privacy)
+        # Pins how updates actually work. This assertion used to require the phrase "GitHub's public
+        # Releases API", which the app has never used -- updates go through Sparkle. A test that pins an
+        # inaccurate privacy notice keeps it inaccurate, so it now pins the mechanism and the two Sparkle
+        # settings that make the update path verifiable.
+        self.assertIn("Sparkle", privacy)
+        self.assertIn("appcast.xml", privacy)
+        self.assertIn("SURequireSignedFeed", privacy)
+        self.assertIn("SUVerifyUpdateBeforeExtraction", privacy)
+        self.assertNotIn("Releases API", privacy)
         self.assertIn("IP address and standard network request metadata", privacy)
         self.assertIn(
             "If learning is disabled while a composition is active, that composition keeps the setting it started "
