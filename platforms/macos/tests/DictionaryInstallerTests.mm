@@ -72,8 +72,7 @@ std::int64_t ReadWeight(NSURL *url, const char *word)
     Require(sqlite3_prepare_v2(database, "SELECT weight FROM tbl_2_n WHERE value=?1", -1, &statement, nullptr) ==
                 SQLITE_OK,
             "Failed to prepare weight query.");
-    Require(sqlite3_bind_text(statement, 1, word, -1, SQLITE_TRANSIENT) == SQLITE_OK,
-            "Failed to bind weight query.");
+    Require(sqlite3_bind_text(statement, 1, word, -1, SQLITE_TRANSIENT) == SQLITE_OK, "Failed to bind weight query.");
     Require(sqlite3_step(statement) == SQLITE_ROW, "Installed dictionary word was missing.");
     const std::int64_t weight = sqlite3_column_int64(statement, 0);
     sqlite3_finalize(statement);
@@ -87,9 +86,8 @@ bool ContainsUserDictionaryOperation(NSURL *url, const char *value)
     Require(sqlite3_open_v2(url.fileSystemRepresentation, &database, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK,
             "Failed to open the user dictionary journal.");
     sqlite3_stmt *statement = nullptr;
-    Require(sqlite3_prepare_v2(database,
-                               "SELECT 1 FROM user_dictionary_operations WHERE value=?1 LIMIT 1",
-                               -1, &statement, nullptr) == SQLITE_OK,
+    Require(sqlite3_prepare_v2(database, "SELECT 1 FROM user_dictionary_operations WHERE value=?1 LIMIT 1", -1,
+                               &statement, nullptr) == SQLITE_OK,
             "Failed to prepare the user dictionary journal query.");
     Require(sqlite3_bind_text(statement, 1, value, -1, SQLITE_TRANSIENT) == SQLITE_OK,
             "Failed to bind the user dictionary journal query.");
@@ -99,20 +97,19 @@ bool ContainsUserDictionaryOperation(NSURL *url, const char *value)
     return found;
 }
 
-void WriteResetMarker(NSURL *directory, NSString *identifier, NSString *phase,
-                      NSArray<NSString *> *originalFileNames)
+void WriteResetMarker(NSURL *directory, NSString *identifier, NSString *phase, NSArray<NSString *> *originalFileNames)
 {
     NSDictionary *marker = @{
-        @"version": @1,
-        @"identifier": identifier,
-        @"phase": phase,
-        @"originalFileNames": originalFileNames,
+        @"version" : @1,
+        @"identifier" : identifier,
+        @"phase" : phase,
+        @"originalFileNames" : originalFileNames,
     };
     NSError *error = nil;
     NSData *data = [NSPropertyListSerialization dataWithPropertyList:marker
-                                                               format:NSPropertyListBinaryFormat_v1_0
-                                                              options:0
-                                                                error:&error];
+                                                              format:NSPropertyListBinaryFormat_v1_0
+                                                             options:0
+                                                               error:&error];
     Require(data != nil, error.localizedDescription.UTF8String);
     NSURL *markerURL = [directory URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"];
     Require([data writeToURL:markerURL options:0 error:&error], error.localizedDescription.UTF8String);
@@ -120,8 +117,8 @@ void WriteResetMarker(NSURL *directory, NSString *identifier, NSString *phase,
 
 NSURL *ResetBackup(NSURL *directory, NSString *fileName, NSString *identifier)
 {
-    return [directory URLByAppendingPathComponent:
-                          [NSString stringWithFormat:@".%@.reset-backup.%@", fileName, identifier]];
+    return [directory
+        URLByAppendingPathComponent:[NSString stringWithFormat:@".%@.reset-backup.%@", fileName, identifier]];
 }
 
 NSURL *CreateDirectory(NSURL *root, NSString *name)
@@ -129,9 +126,9 @@ NSURL *CreateDirectory(NSURL *root, NSString *name)
     NSURL *directory = [root URLByAppendingPathComponent:name isDirectory:YES];
     NSError *error = nil;
     Require([[NSFileManager defaultManager] createDirectoryAtURL:directory
-                                      withIntermediateDirectories:YES
-                                                       attributes:nil
-                                                            error:&error],
+                                     withIntermediateDirectories:YES
+                                                      attributes:nil
+                                                           error:&error],
             error.localizedDescription.UTF8String);
     return directory;
 }
@@ -143,21 +140,21 @@ int main()
     {
         NSFileManager *fileManager = [NSFileManager defaultManager];
         NSURL *root = [[NSURL fileURLWithPath:NSTemporaryDirectory() isDirectory:YES]
-            URLByAppendingPathComponent:[@"metasequoia-dictionary-installer-" stringByAppendingString:NSUUID.UUID.UUIDString]
-                               isDirectory:YES];
+            URLByAppendingPathComponent:[@"metasequoia-dictionary-installer-"
+                                            stringByAppendingString:NSUUID.UUID.UUIDString]
+                            isDirectory:YES];
         NSError *error = nil;
         Require([fileManager createDirectoryAtURL:root withIntermediateDirectories:YES attributes:nil error:&error],
                 error.localizedDescription.UTF8String);
 
         NSURL *helpcodeSource = CreateDirectory(root, @"bundled-helpcodes");
         NSArray<NSString *> *helpcodeNames = @[
-            @"helpcode.txt", @"zrm_helpcode_big_unique.txt", @"shouyou2_0_helpcode.txt",
-            @"shouyouplus_helpcode.txt", @"xiaohe_helpcode.txt"
+            @"helpcode.txt", @"zrm_helpcode_big_unique.txt", @"shouyou2_0_helpcode.txt", @"shouyouplus_helpcode.txt",
+            @"xiaohe_helpcode.txt"
         ];
         for (NSString *name in helpcodeNames)
         {
-            WriteString([@"你=rx\n" stringByAppendingString:name],
-                        [helpcodeSource URLByAppendingPathComponent:name]);
+            WriteString([@"你=rx\n" stringByAppendingString:name], [helpcodeSource URLByAppendingPathComponent:name]);
         }
         NSURL *helpcodeData = CreateDirectory(root, @"helpcode-data");
         Require(InstallMetasequoiaHelpCodes(helpcodeSource, helpcodeData, &error),
@@ -165,8 +162,7 @@ int main()
         for (NSString *name in helpcodeNames)
         {
             Require(ReadString([[helpcodeData URLByAppendingPathComponent:@"helpcodes" isDirectory:YES]
-                                   URLByAppendingPathComponent:name]) ==
-                        [@"你=rx\n" stringByAppendingString:name].UTF8String,
+                        URLByAppendingPathComponent:name]) == [@"你=rx\n" stringByAppendingString:name].UTF8String,
                     "A bundled helpcode table was not installed.");
         }
         NSURL *incompleteHelpcodeSource = CreateDirectory(root, @"incomplete-helpcodes");
@@ -175,19 +171,16 @@ int main()
         Require(!InstallMetasequoiaHelpCodes(incompleteHelpcodeSource, helpcodeData, &error) && error != nil,
                 "An incomplete helpcode resource set was accepted.");
         Require(ReadString([[helpcodeData URLByAppendingPathComponent:@"helpcodes" isDirectory:YES]
-                               URLByAppendingPathComponent:@"xiaohe_helpcode.txt"]) ==
-                    [@"你=rx\nxiaohe_helpcode.txt" UTF8String],
+                    URLByAppendingPathComponent:@"xiaohe_helpcode.txt"]) == [@"你=rx\nxiaohe_helpcode.txt" UTF8String],
                 "A rejected helpcode update damaged the installed resource set.");
 
         NSURL *sameSizeDirectory = CreateDirectory(root, @"same-size");
         NSURL *sameSizeSource = [root URLByAppendingPathComponent:@"same-size-source.db"];
         NSURL *sameSizeDestination = [sameSizeDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(sameSizeSource,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',100);");
-        ExecuteSql(sameSizeDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',200);");
+        ExecuteSql(sameSizeSource, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',100);");
+        ExecuteSql(sameSizeDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                        "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',200);");
         Require([[fileManager attributesOfItemAtPath:sameSizeSource.path error:&error] fileSize] ==
                     [[fileManager attributesOfItemAtPath:sameSizeDestination.path error:&error] fileSize],
                 "The same-size update fixture dictionaries have different sizes.");
@@ -206,19 +199,16 @@ int main()
 
         NSURL *firstInstallDirectory = CreateDirectory(root, @"first-install");
         NSURL *largeSource = [root URLByAppendingPathComponent:@"large-source.db"];
-        ExecuteSql(largeSource,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','首次安装',111);"
-                   "CREATE TABLE hash_stream_padding(value BLOB);"
-                   "INSERT INTO hash_stream_padding VALUES(zeroblob(131072));");
+        ExecuteSql(largeSource, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                "INSERT INTO tbl_2_n VALUES('ni''hao','nh','首次安装',111);"
+                                "CREATE TABLE hash_stream_padding(value BLOB);"
+                                "INSERT INTO hash_stream_padding VALUES(zeroblob(131072));");
         Require([[fileManager attributesOfItemAtPath:largeSource.path error:&error] fileSize] > 64 * 1024,
                 "The fingerprint stream fixture does not span multiple reads.");
         NSString *largeSourceFingerprint = SHA256Fingerprint(largeSource);
-        Require(InstallMetasequoiaDictionary(largeSource, firstInstallDirectory,
-                                             largeSourceFingerprint, &error),
+        Require(InstallMetasequoiaDictionary(largeSource, firstInstallDirectory, largeSourceFingerprint, &error),
                 error.localizedDescription.UTF8String);
-        NSURL *firstInstallDestination =
-            [firstInstallDirectory URLByAppendingPathComponent:@"msime.db"];
+        NSURL *firstInstallDestination = [firstInstallDirectory URLByAppendingPathComponent:@"msime.db"];
         Require(ReadWeight(firstInstallDestination, "首次安装") == 111 &&
                     ReadString([firstInstallDirectory URLByAppendingPathComponent:@"msime.db.sha256"]) ==
                         largeSourceFingerprint.UTF8String,
@@ -226,17 +216,18 @@ int main()
 
         NSURL *firstInstallMismatchDirectory = CreateDirectory(root, @"first-install-mismatch");
         error = nil;
-        Require(!InstallMetasequoiaDictionary(
-                    largeSource, firstInstallMismatchDirectory,
-                    @"0000000000000000000000000000000000000000000000000000000000000000", &error),
+        Require(!InstallMetasequoiaDictionary(largeSource, firstInstallMismatchDirectory,
+                                              @"0000000000000000000000000000000000000000000000000000000000000000",
+                                              &error),
                 "A first-install dictionary with a mismatched fingerprint unexpectedly installed.");
-        Require(error != nil &&
-                    ![fileManager fileExistsAtPath:
-                                      [firstInstallMismatchDirectory URLByAppendingPathComponent:@"msime.db"].path] &&
-                    ![fileManager fileExistsAtPath:
-                                      [firstInstallMismatchDirectory URLByAppendingPathComponent:
-                                                                         @"msime.db.sha256"].path],
-                "A rejected first-install dictionary left persistent files behind.");
+        Require(
+            error != nil &&
+                ![fileManager
+                    fileExistsAtPath:[firstInstallMismatchDirectory URLByAppendingPathComponent:@"msime.db"].path] &&
+                ![fileManager
+                    fileExistsAtPath:[firstInstallMismatchDirectory URLByAppendingPathComponent:@"msime.db.sha256"]
+                                         .path],
+            "A rejected first-install dictionary left persistent files behind.");
         NSArray<NSURL *> *firstInstallMismatchContents =
             [fileManager contentsOfDirectoryAtURL:firstInstallMismatchDirectory
                        includingPropertiesForKeys:nil
@@ -248,20 +239,21 @@ int main()
         NSURL *partialCopySource = CreateDirectory(root, @"partial-copy-source.db");
         NSURL *unreadableCopySource = [partialCopySource URLByAppendingPathComponent:@"unreadable"];
         WriteString(@"cannot-copy", unreadableCopySource);
-        Require([fileManager setAttributes:@{NSFilePosixPermissions: @0}
-                                    ofItemAtPath:unreadableCopySource.path
-                                           error:&error],
+        Require([fileManager setAttributes:@{
+                    NSFilePosixPermissions : @0
+                }
+                              ofItemAtPath:unreadableCopySource.path
+                                     error:&error],
                 error.localizedDescription.UTF8String);
         NSURL *partialInstallDirectory = CreateDirectory(root, @"partial-install");
         error = nil;
-        Require(!InstallMetasequoiaDictionary(partialCopySource, partialInstallDirectory,
-                                              largeSourceFingerprint, &error),
-                "A partially copied dictionary unexpectedly installed.");
-        NSArray<NSURL *> *partialInstallContents =
-            [fileManager contentsOfDirectoryAtURL:partialInstallDirectory
-                       includingPropertiesForKeys:nil
-                                          options:0
-                                            error:&error];
+        Require(
+            !InstallMetasequoiaDictionary(partialCopySource, partialInstallDirectory, largeSourceFingerprint, &error),
+            "A partially copied dictionary unexpectedly installed.");
+        NSArray<NSURL *> *partialInstallContents = [fileManager contentsOfDirectoryAtURL:partialInstallDirectory
+                                                              includingPropertiesForKeys:nil
+                                                                                 options:0
+                                                                                   error:&error];
         Require(partialInstallContents != nil, error.localizedDescription.UTF8String);
         for (NSURL *remainingFile in partialInstallContents)
         {
@@ -271,55 +263,52 @@ int main()
 
         NSURL *partialResetDirectory = CreateDirectory(root, @"partial-reset");
         error = nil;
-        Require(!ResetMetasequoiaLearnedData(partialCopySource, partialResetDirectory,
-                                             largeSourceFingerprint, &error),
+        Require(!ResetMetasequoiaLearnedData(partialCopySource, partialResetDirectory, largeSourceFingerprint, &error),
                 "A partially copied dictionary unexpectedly reset learned data.");
-        NSArray<NSURL *> *partialResetContents =
-            [fileManager contentsOfDirectoryAtURL:partialResetDirectory
-                       includingPropertiesForKeys:nil
-                                          options:0
-                                            error:&error];
+        NSArray<NSURL *> *partialResetContents = [fileManager contentsOfDirectoryAtURL:partialResetDirectory
+                                                            includingPropertiesForKeys:nil
+                                                                               options:0
+                                                                                 error:&error];
         Require(partialResetContents != nil, error.localizedDescription.UTF8String);
         for (NSURL *remainingFile in partialResetContents)
         {
             Require(![remainingFile.lastPathComponent hasPrefix:@".msime.db.resetting."],
                     "A failed dictionary copy left a partial reset file behind.");
         }
-        Require([fileManager setAttributes:@{NSFilePosixPermissions: @0600}
-                                    ofItemAtPath:unreadableCopySource.path
-                                           error:&error],
+        Require([fileManager setAttributes:@{
+                    NSFilePosixPermissions : @0600
+                }
+                              ofItemAtPath:unreadableCopySource.path
+                                     error:&error],
                 error.localizedDescription.UTF8String);
 
         NSURL *replayDirectory = CreateDirectory(root, @"replay");
         NSURL *replaySource = [root URLByAppendingPathComponent:@"replay-source.db"];
         NSURL *replayDestination = [replayDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(replaySource,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',100);");
-        ExecuteSql(replayDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',201);");
+        ExecuteSql(replaySource, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                 "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);"
+                                 "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',100);");
+        ExecuteSql(replayDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                      "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);"
+                                      "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',201);");
         const std::string userDatabase =
             [replayDirectory URLByAppendingPathComponent:@"msime_user.db"].fileSystemRepresentation;
-        Require(user_dictionary::record_upsert(userDatabase, user_dictionary::DictionaryKind::Pinyin, "ni'hao",
-                                               "拟好", 999),
+        Require(user_dictionary::record_upsert(userDatabase, user_dictionary::DictionaryKind::Pinyin, "ni'hao", "拟好",
+                                               999),
                 "Failed to create the user dictionary journal fixture.");
         WriteString(@"old-fingerprint", [replayDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
         // A rollback journal left by an unclean shutdown belongs to the dictionary being replaced,
         // not to the one being installed, and SQLite would replay it onto whatever now sits at the
         // msime.db path. Planted here so the swap has to discard all three sidecars.
-        for (NSString *sidecar in @[@"msime.db-journal", @"msime.db-wal", @"msime.db-shm"])
+        for (NSString *sidecar in @[ @"msime.db-journal", @"msime.db-wal", @"msime.db-shm" ])
         {
             WriteString(@"stale-sidecar", [replayDirectory URLByAppendingPathComponent:sidecar]);
         }
-        Require(InstallMetasequoiaDictionary(replaySource, replayDirectory,
-                                             SHA256Fingerprint(replaySource), &error),
+        Require(InstallMetasequoiaDictionary(replaySource, replayDirectory, SHA256Fingerprint(replaySource), &error),
                 error.localizedDescription.UTF8String);
         Require(ReadWeight(replayDestination, "拟好") == 999,
                 "The user dictionary journal was not replayed onto the upgraded dictionary.");
-        for (NSString *sidecar in @[@"msime.db-journal", @"msime.db-wal", @"msime.db-shm"])
+        for (NSString *sidecar in @[ @"msime.db-journal", @"msime.db-wal", @"msime.db-shm" ])
         {
             Require(![fileManager fileExistsAtPath:[replayDirectory URLByAppendingPathComponent:sidecar].path],
                     "Installing a new dictionary left a stale SQLite sidecar beside it.");
@@ -328,20 +317,18 @@ int main()
         NSURL *resetDirectory = CreateDirectory(root, @"reset-learning");
         NSURL *resetSource = [root URLByAppendingPathComponent:@"reset-source.db"];
         NSURL *resetDestination = [resetDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(resetSource,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',100);");
-        ExecuteSql(resetDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',999);");
+        ExecuteSql(resetSource, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);"
+                                "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',100);");
+        ExecuteSql(resetDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                     "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);"
+                                     "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',999);");
         WriteString(@"old-fingerprint", [resetDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
         Require(setenv("METASEQUOIA_IME_DATA_DIR", resetDirectory.fileSystemRepresentation, 1) == 0,
                 "Failed to set the reset test data directory.");
         const std::string resetUserDatabase = user_dictionary::default_user_db_path();
-        Require(user_dictionary::record_upsert(resetUserDatabase, user_dictionary::DictionaryKind::Pinyin,
-                                               "ni'hao", "旧学习", 999),
+        Require(user_dictionary::record_upsert(resetUserDatabase, user_dictionary::DictionaryKind::Pinyin, "ni'hao",
+                                               "旧学习", 999),
                 "Failed to keep the default user database open before reset.");
         WriteString(@"journal-wal", [resetDirectory URLByAppendingPathComponent:@"msime_user.db-wal"]);
         WriteString(@"journal-rollback", [resetDirectory URLByAppendingPathComponent:@"msime_user.db-journal"]);
@@ -356,15 +343,15 @@ int main()
         Require(ReadString([resetDirectory URLByAppendingPathComponent:@"msime.db.sha256"]) ==
                     resetFingerprint.UTF8String,
                 "Resetting learned data did not install the bundled dictionary fingerprint.");
-        for (NSString *learnedFile in @[@"msime_user.db", @"msime_user.db-wal", @"msime_user.db-journal",
-                                        @"msime_english.db", @"user_dict.dat"])
+        for (NSString *learnedFile in @[
+                 @"msime_user.db", @"msime_user.db-wal", @"msime_user.db-journal", @"msime_english.db", @"user_dict.dat"
+             ])
         {
             Require(![fileManager fileExistsAtPath:[resetDirectory URLByAppendingPathComponent:learnedFile].path],
                     "Resetting learned data left a learned-data file behind.");
         }
         Require(user_dictionary::record_upsert(user_dictionary::default_user_db_path(),
-                                               user_dictionary::DictionaryKind::Pinyin,
-                                               "ni'hao", "重新学习", 200),
+                                               user_dictionary::DictionaryKind::Pinyin, "ni'hao", "重新学习", 200),
                 "The default user database did not reopen after reset.");
         user_dictionary::close_default_user_database();
         NSURL *reopenedUserDatabase = [resetDirectory URLByAppendingPathComponent:@"msime_user.db"];
@@ -372,9 +359,9 @@ int main()
                     !ContainsUserDictionaryOperation(reopenedUserDatabase, "旧学习"),
                 "Learning after reset used the database handle from before reset.");
         NSArray<NSURL *> *remainingFiles = [fileManager contentsOfDirectoryAtURL:resetDirectory
-                                                       includingPropertiesForKeys:nil
-                                                                          options:0
-                                                                            error:&error];
+                                                      includingPropertiesForKeys:nil
+                                                                         options:0
+                                                                           error:&error];
         Require(remainingFiles != nil, error.localizedDescription.UTF8String);
         for (NSURL *remainingFile in remainingFiles)
         {
@@ -386,9 +373,8 @@ int main()
         NSString *preparedIdentifier = @"1516EAA2-7229-44D3-90F5-930475E184E3";
         NSURL *preparedDirectory = CreateDirectory(root, @"reset-learning-prepared-recovery");
         NSURL *preparedDestination = [preparedDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(preparedDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',100);");
+        ExecuteSql(preparedDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                        "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',100);");
         ExecuteSql(ResetBackup(preparedDirectory, @"msime.db", preparedIdentifier),
                    "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
                    "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',555);");
@@ -396,71 +382,68 @@ int main()
         WriteString(@"prepared-old", ResetBackup(preparedDirectory, @"msime.db.sha256", preparedIdentifier));
         WriteString(@"old-journal", ResetBackup(preparedDirectory, @"msime_user.db", preparedIdentifier));
         WriteString(@"temporary",
-                    [preparedDirectory URLByAppendingPathComponent:
-                                           [@".msime.db.resetting." stringByAppendingString:preparedIdentifier]]);
+                    [preparedDirectory URLByAppendingPathComponent:[@".msime.db.resetting."
+                                                                       stringByAppendingString:preparedIdentifier]]);
         WriteResetMarker(preparedDirectory, preparedIdentifier, @"prepared",
-                         @[@"msime.db", @"msime.db.sha256", @"msime_user.db"]);
+                         @[ @"msime.db", @"msime.db.sha256", @"msime_user.db" ]);
         error = nil;
         Require(PrepareMetasequoiaDictionary(resetSource, preparedDirectory, @"prepared-old", &error),
                 error.localizedDescription.UTF8String);
         Require(ReadWeight(preparedDestination, "拟好") == 555 &&
                     ReadString([preparedDirectory URLByAppendingPathComponent:@"msime_user.db"]) == "old-journal",
                 "Startup recovery did not roll back an interrupted prepared reset.");
-        Require(![fileManager fileExistsAtPath:
-                                  [preparedDirectory URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"].path] &&
-                    ![fileManager fileExistsAtPath:ResetBackup(preparedDirectory, @"msime.db", preparedIdentifier).path],
-                "Prepared reset recovery left transaction artifacts behind.");
+        Require(
+            ![fileManager
+                fileExistsAtPath:[preparedDirectory URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"]
+                                     .path] &&
+                ![fileManager fileExistsAtPath:ResetBackup(preparedDirectory, @"msime.db", preparedIdentifier).path],
+            "Prepared reset recovery left transaction artifacts behind.");
 
         NSString *missingBackupIdentifier = @"85DF9BC5-E4DF-4EC1-A84F-FCB50E8E029C";
         NSURL *missingBackupDirectory = CreateDirectory(root, @"reset-learning-missing-durable-backup");
         NSURL *missingBackupDestination = [missingBackupDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(missingBackupDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',600);");
-        WriteString(@"new-before-crash",
-                    [missingBackupDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
+        ExecuteSql(missingBackupDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                             "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',600);");
+        WriteString(@"new-before-crash", [missingBackupDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
         WriteResetMarker(missingBackupDirectory, missingBackupIdentifier, @"backed-up",
-                         @[@"msime.db", @"msime.db.sha256"]);
+                         @[ @"msime.db", @"msime.db.sha256" ]);
         error = nil;
-        Require(!PrepareMetasequoiaDictionary(resetSource, missingBackupDirectory,
-                                              @"new-before-crash", &error),
+        Require(!PrepareMetasequoiaDictionary(resetSource, missingBackupDirectory, @"new-before-crash", &error),
                 "Recovery accepted a post-backup reset whose durable backup was missing.");
         Require(error != nil && ReadWeight(missingBackupDestination, "拟好") == 600 &&
-                    [fileManager fileExistsAtPath:
-                                     [missingBackupDirectory URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"].path],
+                    [fileManager fileExistsAtPath:[missingBackupDirectory
+                                                      URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"]
+                                                      .path],
                 "Missing-backup recovery modified data or discarded its recovery marker.");
 
         NSString *partialRollbackIdentifier = @"6102874A-C0DC-4F89-825A-6303C797841C";
         NSURL *partialRollbackDirectory = CreateDirectory(root, @"reset-learning-partial-rollback");
         NSURL *partialRollbackDestination = [partialRollbackDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(partialRollbackDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',650);");
-        WriteString(@"new-fingerprint",
-                    [partialRollbackDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
+        ExecuteSql(partialRollbackDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                               "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',650);");
+        WriteString(@"new-fingerprint", [partialRollbackDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
         WriteString(@"partial-old",
                     ResetBackup(partialRollbackDirectory, @"msime.db.sha256", partialRollbackIdentifier));
         WriteString(@"partial-journal",
                     ResetBackup(partialRollbackDirectory, @"msime_user.db", partialRollbackIdentifier));
         WriteResetMarker(partialRollbackDirectory, partialRollbackIdentifier, @"rolling-back",
-                         @[@"msime.db", @"msime.db.sha256", @"msime_user.db"]);
+                         @[ @"msime.db", @"msime.db.sha256", @"msime_user.db" ]);
         error = nil;
         Require(PrepareMetasequoiaDictionary(resetSource, partialRollbackDirectory, @"partial-old", &error),
                 error.localizedDescription.UTF8String);
         Require(ReadWeight(partialRollbackDestination, "拟好") == 650 &&
                     ReadString([partialRollbackDirectory URLByAppendingPathComponent:@"msime_user.db"]) ==
                         "partial-journal" &&
-                    ![fileManager fileExistsAtPath:
-                                      [partialRollbackDirectory URLByAppendingPathComponent:
-                                                                    @".metasequoia-learning-reset.plist"].path],
+                    ![fileManager fileExistsAtPath:[partialRollbackDirectory
+                                                       URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"]
+                                                       .path],
                 "A partially completed rollback could not resume idempotently.");
 
         NSString *committedIdentifier = @"E2E812BF-E105-4FC4-A15D-340C2A49B09B";
         NSURL *committedDirectory = CreateDirectory(root, @"reset-learning-committed-recovery");
         NSURL *committedDestination = [committedDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(committedDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',100);");
+        ExecuteSql(committedDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                         "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',100);");
         ExecuteSql(ResetBackup(committedDirectory, @"msime.db", committedIdentifier),
                    "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
                    "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',666);");
@@ -468,57 +451,63 @@ int main()
         WriteString(@"committed-old", ResetBackup(committedDirectory, @"msime.db.sha256", committedIdentifier));
         WriteString(@"old-journal", ResetBackup(committedDirectory, @"msime_user.db", committedIdentifier));
         WriteResetMarker(committedDirectory, committedIdentifier, @"committed",
-                         @[@"msime.db", @"msime.db.sha256", @"msime_user.db"]);
+                         @[ @"msime.db", @"msime.db.sha256", @"msime_user.db" ]);
         error = nil;
         Require(PrepareMetasequoiaDictionary(resetSource, committedDirectory, @"committed-new", &error),
                 error.localizedDescription.UTF8String);
-        Require(ReadWeight(committedDestination, "拟好") == 100 &&
-                    ![fileManager fileExistsAtPath:[committedDirectory URLByAppendingPathComponent:@"msime_user.db"].path],
-                "Startup recovery did not finish cleanup for a committed reset.");
-        Require(![fileManager fileExistsAtPath:
-                                  [committedDirectory URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"].path] &&
-                    ![fileManager fileExistsAtPath:ResetBackup(committedDirectory, @"msime.db", committedIdentifier).path],
-                "Committed reset recovery left transaction artifacts behind.");
+        Require(
+            ReadWeight(committedDestination, "拟好") == 100 &&
+                ![fileManager fileExistsAtPath:[committedDirectory URLByAppendingPathComponent:@"msime_user.db"].path],
+            "Startup recovery did not finish cleanup for a committed reset.");
+        Require(
+            ![fileManager
+                fileExistsAtPath:[committedDirectory URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"]
+                                     .path] &&
+                ![fileManager fileExistsAtPath:ResetBackup(committedDirectory, @"msime.db", committedIdentifier).path],
+            "Committed reset recovery left transaction artifacts behind.");
 
         NSString *retryIdentifier = @"80557816-5344-46AA-A085-01CBB6382E20";
         NSURL *retryDirectory = CreateDirectory(root, @"reset-learning-cleanup-retry");
         NSURL *retryDestination = [retryDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(retryDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',700);");
+        ExecuteSql(retryDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                     "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',700);");
         WriteString(@"retry-current", [retryDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
         NSURL *retryBackup = ResetBackup(retryDirectory, @"msime_user.db", retryIdentifier);
         WriteString(@"deferred-cleanup", retryBackup);
-        Require([fileManager setAttributes:@{NSFileImmutable: @YES}
-                                    ofItemAtPath:retryBackup.path
-                                           error:&error],
+        Require([fileManager setAttributes:@{
+                    NSFileImmutable : @YES
+                }
+                              ofItemAtPath:retryBackup.path
+                                     error:&error],
                 error.localizedDescription.UTF8String);
-        WriteResetMarker(retryDirectory, retryIdentifier, @"committed", @[@"msime_user.db"]);
+        WriteResetMarker(retryDirectory, retryIdentifier, @"committed", @[ @"msime_user.db" ]);
         error = nil;
         Require(!PrepareMetasequoiaDictionary(resetSource, retryDirectory, @"retry-current", &error),
                 "Committed reset cleanup unexpectedly removed an immutable backup.");
         Require(error != nil && [fileManager fileExistsAtPath:retryBackup.path] &&
-                    [fileManager fileExistsAtPath:
-                                     [retryDirectory URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"].path],
+                    [fileManager fileExistsAtPath:[retryDirectory
+                                                      URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"]
+                                                      .path],
                 "Failed committed cleanup did not retain enough state to retry.");
-        Require([fileManager setAttributes:@{NSFileImmutable: @NO}
-                                    ofItemAtPath:retryBackup.path
-                                           error:&error],
+        Require([fileManager setAttributes:@{
+                    NSFileImmutable : @NO
+                }
+                              ofItemAtPath:retryBackup.path
+                                     error:&error],
                 error.localizedDescription.UTF8String);
         error = nil;
         Require(PrepareMetasequoiaDictionary(resetSource, retryDirectory, @"retry-current", &error),
                 error.localizedDescription.UTF8String);
-        Require(ReadWeight(retryDestination, "拟好") == 700 &&
-                    ![fileManager fileExistsAtPath:retryBackup.path] &&
-                    ![fileManager fileExistsAtPath:
-                                      [retryDirectory URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"].path],
+        Require(ReadWeight(retryDestination, "拟好") == 700 && ![fileManager fileExistsAtPath:retryBackup.path] &&
+                    ![fileManager fileExistsAtPath:[retryDirectory
+                                                       URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"]
+                                                       .path],
                 "Startup recovery did not retry deferred committed cleanup.");
 
         NSURL *orphanDirectory = CreateDirectory(root, @"reset-learning-orphan-cleanup");
         NSURL *orphanDestination = [orphanDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(orphanDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',777);");
+        ExecuteSql(orphanDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                      "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',777);");
         WriteString(@"orphan-current", [orphanDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
         NSURL *orphanTemporary =
             [orphanDirectory URLByAppendingPathComponent:@".msime.db.resetting.65DB8CE4-0550-4D9B-BB94-AE347215465A"];
@@ -526,35 +515,29 @@ int main()
         error = nil;
         Require(PrepareMetasequoiaDictionary(resetSource, orphanDirectory, @"orphan-current", &error),
                 error.localizedDescription.UTF8String);
-        Require(ReadWeight(orphanDestination, "拟好") == 777 &&
-                    ![fileManager fileExistsAtPath:orphanTemporary.path],
+        Require(ReadWeight(orphanDestination, "拟好") == 777 && ![fileManager fileExistsAtPath:orphanTemporary.path],
                 "Startup recovery did not remove an orphaned pre-transaction temporary file.");
 
         NSURL *invalidMarkerDirectory = CreateDirectory(root, @"reset-learning-invalid-marker");
         NSURL *invalidMarkerDestination = [invalidMarkerDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(invalidMarkerDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',888);");
-        WriteString(@"invalid-marker-current",
-                    [invalidMarkerDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
+        ExecuteSql(invalidMarkerDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                             "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',888);");
+        WriteString(@"invalid-marker-current", [invalidMarkerDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
         WriteString(@"not-a-property-list",
                     [invalidMarkerDirectory URLByAppendingPathComponent:@".metasequoia-learning-reset.plist"]);
         error = nil;
-        Require(!PrepareMetasequoiaDictionary(resetSource, invalidMarkerDirectory,
-                                              @"invalid-marker-current", &error),
+        Require(!PrepareMetasequoiaDictionary(resetSource, invalidMarkerDirectory, @"invalid-marker-current", &error),
                 "A corrupt reset marker was ignored during startup recovery.");
         Require(error != nil && ReadWeight(invalidMarkerDestination, "拟好") == 888,
                 "A corrupt reset marker changed the working dictionary.");
 
         NSURL *resetFailureDirectory = CreateDirectory(root, @"reset-learning-failure");
         NSURL *resetFailureDestination = [resetFailureDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(resetFailureDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',321);");
+        ExecuteSql(resetFailureDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                            "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',321);");
         NSURL *resetFailureJournal = [resetFailureDirectory URLByAppendingPathComponent:@"msime_user.db"];
         WriteString(@"keep-journal", resetFailureJournal);
-        NSURL *resetFailureFingerprint =
-            [resetFailureDirectory URLByAppendingPathComponent:@"msime.db.sha256"];
+        NSURL *resetFailureFingerprint = [resetFailureDirectory URLByAppendingPathComponent:@"msime.db.sha256"];
         WriteString(@"keep-fingerprint", resetFailureFingerprint);
         NSURL *invalidResetSource = [root URLByAppendingPathComponent:@"invalid-reset-source.db"];
         WriteString(@"not-a-dictionary", invalidResetSource);
@@ -569,9 +552,9 @@ int main()
                     ReadString(resetFailureFingerprint) == "keep-fingerprint",
                 "A failed learned-data reset removed persistent learning metadata.");
         error = nil;
-        Require(!ResetMetasequoiaLearnedData(
-                    resetSource, resetFailureDirectory,
-                    @"0000000000000000000000000000000000000000000000000000000000000000", &error),
+        Require(!ResetMetasequoiaLearnedData(resetSource, resetFailureDirectory,
+                                             @"0000000000000000000000000000000000000000000000000000000000000000",
+                                             &error),
                 "A fingerprint-mismatched bundled dictionary unexpectedly reset learned data.");
         Require(error != nil && ReadWeight(resetFailureDestination, "拟好") == 321 &&
                     ReadString(resetFailureJournal) == "keep-journal" &&
@@ -580,23 +563,26 @@ int main()
 
         NSURL *rollbackDirectory = CreateDirectory(root, @"reset-learning-rollback");
         NSURL *rollbackDestination = [rollbackDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(rollbackDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',444);");
+        ExecuteSql(rollbackDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                        "INSERT INTO tbl_2_n VALUES('ni''hao','nh','拟好',444);");
         NSURL *rollbackFingerprint = [rollbackDirectory URLByAppendingPathComponent:@"msime.db.sha256"];
         WriteString(@"rollback-fingerprint", rollbackFingerprint);
         NSURL *immutableJournal = [rollbackDirectory URLByAppendingPathComponent:@"msime_user.db"];
         WriteString(@"immutable-journal", immutableJournal);
-        Require([fileManager setAttributes:@{NSFileImmutable: @YES}
-                                    ofItemAtPath:immutableJournal.path
-                                           error:&error],
+        Require([fileManager setAttributes:@{
+                    NSFileImmutable : @YES
+                }
+                              ofItemAtPath:immutableJournal.path
+                                     error:&error],
                 error.localizedDescription.UTF8String);
         error = nil;
         Require(!ResetMetasequoiaLearnedData(resetSource, rollbackDirectory, resetFingerprint, &error),
                 "A learned-data reset unexpectedly ignored an immutable journal.");
-        Require([fileManager setAttributes:@{NSFileImmutable: @NO}
-                                    ofItemAtPath:immutableJournal.path
-                                           error:&error],
+        Require([fileManager setAttributes:@{
+                    NSFileImmutable : @NO
+                }
+                              ofItemAtPath:immutableJournal.path
+                                     error:&error],
                 error.localizedDescription.UTF8String);
         Require(ReadWeight(rollbackDestination, "拟好") == 444 &&
                     ReadString(rollbackFingerprint) == "rollback-fingerprint" &&
@@ -618,23 +604,19 @@ int main()
 
         NSURL *corruptSourceDirectory = CreateDirectory(root, @"corrupt-source");
         NSURL *corruptSource = [root URLByAppendingPathComponent:@"corrupt-source.db"];
-        NSURL *preservedDestination =
-            [corruptSourceDirectory URLByAppendingPathComponent:@"msime.db"];
+        NSURL *preservedDestination = [corruptSourceDirectory URLByAppendingPathComponent:@"msime.db"];
         WriteString(@"not a SQLite dictionary", corruptSource);
-        ExecuteSql(preservedDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',321);");
-        WriteString(@"old-fingerprint",
-                    [corruptSourceDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
+        ExecuteSql(preservedDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                         "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',321);");
+        WriteString(@"old-fingerprint", [corruptSourceDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
         error = nil;
-        Require(!InstallMetasequoiaDictionary(corruptSource, corruptSourceDirectory,
-                                              SHA256Fingerprint(corruptSource), &error),
+        Require(!InstallMetasequoiaDictionary(corruptSource, corruptSourceDirectory, SHA256Fingerprint(corruptSource),
+                                              &error),
                 "A nonempty corrupt bundled dictionary unexpectedly replaced the working dictionary.");
         Require(ReadWeight(preservedDestination, "你好") == 321,
                 "A corrupt bundled dictionary damaged the working dictionary.");
         error = nil;
-        Require(PrepareMetasequoiaDictionary(corruptSource, corruptSourceDirectory,
-                                             @"new-fingerprint", &error),
+        Require(PrepareMetasequoiaDictionary(corruptSource, corruptSourceDirectory, @"new-fingerprint", &error),
                 "A valid working dictionary was not used after bundled dictionary validation failed.");
         Require(error == nil, "A successful corrupt-source fallback leaked the validation error.");
         Require(ReadWeight(preservedDestination, "你好") == 321,
@@ -642,20 +624,17 @@ int main()
 
         NSURL *fingerprintMismatchDirectory = CreateDirectory(root, @"fingerprint-mismatch");
         NSURL *fingerprintMismatchSource = [root URLByAppendingPathComponent:@"fingerprint-mismatch-source.db"];
-        NSURL *fingerprintMismatchDestination =
-            [fingerprintMismatchDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(fingerprintMismatchSource,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','替换内容',100);");
+        NSURL *fingerprintMismatchDestination = [fingerprintMismatchDirectory URLByAppendingPathComponent:@"msime.db"];
+        ExecuteSql(fingerprintMismatchSource, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                              "INSERT INTO tbl_2_n VALUES('ni''hao','nh','替换内容',100);");
         ExecuteSql(fingerprintMismatchDestination,
                    "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
                    "INSERT INTO tbl_2_n VALUES('ni''hao','nh','保留内容',456);");
-        WriteString(@"old-fingerprint",
-                    [fingerprintMismatchDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
+        WriteString(@"old-fingerprint", [fingerprintMismatchDirectory URLByAppendingPathComponent:@"msime.db.sha256"]);
         error = nil;
-        Require(!InstallMetasequoiaDictionary(
-                    fingerprintMismatchSource, fingerprintMismatchDirectory,
-                    @"0000000000000000000000000000000000000000000000000000000000000000", &error),
+        Require(!InstallMetasequoiaDictionary(fingerprintMismatchSource, fingerprintMismatchDirectory,
+                                              @"0000000000000000000000000000000000000000000000000000000000000000",
+                                              &error),
                 "A bundled dictionary with mismatched content fingerprint unexpectedly installed.");
         Require(ReadWeight(fingerprintMismatchDestination, "保留内容") == 456,
                 "A fingerprint-mismatched bundled dictionary replaced the working dictionary.");
@@ -663,28 +642,26 @@ int main()
         NSURL *replayFailureDirectory = CreateDirectory(root, @"replay-failure");
         NSURL *replayFailureSource = [root URLByAppendingPathComponent:@"replay-failure-source.db"];
         NSURL *replayFailureDestination = [replayFailureDirectory URLByAppendingPathComponent:@"msime.db"];
-        ExecuteSql(replayFailureSource,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);");
-        ExecuteSql(replayFailureDestination,
-                   "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
-                   "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',321);");
+        ExecuteSql(replayFailureSource, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                        "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',200);");
+        ExecuteSql(replayFailureDestination, "CREATE TABLE tbl_2_n(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+                                             "INSERT INTO tbl_2_n VALUES('ni''hao','nh','你好',321);");
         const std::string invalidUserDatabase =
             [replayFailureDirectory URLByAppendingPathComponent:@"msime_user.db"].fileSystemRepresentation;
-        Require(user_dictionary::record_upsert(invalidUserDatabase, user_dictionary::DictionaryKind::Pinyin,
-                                               "wo'ai", "我爱", 999),
+        Require(user_dictionary::record_upsert(invalidUserDatabase, user_dictionary::DictionaryKind::Pinyin, "wo'ai",
+                                               "我爱", 999),
                 "Failed to create the invalid replay fixture.");
         error = nil;
         NSString *replayFailureFingerprint = SHA256Fingerprint(replayFailureSource);
-        Require(!InstallMetasequoiaDictionary(replayFailureSource, replayFailureDirectory,
-                                              replayFailureFingerprint, &error),
+        Require(!InstallMetasequoiaDictionary(replayFailureSource, replayFailureDirectory, replayFailureFingerprint,
+                                              &error),
                 "An invalid user dictionary replay unexpectedly succeeded.");
         Require(ReadWeight(replayFailureDestination, "你好") == 321,
                 "A failed journal replay replaced the working dictionary.");
         error = nil;
-        Require(PrepareMetasequoiaDictionary(replayFailureSource, replayFailureDirectory,
-                                             replayFailureFingerprint, &error),
-                "A valid existing dictionary was not used after an update failure.");
+        Require(
+            PrepareMetasequoiaDictionary(replayFailureSource, replayFailureDirectory, replayFailureFingerprint, &error),
+            "A valid existing dictionary was not used after an update failure.");
         Require(error == nil, "A successful dictionary fallback leaked the update error.");
         Require(ReadWeight(replayFailureDestination, "你好") == 321,
                 "Dictionary fallback did not preserve the existing working database.");

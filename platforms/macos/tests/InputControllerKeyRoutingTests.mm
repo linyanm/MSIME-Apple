@@ -67,22 +67,22 @@ void require(bool condition, const char *message)
 
 int main()
 {
-    using metasequoia::mac::ControllerKeyAction;
+    using metasequoia::mac::CandidateDisplayText;
     using metasequoia::mac::CandidatePageEnd;
+    using metasequoia::mac::CandidatePageShortcut;
+    using metasequoia::mac::CandidatePageSizeForOptionIndex;
+    using metasequoia::mac::CandidatePageSizeOptionIndex;
     using metasequoia::mac::CandidatePageStart;
     using metasequoia::mac::CandidatePanelStyle;
     using metasequoia::mac::CandidatePanelTypeForStyle;
-    using metasequoia::mac::CandidatePageSizeForOptionIndex;
-    using metasequoia::mac::CandidatePageSizeOptionIndex;
-    using metasequoia::mac::CandidatePageShortcut;
     using metasequoia::mac::CandidateSelectionKeys;
-    using metasequoia::mac::CandidateDisplayText;
     using metasequoia::mac::ClassifyControllerKey;
+    using metasequoia::mac::ControllerKeyAction;
+    using metasequoia::mac::EngineSchemeForStoredPreference;
+    using metasequoia::mac::IsInputModeToggle;
     using metasequoia::mac::IsPrimaryCandidateDirection;
     using metasequoia::mac::NormalizeCandidatePageSize;
     using metasequoia::mac::NormalizeCandidatePanelStyle;
-    using metasequoia::mac::IsInputModeToggle;
-    using metasequoia::mac::EngineSchemeForStoredPreference;
     using metasequoia::mac::NormalizeStoredInputScheme;
 
     require(NormalizeStoredInputScheme(0) == 0 && NormalizeStoredInputScheme(1) == 1 &&
@@ -106,14 +106,16 @@ int main()
     const auto lantian = HelpcodeUtils::load_helpcode_keymap(helpcodeDataDirectory, "lantian");
     for (int schema = 0; schema < 5; ++schema)
     {
-        const auto table = HelpcodeUtils::load_helpcode_keymap(
-            helpcodeDataDirectory, metasequoia::mac::HelpcodeSchemaIdentifier(schema));
-        require(CandidateDisplayText(WordItem{"ni", "你", 1}, SchemeType::Quanpin, true, table.get()) == expected[schema],
+        const auto table = HelpcodeUtils::load_helpcode_keymap(helpcodeDataDirectory,
+                                                               metasequoia::mac::HelpcodeSchemaIdentifier(schema));
+        require(CandidateDisplayText(WordItem{"ni", "你", 1}, SchemeType::Quanpin, true, table.get()) ==
+                    expected[schema],
                 "A configured helpcode scheme did not select its packaged engine table.");
         require(CandidateDisplayText(WordItem{"ni", "你", 1}, SchemeType::Quanpin, true, lantian.get()) == "你(rX)",
                 "Loading another display keymap changed an existing one.");
     }
-    require(CandidateDisplayText(WordItem{"nimen", "你们", 1}, SchemeType::Shuangpin, true, lantian.get()) == "你们(rR)",
+    require(CandidateDisplayText(WordItem{"nimen", "你们", 1}, SchemeType::Shuangpin, true, lantian.get()) ==
+                "你们(rR)",
             "Pinyin candidate display did not append the configured auxiliary code.");
     // A helpcode annotates a word the user could have typed in pinyin. compute_helpcodes still
     // finds Han characters in a synthesised candidate and appends letters for them, so "2026年9月6日"
@@ -124,14 +126,12 @@ int main()
     require(HelpcodesAnnotateLocalMode(LocalInputMode::None) &&
                 HelpcodesAnnotateLocalMode(LocalInputMode::SuperJianpin),
             "Ordinary and super-jianpin candidates lost their helpcode annotation.");
-    require(!HelpcodesAnnotateLocalMode(LocalInputMode::DateTime) &&
-                !HelpcodesAnnotateLocalMode(LocalInputMode::Unicode) &&
-                !HelpcodesAnnotateLocalMode(LocalInputMode::QuickPhrase) &&
-                !HelpcodesAnnotateLocalMode(LocalInputMode::Emoji) &&
-                !HelpcodesAnnotateLocalMode(LocalInputMode::Kaomoji),
-            "A synthesised local-mode candidate was annotated with a helpcode.");
-    require(CandidateDisplayText(WordItem{"T", "2026年9月6日", 1}, SchemeType::Quanpin, false) ==
-                "2026年9月6日",
+    require(
+        !HelpcodesAnnotateLocalMode(LocalInputMode::DateTime) && !HelpcodesAnnotateLocalMode(LocalInputMode::Unicode) &&
+            !HelpcodesAnnotateLocalMode(LocalInputMode::QuickPhrase) &&
+            !HelpcodesAnnotateLocalMode(LocalInputMode::Emoji) && !HelpcodesAnnotateLocalMode(LocalInputMode::Kaomoji),
+        "A synthesised local-mode candidate was annotated with a helpcode.");
+    require(CandidateDisplayText(WordItem{"T", "2026年9月6日", 1}, SchemeType::Quanpin, false) == "2026年9月6日",
             "A date candidate did not come back unannotated.");
     require(CandidateDisplayText(WordItem{"T", "2026年9月6日", 1}, SchemeType::Quanpin, true, lantian.get()) !=
                 "2026年9月6日",
@@ -151,8 +151,7 @@ int main()
                 CandidateDisplayText(WordItem{"abcd", "你", 1}, SchemeType::Wubi, true) == "你",
             "Candidate display exposed auxiliary codes when the feature or scheme did not allow them.");
 
-    const auto dictionarySuffix =
-        std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    const auto dictionarySuffix = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
     const std::filesystem::path dictionaryDirectory =
         std::filesystem::temp_directory_path() / ("metasequoia-wubi-routing-" + dictionarySuffix);
     std::filesystem::create_directories(dictionaryDirectory);
@@ -171,11 +170,11 @@ int main()
         for (const char character : std::string("abc"))
         {
             const auto result = metasequoia::mac::HandleCharacterWithWubiAutoCommit(enabledSession, character, true);
-            require(result.handled && !result.commit.has_value(),
-                    "Wubi auto-commit fired before the fourth code.");
+            require(result.handled && !result.commit.has_value(), "Wubi auto-commit fired before the fourth code.");
         }
         const auto uniqueResult = metasequoia::mac::HandleCharacterWithWubiAutoCommit(enabledSession, 'd', true);
-        require(uniqueResult.handled && uniqueResult.commit == "唯一候选" && !(!enabledSession.snapshot().preedit.empty()),
+        require(uniqueResult.handled && uniqueResult.commit == "唯一候选" &&
+                    !(!enabledSession.snapshot().preedit.empty()),
                 "The fourth Wubi code did not commit its unique refreshed candidate.");
 
         metasequoia::Session disabledSession(SessionTestOptions(SchemeType::Wubi, true, false));
@@ -200,17 +199,14 @@ int main()
     }
     std::filesystem::remove_all(dictionaryDirectory);
 
-    require(IsInputModeToggle(kVK_Space, NSEventModifierFlagShift),
-            "Shift+Space did not map to input-mode switching.");
-    require(!IsInputModeToggle(kVK_Space, 0) &&
-                !IsInputModeToggle(kVK_ANSI_A, NSEventModifierFlagShift) &&
+    require(IsInputModeToggle(kVK_Space, NSEventModifierFlagShift), "Shift+Space did not map to input-mode switching.");
+    require(!IsInputModeToggle(kVK_Space, 0) && !IsInputModeToggle(kVK_ANSI_A, NSEventModifierFlagShift) &&
                 !IsInputModeToggle(kVK_Space, NSEventModifierFlagShift | NSEventModifierFlagCommand),
             "A non-toggle shortcut unexpectedly mapped to input-mode switching.");
     require(metasequoia::mac::ShouldToggleInputMode(true, kVK_Space, NSEventModifierFlagShift) &&
                 !metasequoia::mac::ShouldToggleInputMode(false, kVK_Space, NSEventModifierFlagShift),
             "The input-mode shortcut preference did not gate Shift+Space.");
-    require(metasequoia::mac::ShouldPrepareInputSession(false) &&
-                !metasequoia::mac::ShouldPrepareInputSession(true),
+    require(metasequoia::mac::ShouldPrepareInputSession(false) && !metasequoia::mac::ShouldPrepareInputSession(true),
             "Direct English mode did not bypass input-session preparation.");
     require(metasequoia::mac::NormalizeHelpcodeSchemaPreference(0) == 0 &&
                 metasequoia::mac::NormalizeHelpcodeSchemaPreference(4) == 4 &&
@@ -310,11 +306,10 @@ int main()
                 ClassifyControllerKey(kVK_ANSI_A, true, CandidatePageShortcut::MinusEqual, '-', false) ==
                     ControllerKeyAction::MoveCandidatePageUp,
             "Candidate paging followed a US physical key instead of the active keyboard layout.");
-    require(metasequoia::mac::IsFullWidthInputToggle(
-                kVK_ANSI_H, NSEventModifierFlagOption | NSEventModifierFlagShift),
+    require(metasequoia::mac::IsFullWidthInputToggle(kVK_ANSI_H, NSEventModifierFlagOption | NSEventModifierFlagShift),
             "Option+Shift+H was not recognized as the full-width toggle.");
-    require(!metasequoia::mac::IsFullWidthInputToggle(
-                 kVK_ANSI_H, NSEventModifierFlagOption | NSEventModifierFlagShift | NSEventModifierFlagCommand),
+    require(!metasequoia::mac::IsFullWidthInputToggle(kVK_ANSI_H, NSEventModifierFlagOption | NSEventModifierFlagShift |
+                                                                      NSEventModifierFlagCommand),
             "A competing Command modifier incorrectly triggered the full-width toggle.");
     require(metasequoia::mac::IsFullWidthConvertibleCharacter('A') &&
                 metasequoia::mac::FullWidthCharacter('A') == 0xFF21 &&
@@ -341,12 +336,16 @@ int main()
         require(ClassifyControllerKey(keyCode, false) == ControllerKeyAction::Character,
                 "A navigation key was swallowed while the candidate panel was hidden.");
     }
-    require([IMKCandidates instancesRespondToSelector:@selector(moveLeft:)], "IMKCandidates does not support moveLeft:.");
-    require([IMKCandidates instancesRespondToSelector:@selector(moveRight:)], "IMKCandidates does not support moveRight:.");
+    require([IMKCandidates instancesRespondToSelector:@selector(moveLeft:)],
+            "IMKCandidates does not support moveLeft:.");
+    require([IMKCandidates instancesRespondToSelector:@selector(moveRight:)],
+            "IMKCandidates does not support moveRight:.");
     require([IMKCandidates instancesRespondToSelector:@selector(moveUp:)], "IMKCandidates does not support moveUp:.");
-    require([IMKCandidates instancesRespondToSelector:@selector(moveDown:)], "IMKCandidates does not support moveDown:.");
+    require([IMKCandidates instancesRespondToSelector:@selector(moveDown:)],
+            "IMKCandidates does not support moveDown:.");
     require([IMKCandidates instancesRespondToSelector:@selector(pageUp:)], "IMKCandidates does not support pageUp:.");
-    require([IMKCandidates instancesRespondToSelector:@selector(pageDown:)], "IMKCandidates does not support pageDown:.");
+    require([IMKCandidates instancesRespondToSelector:@selector(pageDown:)],
+            "IMKCandidates does not support pageDown:.");
     require([IMKCandidates instancesRespondToSelector:@selector(candidateIdentifierAtLineNumber:)],
             "IMKCandidates cannot map visible lines to candidate identifiers.");
     require([IMKCandidates instancesRespondToSelector:@selector(lineNumberForCandidateWithIdentifier:)],

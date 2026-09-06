@@ -6,48 +6,51 @@
 #include <string>
 #include <vector>
 
-namespace metasequoia::apple {
-struct InputSnapshot {
-  bool handled = false;
-  std::optional<std::string> commit;
-  std::string preedit;
-  std::vector<std::string> candidates;
-  // Set when the engine could answer the key but something behind it failed, such as a local input
-  // mode whose table is missing or a word that could not be learned. Input stays usable, so a
-  // frontend reports it rather than treating it as an error.
-  std::optional<std::string> diagnostic;
+namespace metasequoia::apple
+{
+struct InputSnapshot
+{
+    bool handled = false;
+    std::optional<std::string> commit;
+    std::string preedit;
+    std::vector<std::string> candidates;
+    // Set when the engine could answer the key but something behind it failed, such as a local input
+    // mode whose table is missing or a word that could not be learned. Input stays usable, so a
+    // frontend reports it rather than treating it as an error.
+    std::optional<std::string> diagnostic;
 };
 
-class InputSessionAdapter {
-public:
-  InputSessionAdapter();
-  ~InputSessionAdapter();
+class InputSessionAdapter
+{
+  public:
+    InputSessionAdapter();
+    ~InputSessionAdapter();
 
-  InputSessionAdapter(const InputSessionAdapter &) = delete;
-  InputSessionAdapter &operator=(const InputSessionAdapter &) = delete;
+    InputSessionAdapter(const InputSessionAdapter &) = delete;
+    InputSessionAdapter &operator=(const InputSessionAdapter &) = delete;
 
-  InputSnapshot handle_character(char character);
-  // Opens one of the engine's local input modes. The engine keys these off a capital delivered with
-  // its shift_only flag, which no iOS key can produce, so the frontend names the mode instead and
-  // this turns it back into the keystroke the engine expects. A mode that is switched off, or a
-  // letter that names none, leaves the session untouched and reports itself unhandled.
-  InputSnapshot open_local_mode(char trigger);
-  // None while no local mode is open. A frontend needs this to know that its digits are input for a
-  // Unicode code point rather than candidate numbers.
-  bool in_unicode_mode() const;
-  InputSnapshot handle_candidate_key(char character);
-  InputSnapshot handle_punctuation(char character);
-  InputSnapshot handle_backspace();
-  InputSnapshot commit_candidate();
-  InputSnapshot finish_composition();
-  InputSnapshot commit_raw();
-  InputSnapshot cancel();
-  InputSnapshot select_candidate(std::size_t index);
-  InputSnapshot switch_to_shuangpin(bool uses_shuangpin);
-  bool uses_shuangpin() const;
+    InputSnapshot handle_character(char character);
+    // Opens one of the engine's local input modes. The engine keys these off a capital delivered with
+    // its shift_only flag, which no iOS key can produce, so the frontend names the mode instead and
+    // this turns it back into the keystroke the engine expects. A mode that is switched off, or a
+    // letter that names none, leaves the session untouched and reports itself unhandled.
+    InputSnapshot open_local_mode(char trigger);
+    // None while no local mode is open. A frontend needs this to know that its digits are input for a
+    // Unicode code point rather than candidate numbers.
+    bool in_unicode_mode() const;
+    InputSnapshot handle_candidate_key(char character);
+    InputSnapshot handle_punctuation(char character);
+    InputSnapshot handle_backspace();
+    InputSnapshot commit_candidate();
+    InputSnapshot finish_composition();
+    InputSnapshot commit_raw();
+    InputSnapshot cancel();
+    InputSnapshot select_candidate(std::size_t index);
+    InputSnapshot switch_to_shuangpin(bool uses_shuangpin);
+    bool uses_shuangpin() const;
 
-private:
-  class Impl;
-  std::unique_ptr<Impl> impl_;
+  private:
+    class Impl;
+    std::unique_ptr<Impl> impl_;
 };
 } // namespace metasequoia::apple

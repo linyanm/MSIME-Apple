@@ -16,4 +16,4 @@ Audio is held in memory for the request (up to 60 seconds) and is not written to
 
 Metasequoia IME does not sell personal data. Installing or using the software does not create a Metasequoia account. Network-backed features and any future changes to their data flows are described here before shipping.
 
-Security or privacy concerns should be reported privately as described in [SECURITY.md](SECURITY.md).
+Security or privacy concerns should be reported privately as described in [SECURITY.md](https://github.com/metasequoiaime/.github/blob/main/SECURITY.md).

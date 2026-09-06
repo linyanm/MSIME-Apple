@@ -1,5 +1,7 @@
 # 水杉输入法 Apple 平台版
 
+[官网](https://msime.app) · [用户文档](https://msime.app/docs/) · [隐私说明](PRIVACY.md) · [English README](README.en.md)
+
 <!-- badges:start -->
 [![CI](https://img.shields.io/github/actions/workflow/status/metasequoiaime/MSIME-Apple/ci.yml?branch=main&label=CI)](https://github.com/metasequoiaime/MSIME-Apple/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/metasequoiaime/MSIME-Apple/codeql.yml?branch=main&label=CodeQL)](https://github.com/metasequoiaime/MSIME-Apple/actions/workflows/codeql.yml)
@@ -182,7 +184,7 @@ shasum -a 256 -c MetasequoiaIME-vX.Y.Z-macos-universal.zip.sha256
 
 ## 隐私与安全
 
-输入处理与候选学习全部在设备本地完成，数据处理细节见 [PRIVACY.md](PRIVACY.md)。发现疑似安全漏洞请按 [SECURITY.md](SECURITY.md) 的说明私下报告，不要提交公开 issue。
+输入处理与候选学习全部在设备本地完成，数据处理细节见 [PRIVACY.md](PRIVACY.md)。发现疑似安全漏洞请按 [SECURITY.md](https://github.com/metasequoiaime/.github/blob/main/SECURITY.md) 的说明私下报告，不要提交公开 issue。
 
 ### 词库产品边界
 

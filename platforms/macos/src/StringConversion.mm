@@ -9,18 +9,14 @@
 
 NSString *MetasequoiaStringFromUtf8(const std::string &value)
 {
-    NSString *decoded = [[NSString alloc] initWithBytes:value.data()
-                                                 length:value.size()
-                                               encoding:NSUTF8StringEncoding];
+    NSString *decoded = [[NSString alloc] initWithBytes:value.data() length:value.size() encoding:NSUTF8StringEncoding];
     if (decoded != nil)
     {
         return decoded;
     }
 
     const std::string sanitized = utf8::replace_invalid(value);
-    decoded = [[NSString alloc] initWithBytes:sanitized.data()
-                                      length:sanitized.size()
-                                    encoding:NSUTF8StringEncoding];
+    decoded = [[NSString alloc] initWithBytes:sanitized.data() length:sanitized.size() encoding:NSUTF8StringEncoding];
     return decoded != nil ? decoded : @"�";
 }
 
@@ -50,7 +46,9 @@ NSAttributedStringKey const kMetasequoiaCandidateIndexAttribute = @"MetasequoiaC
 NSAttributedString *MetasequoiaIndexedCandidateString(NSString *value, NSUInteger index)
 {
     return [[NSAttributedString alloc] initWithString:value
-                                          attributes:@{kMetasequoiaCandidateIndexAttribute : @(index)}];
+                                           attributes:@{
+                                               kMetasequoiaCandidateIndexAttribute : @(index)
+                                           }];
 }
 
 NSUInteger MetasequoiaCandidateIndex(NSAttributedString *candidate)

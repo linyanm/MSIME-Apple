@@ -11,8 +11,7 @@
 
 #include <cstring>
 
-NSNotificationName const MetasequoiaWillResetLearnedDataNotification =
-    @"MetasequoiaWillResetLearnedDataNotification";
+NSNotificationName const MetasequoiaWillResetLearnedDataNotification = @"MetasequoiaWillResetLearnedDataNotification";
 NSNotificationName const MetasequoiaStandalonePreferencesDidCloseNotification =
     @"MetasequoiaStandalonePreferencesDidCloseNotification";
 NSNotificationName const MetasequoiaFloatingToolbarDidChangeNotification =
@@ -34,64 +33,66 @@ NSToolbarItemIdentifier const kKeyboardToolbarItemIdentifier = @"MetasequoiaPref
 NSToolbarItemIdentifier const kAppearanceToolbarItemIdentifier = @"MetasequoiaPreferencesAppearance";
 NSToolbarItemIdentifier const kDataToolbarItemIdentifier = @"MetasequoiaPreferencesData";
 NSToolbarItemIdentifier const kUpdatesToolbarItemIdentifier = @"MetasequoiaPreferencesUpdates";
-NSString * const kSchemePreferenceKey = @"MetasequoiaImeInputScheme";
-NSString * const kAutocorrectPreferenceKey = @"MetasequoiaImeQuanpinAutocorrect";
-NSString * const kHelpcodePreferenceKey = @"MetasequoiaImeHelpcodeEnabled";
-NSString * const kQuanpinHelpcodeSchemaPreferenceKey = @"MetasequoiaImeQuanpinHelpcodeSchema";
-NSString * const kShuangpinHelpcodeSchemaPreferenceKey = @"MetasequoiaImeShuangpinHelpcodeSchema";
-NSString * const kChinesePunctuationPreferenceKey = @"MetasequoiaImeChinesePunctuation";
-NSString * const kCandidatePanelStylePreferenceKey = @"MetasequoiaImeCandidatePanelStyle";
-NSString * const kCandidatePageSizePreferenceKey = @"MetasequoiaImeCandidatePageSize";
-NSString * const kCandidateFontSizePreferenceKey = @"MetasequoiaImeCandidateFontSize";
-NSString * const kCandidatePageShortcutPreferenceKey = @"MetasequoiaImeCandidatePageShortcut";
-NSString * const kCandidateLearningPreferenceKey = @"MetasequoiaImeCandidateLearning";
-NSString * const kEnglishInputModePreferenceKey = @"MetasequoiaImeEnglishInputMode";
-NSString * const kInputModeShortcutPreferenceKey = @"MetasequoiaImeInputModeShortcutEnabled";
-NSString * const kFullWidthInputPreferenceKey = @"MetasequoiaImeFullWidthInputEnabled";
-NSString * const kFloatingToolbarPreferenceKey = @"MetasequoiaImeFloatingToolbarEnabled";
-NSString * const kTraditionalChineseOutputPreferenceKey = @"MetasequoiaImeTraditionalChineseOutput";
-NSString * const kWubiAutoCommitUniquePreferenceKey = @"MetasequoiaImeWubiAutoCommitUnique";
-NSString * const kShuangpinKeymapPreferenceKey = @"MetasequoiaImeShuangpinKeymapEnabled";
-NSString * const kLocalInputModesPreferenceKey = @"MetasequoiaImeLocalInputModesEnabled";
+NSString *const kSchemePreferenceKey = @"MetasequoiaImeInputScheme";
+NSString *const kAutocorrectPreferenceKey = @"MetasequoiaImeQuanpinAutocorrect";
+NSString *const kHelpcodePreferenceKey = @"MetasequoiaImeHelpcodeEnabled";
+NSString *const kQuanpinHelpcodeSchemaPreferenceKey = @"MetasequoiaImeQuanpinHelpcodeSchema";
+NSString *const kShuangpinHelpcodeSchemaPreferenceKey = @"MetasequoiaImeShuangpinHelpcodeSchema";
+NSString *const kChinesePunctuationPreferenceKey = @"MetasequoiaImeChinesePunctuation";
+NSString *const kCandidatePanelStylePreferenceKey = @"MetasequoiaImeCandidatePanelStyle";
+NSString *const kCandidatePageSizePreferenceKey = @"MetasequoiaImeCandidatePageSize";
+NSString *const kCandidateFontSizePreferenceKey = @"MetasequoiaImeCandidateFontSize";
+NSString *const kCandidatePageShortcutPreferenceKey = @"MetasequoiaImeCandidatePageShortcut";
+NSString *const kCandidateLearningPreferenceKey = @"MetasequoiaImeCandidateLearning";
+NSString *const kEnglishInputModePreferenceKey = @"MetasequoiaImeEnglishInputMode";
+NSString *const kInputModeShortcutPreferenceKey = @"MetasequoiaImeInputModeShortcutEnabled";
+NSString *const kFullWidthInputPreferenceKey = @"MetasequoiaImeFullWidthInputEnabled";
+NSString *const kFloatingToolbarPreferenceKey = @"MetasequoiaImeFloatingToolbarEnabled";
+NSString *const kTraditionalChineseOutputPreferenceKey = @"MetasequoiaImeTraditionalChineseOutput";
+NSString *const kWubiAutoCommitUniquePreferenceKey = @"MetasequoiaImeWubiAutoCommitUnique";
+NSString *const kShuangpinKeymapPreferenceKey = @"MetasequoiaImeShuangpinKeymapEnabled";
+NSString *const kLocalInputModesPreferenceKey = @"MetasequoiaImeLocalInputModesEnabled";
 
 NSColor *MetasequoiaBrandColor()
 {
-    return [NSColor colorWithName:@"MetasequoiaBrandColor" dynamicProvider:^NSColor *(NSAppearance *appearance) {
-        NSString *match = [appearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];
-        if ([match isEqualToString:NSAppearanceNameDarkAqua])
-        {
-            return [NSColor colorWithSRGBRed:0.08 green:0.38 blue:0.35 alpha:1.0];
-        }
-        return [NSColor colorWithSRGBRed:0.07 green:0.49 blue:0.45 alpha:1.0];
-    }];
+    return [NSColor colorWithName:@"MetasequoiaBrandColor"
+                  dynamicProvider:^NSColor *(NSAppearance *appearance) {
+                    NSString *match = [appearance
+                        bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]];
+                    if ([match isEqualToString:NSAppearanceNameDarkAqua])
+                    {
+                        return [NSColor colorWithSRGBRed:0.08 green:0.38 blue:0.35 alpha:1.0];
+                    }
+                    return [NSColor colorWithSRGBRed:0.07 green:0.49 blue:0.45 alpha:1.0];
+                  }];
 }
 
 NSColor *CandidatePreviewPanelColor()
 {
     return [NSColor colorWithName:@"MetasequoiaCandidatePreviewPanelColor"
                   dynamicProvider:^NSColor *(NSAppearance *appearance) {
-        NSString *match =
-            [appearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]];
-        if ([match isEqualToString:NSAppearanceNameDarkAqua])
-        {
-            return [NSColor colorWithSRGBRed:0.16 green:0.18 blue:0.18 alpha:1.0];
-        }
-        return [NSColor whiteColor];
-    }];
+                    NSString *match = [appearance
+                        bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]];
+                    if ([match isEqualToString:NSAppearanceNameDarkAqua])
+                    {
+                        return [NSColor colorWithSRGBRed:0.16 green:0.18 blue:0.18 alpha:1.0];
+                    }
+                    return [NSColor whiteColor];
+                  }];
 }
 
 NSColor *CandidatePreviewAccentColor()
 {
     return [NSColor colorWithName:@"MetasequoiaCandidatePreviewAccentColor"
                   dynamicProvider:^NSColor *(NSAppearance *appearance) {
-        NSString *match =
-            [appearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]];
-        if ([match isEqualToString:NSAppearanceNameDarkAqua])
-        {
-            return [NSColor colorWithSRGBRed:0.35 green:0.85 blue:0.78 alpha:1.0];
-        }
-        return MetasequoiaBrandColor();
-    }];
+                    NSString *match = [appearance
+                        bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]];
+                    if ([match isEqualToString:NSAppearanceNameDarkAqua])
+                    {
+                        return [NSColor colorWithSRGBRed:0.35 green:0.85 blue:0.78 alpha:1.0];
+                    }
+                    return MetasequoiaBrandColor();
+                  }];
 }
 
 void ConfigureCard(NSBox *card)
@@ -292,9 +293,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _pageSize = pageSize;
     _candidateFontSize = fontSize;
     NSString *layout = panelStyle == 1 ? @"纵向列表" : @"横向排列";
-    self.accessibilityValue = [NSString stringWithFormat:@"%@，%ld 个候选，%ld pt", layout,
-                                                         static_cast<long>(pageSize),
-                                                         static_cast<long>(fontSize)];
+    self.accessibilityValue = [NSString
+        stringWithFormat:@"%@，%ld 个候选，%ld pt", layout, static_cast<long>(pageSize), static_cast<long>(fontSize)];
     self.accessibilityHelp = @"预览会随候选排列、每页候选和候选字号实时变化";
     self.needsDisplay = YES;
 }
@@ -340,9 +340,10 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         NSForegroundColorAttributeName : [self previewAccentColor],
     };
     [@"shuǐ shān shū rù fǎ" drawAtPoint:NSMakePoint(NSMinX(panelRect) + 12.0, NSMinY(panelRect) + 9.0)
-                           withAttributes:preeditAttributes];
+                         withAttributes:preeditAttributes];
 
-    NSArray<NSString *> *samples = @[ @"水杉", @"输入法", @"水仙", @"水山", @"水衫", @"水善", @"谁删", @"税闪", @"水扇" ];
+    NSArray<NSString *> *samples =
+        @[ @"水杉", @"输入法", @"水仙", @"水山", @"水衫", @"水善", @"谁删", @"税闪", @"水扇" ];
     NSDictionary<NSAttributedStringKey, id> *numberAttributes = @{
         NSFontAttributeName : [NSFont monospacedDigitSystemFontOfSize:10.0 weight:NSFontWeightRegular],
         NSForegroundColorAttributeName : [NSColor tertiaryLabelColor],
@@ -360,19 +361,18 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         {
             const CGFloat y = NSMinY(panelRect) + 27.0 + (index * rowSpacing);
             [[NSString stringWithFormat:@"%ld", static_cast<long>(index + 1)]
-                drawAtPoint:NSMakePoint(NSMinX(panelRect) + 12.0, y + 4.0)
-              withAttributes:numberAttributes];
-            [samples[index] drawAtPoint:NSMakePoint(NSMinX(panelRect) + 34.0, y)
-                          withAttributes:candidateAttributes];
+                   drawAtPoint:NSMakePoint(NSMinX(panelRect) + 12.0, y + 4.0)
+                withAttributes:numberAttributes];
+            [samples[index] drawAtPoint:NSMakePoint(NSMinX(panelRect) + 34.0, y) withAttributes:candidateAttributes];
         }
         if (candidateCount > visibleCount)
         {
-            NSString *remaining = [NSString stringWithFormat:@"另有 %ld 个",
-                                                               static_cast<long>(candidateCount - visibleCount)];
+            NSString *remaining =
+                [NSString stringWithFormat:@"另有 %ld 个", static_cast<long>(candidateCount - visibleCount)];
             NSSize remainingSize = [remaining sizeWithAttributes:captionAttributes];
             [remaining drawAtPoint:NSMakePoint(NSMaxX(panelRect) - remainingSize.width - 12.0,
-                                                NSMaxY(panelRect) - remainingSize.height - 8.0)
-                     withAttributes:captionAttributes];
+                                               NSMaxY(panelRect) - remainingSize.height - 8.0)
+                    withAttributes:captionAttributes];
         }
     }
     else
@@ -452,15 +452,14 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     static MetasequoiaPreferencesWindowController *controller = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        controller = [[self alloc] init];
+      controller = [[self alloc] init];
     });
     return controller;
 }
 
 + (void)prepareInputSessionsForLearnedDataReset
 {
-    [[NSNotificationCenter defaultCenter] postNotificationName:MetasequoiaWillResetLearnedDataNotification
-                                                        object:nil];
+    [[NSNotificationCenter defaultCenter] postNotificationName:MetasequoiaWillResetLearnedDataNotification object:nil];
 }
 
 + (NSInteger)storedScheme
@@ -505,35 +504,29 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
 + (NSInteger)storedQuanpinHelpcodeSchema
 {
-    const NSInteger schema = [[NSUserDefaults standardUserDefaults]
-        integerForKey:kQuanpinHelpcodeSchemaPreferenceKey];
+    const NSInteger schema = [[NSUserDefaults standardUserDefaults] integerForKey:kQuanpinHelpcodeSchemaPreferenceKey];
     return metasequoia::mac::NormalizeHelpcodeSchemaPreference(static_cast<int>(schema));
 }
 
 + (void)setQuanpinHelpcodeSchema:(NSInteger)schema
 {
-    const NSInteger normalizedSchema =
-        metasequoia::mac::NormalizeHelpcodeSchemaPreference(static_cast<int>(schema));
-    [[NSUserDefaults standardUserDefaults] setInteger:normalizedSchema
-                                               forKey:kQuanpinHelpcodeSchemaPreferenceKey];
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:@"MetasequoiaQuanpinHelpcodeSchemaDidChangeNotification"
-                      object:@(normalizedSchema)];
+    const NSInteger normalizedSchema = metasequoia::mac::NormalizeHelpcodeSchemaPreference(static_cast<int>(schema));
+    [[NSUserDefaults standardUserDefaults] setInteger:normalizedSchema forKey:kQuanpinHelpcodeSchemaPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaQuanpinHelpcodeSchemaDidChangeNotification"
+                                                        object:@(normalizedSchema)];
 }
 
 + (NSInteger)storedShuangpinHelpcodeSchema
 {
-    const NSInteger schema = [[NSUserDefaults standardUserDefaults]
-        integerForKey:kShuangpinHelpcodeSchemaPreferenceKey];
+    const NSInteger schema =
+        [[NSUserDefaults standardUserDefaults] integerForKey:kShuangpinHelpcodeSchemaPreferenceKey];
     return metasequoia::mac::NormalizeHelpcodeSchemaPreference(static_cast<int>(schema));
 }
 
 + (void)setShuangpinHelpcodeSchema:(NSInteger)schema
 {
-    const NSInteger normalizedSchema =
-        metasequoia::mac::NormalizeHelpcodeSchemaPreference(static_cast<int>(schema));
-    [[NSUserDefaults standardUserDefaults] setInteger:normalizedSchema
-                                               forKey:kShuangpinHelpcodeSchemaPreferenceKey];
+    const NSInteger normalizedSchema = metasequoia::mac::NormalizeHelpcodeSchemaPreference(static_cast<int>(schema));
+    [[NSUserDefaults standardUserDefaults] setInteger:normalizedSchema forKey:kShuangpinHelpcodeSchemaPreferenceKey];
     [[NSNotificationCenter defaultCenter]
         postNotificationName:@"MetasequoiaShuangpinHelpcodeSchemaDidChangeNotification"
                       object:@(normalizedSchema)];
@@ -560,8 +553,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
 + (void)setCandidatePanelStyle:(NSInteger)style
 {
-    const NSInteger normalizedStyle =
-        static_cast<NSInteger>(metasequoia::mac::NormalizeCandidatePanelStyle(style));
+    const NSInteger normalizedStyle = static_cast<NSInteger>(metasequoia::mac::NormalizeCandidatePanelStyle(style));
     [[NSUserDefaults standardUserDefaults] setInteger:normalizedStyle forKey:kCandidatePanelStylePreferenceKey];
     [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaCandidatePanelStyleDidChangeNotification"
                                                         object:@(normalizedStyle)];
@@ -575,8 +567,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
 + (void)setCandidatePageSize:(NSInteger)pageSize
 {
-    const NSInteger normalizedPageSize = static_cast<NSInteger>(
-        metasequoia::mac::NormalizeCandidatePageSize(static_cast<size_t>(pageSize)));
+    const NSInteger normalizedPageSize =
+        static_cast<NSInteger>(metasequoia::mac::NormalizeCandidatePageSize(static_cast<size_t>(pageSize)));
     [[NSUserDefaults standardUserDefaults] setInteger:normalizedPageSize forKey:kCandidatePageSizePreferenceKey];
     [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaCandidatePageSizeDidChangeNotification"
                                                         object:@(normalizedPageSize)];
@@ -590,8 +582,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
 + (void)setCandidateFontSize:(NSInteger)fontSize
 {
-    const NSInteger normalizedFontSize = static_cast<NSInteger>(
-        metasequoia::mac::NormalizeCandidateFontSize(static_cast<size_t>(fontSize)));
+    const NSInteger normalizedFontSize =
+        static_cast<NSInteger>(metasequoia::mac::NormalizeCandidateFontSize(static_cast<size_t>(fontSize)));
     [[NSUserDefaults standardUserDefaults] setInteger:normalizedFontSize forKey:kCandidateFontSizePreferenceKey];
     [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaCandidateFontSizeDidChangeNotification"
                                                         object:@(normalizedFontSize)];
@@ -608,9 +600,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     const NSInteger normalizedShortcut =
         static_cast<NSInteger>(metasequoia::mac::NormalizeCandidatePageShortcut(static_cast<int>(shortcut)));
     [[NSUserDefaults standardUserDefaults] setInteger:normalizedShortcut forKey:kCandidatePageShortcutPreferenceKey];
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:@"MetasequoiaCandidatePageShortcutDidChangeNotification"
-                      object:@(normalizedShortcut)];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaCandidatePageShortcutDidChangeNotification"
+                                                        object:@(normalizedShortcut)];
 }
 
 + (BOOL)storedCandidateLearningEnabled
@@ -689,9 +680,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         return;
     }
     [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kTraditionalChineseOutputPreferenceKey];
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:MetasequoiaTraditionalChineseOutputDidChangeNotification
-                      object:@(enabled)];
+    [[NSNotificationCenter defaultCenter] postNotificationName:MetasequoiaTraditionalChineseOutputDidChangeNotification
+                                                        object:@(enabled)];
 }
 
 + (BOOL)storedWubiAutoCommitUniqueEnabled
@@ -714,9 +704,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 + (void)setShuangpinKeymapEnabled:(BOOL)enabled
 {
     [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kShuangpinKeymapPreferenceKey];
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:@"MetasequoiaShuangpinKeymapDidChangeNotification"
-                      object:@(enabled)];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaShuangpinKeymapDidChangeNotification"
+                                                        object:@(enabled)];
 }
 
 // Off unless asked for. Turning it on gives Shift+U, Shift+T, Shift+K and Shift+J to the engine's
@@ -772,12 +761,15 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     }
     window.delegate = self;
     _updateController = updateController;
-    // The floating toolbar menu can hide the bar while this window is open, and this checkbox is the documented way to bring it back, so it must follow the preference instead of waiting for the next refreshControls.
+    // The floating toolbar menu can hide the bar while this window is open, and this checkbox is the documented way to
+    // bring it back, so it must follow the preference instead of waiting for the next refreshControls.
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(floatingToolbarPreferenceDidChange:)
                                                  name:MetasequoiaFloatingToolbarDidChangeNotification
                                                object:nil];
-    // The toolbar menu writes the punctuation and full-width preferences too, and refreshControls only runs on presentation or on an explicit page change, so without these observers the checkboxes would keep showing a stale state and write it back on the next click.
+    // The toolbar menu writes the punctuation and full-width preferences too, and refreshControls only runs on
+    // presentation or on an explicit page change, so without these observers the checkboxes would keep showing a stale
+    // state and write it back on the next click.
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(chinesePunctuationPreferenceDidChange:)
                                                  name:@"MetasequoiaChinesePunctuationDidChangeNotification"
@@ -819,8 +811,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [_wubiSchemeButton addItemWithTitle:@"86 五笔"];
     _wubiSchemeButton.accessibilityLabel = @"五笔方案";
     _shuangpinKeymapButton = [NSButton checkboxWithTitle:@"显示小鹤双拼键位提示"
-                                                   target:self
-                                                   action:@selector(shuangpinKeymapChanged:)];
+                                                  target:self
+                                                  action:@selector(shuangpinKeymapChanged:)];
     _shuangpinKeymapButton.accessibilityLabel = @"显示小鹤双拼键位提示";
     _shuangpinKeymapRow = PreferenceRow(@"双拼初学者", _shuangpinKeymapButton);
     _shuangpinKeymapRow.accessibilityLabel = @"双拼键位提示行";
@@ -828,8 +820,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     for (NSInteger index = 0; index < static_cast<NSInteger>(schemeTitles.count); ++index)
     {
         NSButton *button = [NSButton radioButtonWithTitle:schemeTitles[index]
-                                                  target:self
-                                                  action:@selector(schemeChanged:)];
+                                                   target:self
+                                                   action:@selector(schemeChanged:)];
         button.tag = index;
         button.font = [NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium];
         button.accessibilityLabel = schemeTitles[index];
@@ -844,22 +836,18 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         }
     }
     _schemeButtons = [schemeButtons copy];
-    NSButton *wubiSettingsButton = [NSButton buttonWithTitle:@"设置"
-                                                      target:self
-                                                      action:@selector(showWubiSettings:)];
+    NSButton *wubiSettingsButton = [NSButton buttonWithTitle:@"设置" target:self action:@selector(showWubiSettings:)];
     wubiSettingsButton.bordered = NO;
     wubiSettingsButton.alignment = NSTextAlignmentRight;
-    wubiSettingsButton.image = [NSImage imageWithSystemSymbolName:@"chevron.right"
-                                         accessibilityDescription:nil];
+    wubiSettingsButton.image = [NSImage imageWithSystemSymbolName:@"chevron.right" accessibilityDescription:nil];
     wubiSettingsButton.imagePosition = NSImageTrailing;
     wubiSettingsButton.contentTintColor = [NSColor labelColor];
-    wubiSettingsButton.attributedTitle =
-        [[NSAttributedString alloc] initWithString:wubiSettingsButton.title
-                                        attributes:@{
-                                            NSFontAttributeName :
-                                                [NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium],
-                                            NSForegroundColorAttributeName : [NSColor labelColor],
-                                        }];
+    wubiSettingsButton.attributedTitle = [[NSAttributedString alloc]
+        initWithString:wubiSettingsButton.title
+            attributes:@{
+                NSFontAttributeName : [NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium],
+                NSForegroundColorAttributeName : [NSColor labelColor],
+            }];
     wubiSettingsButton.accessibilityLabel = @"五笔功能设置";
     _wubiSettingsRow = PreferenceRow(@"五笔功能", wubiSettingsButton);
     _wubiSettingsRow.accessibilityLabel = @"五笔功能行";
@@ -876,8 +864,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                     action:@selector(inputModeShortcutChanged:)];
     _inputModeShortcutButton.accessibilityLabel = @"Shift+Space 切换中英文";
     _fullWidthInputButton = [NSButton checkboxWithTitle:@"Option+Shift+H 切换全半角"
-                                                   target:self
-                                                   action:@selector(fullWidthInputChanged:)];
+                                                 target:self
+                                                 action:@selector(fullWidthInputChanged:)];
     _fullWidthInputButton.accessibilityLabel = @"Option+Shift+H 切换全半角";
 
     _candidatePageShortcutButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
@@ -887,42 +875,35 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _candidatePageShortcutButton.accessibilityLabel = @"候选翻页快捷键";
 
     NSBox *schemeCard = CardWithViews(schemeRows, 0.0);
-    NSBox *behaviorCard =
-        CardWithViews(@[ _autocorrectButton, _chinesePunctuationButton, _inputModeShortcutButton,
-                         _fullWidthInputButton ], 9.0);
+    NSBox *behaviorCard = CardWithViews(
+        @[ _autocorrectButton, _chinesePunctuationButton, _inputModeShortcutButton, _fullWidthInputButton ], 9.0);
     NSBox *shortcutCard = CardWithViews(@[ PreferenceRow(@"上翻 / 下翻", _candidatePageShortcutButton) ], 0.0);
     schemeCard.accessibilityLabel = @"输入方式卡片";
     behaviorCard.accessibilityLabel = @"中英文状态切换卡片";
     shortcutCard.accessibilityLabel = @"候选翻页快捷键卡片";
-    NSView *generalPage =
-        PreferencesPage(@"键盘输入", @"选择全拼、双拼或 86 五笔，并调整日常输入行为。",
-                        @[
-                            schemeCard, SectionLabel(@"中英文状态切换"), behaviorCard,
-                            SectionLabel(@"候选翻页快捷键"), shortcutCard
-                        ]);
+    NSView *generalPage = PreferencesPage(
+        @"键盘输入", @"选择全拼、双拼或 86 五笔，并调整日常输入行为。",
+        @[ schemeCard, SectionLabel(@"中英文状态切换"), behaviorCard, SectionLabel(@"候选翻页快捷键"), shortcutCard ]);
     generalPage.accessibilityLabel = @"键盘输入设置页";
 
     NSButton *backToKeyboardButton = [NSButton buttonWithTitle:@"返回键盘输入"
                                                         target:self
                                                         action:@selector(backToKeyboardInput:)];
     backToKeyboardButton.bezelStyle = NSBezelStyleInline;
-    backToKeyboardButton.image = [NSImage imageWithSystemSymbolName:@"chevron.left"
-                                           accessibilityDescription:nil];
+    backToKeyboardButton.image = [NSImage imageWithSystemSymbolName:@"chevron.left" accessibilityDescription:nil];
     backToKeyboardButton.imagePosition = NSImageLeft;
     backToKeyboardButton.alignment = NSTextAlignmentLeft;
-    _wubiAutoCommitButton =
-        [NSButton checkboxWithTitle:@"四码唯一候选自动上屏"
-                             target:self
-                             action:@selector(wubiAutoCommitUniqueChanged:)];
+    _wubiAutoCommitButton = [NSButton checkboxWithTitle:@"四码唯一候选自动上屏"
+                                                 target:self
+                                                 action:@selector(wubiAutoCommitUniqueChanged:)];
     _wubiAutoCommitButton.accessibilityLabel = @"四码唯一候选自动上屏";
     NSTextField *wubiSchemeLabel = [NSTextField labelWithString:@"86 五笔"];
     wubiSchemeLabel.textColor = [NSColor secondaryLabelColor];
     NSBox *wubiOptionsCard =
         CardWithViews(@[ PreferenceRow(@"编码方案", wubiSchemeLabel), _wubiAutoCommitButton ], 8.0);
     wubiOptionsCard.accessibilityLabel = @"五笔选项卡片";
-    NSView *wubiPage =
-        PreferencesPage(@"五笔设置", @"调整 86 五笔的输入与上屏行为。",
-                        @[ backToKeyboardButton, SectionLabel(@"输入行为"), wubiOptionsCard ]);
+    NSView *wubiPage = PreferencesPage(@"五笔设置", @"调整 86 五笔的输入与上屏行为。",
+                                       @[ backToKeyboardButton, SectionLabel(@"输入行为"), wubiOptionsCard ]);
     wubiPage.accessibilityLabel = @"五笔设置页";
 
     _candidatePanelStyleButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
@@ -944,34 +925,34 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _candidateFontSizeButton.accessibilityLabel = @"候选字号";
 
     _candidatePreview = [[MetasequoiaCandidatePreviewView alloc] initWithFrame:NSZeroRect];
-    NSBox *appearanceCard =
-        CardWithViews(@[
+    NSBox *appearanceCard = CardWithViews(
+        @[
             PreferenceRow(@"候选排列", _candidatePanelStyleButton),
             PreferenceRow(@"每页候选", _candidatePageSizeButton),
             PreferenceRow(@"候选字号", _candidateFontSizeButton),
         ],
-                      4.0);
+        4.0);
     appearanceCard.accessibilityLabel = @"候选窗口卡片";
-    _floatingToolbarButton =
-        [NSButton checkboxWithTitle:@"显示悬浮状态栏" target:self action:@selector(floatingToolbarChanged:)];
+    _floatingToolbarButton = [NSButton checkboxWithTitle:@"显示悬浮状态栏"
+                                                  target:self
+                                                  action:@selector(floatingToolbarChanged:)];
     _floatingToolbarButton.accessibilityLabel = @"显示悬浮状态栏";
     NSBox *floatingToolbarCard = CardWithViews(@[ _floatingToolbarButton ], 0.0);
     floatingToolbarCard.accessibilityLabel = @"悬浮状态栏卡片";
-    NSView *appearancePage = PreferencesPage(@"外观", @"调整候选窗口与输入状态栏的显示方式。",
-                                             @[ SectionLabel(@"效果预览"), _candidatePreview,
-                                                SectionLabel(@"候选窗口"), appearanceCard,
-                                                SectionLabel(@"悬浮状态栏"), floatingToolbarCard ]);
+    NSView *appearancePage = PreferencesPage(@"外观", @"调整候选窗口与输入状态栏的显示方式。", @[
+        SectionLabel(@"效果预览"), _candidatePreview, SectionLabel(@"候选窗口"), appearanceCard,
+        SectionLabel(@"悬浮状态栏"), floatingToolbarCard
+    ]);
     appearancePage.accessibilityLabel = @"外观设置页";
 
     _helpcodeButton = [NSButton checkboxWithTitle:@"启用辅助码" target:self action:@selector(helpcodeChanged:)];
     _localInputModesButton = [NSButton checkboxWithTitle:@"启用本地输入模式（Shift+U/T/K/J）"
-                                                 target:self
-                                                 action:@selector(localInputModesChanged:)];
+                                                  target:self
+                                                  action:@selector(localInputModesChanged:)];
     _localInputModesButton.toolTip =
         @"未组词时按 Shift+U 输入 Unicode 码点，Shift+T 输入日期时间，Shift+K 输入快捷短语，Shift+J 超级简拼。"
         @"关闭时这些组合照常输入大写字母。";
-    NSArray<NSString *> *helpcodeSchemeTitles =
-        @[ @"蓝天小雨点", @"自然码", @"首右2.0", @"首右plus", @"小鹤" ];
+    NSArray<NSString *> *helpcodeSchemeTitles = @[ @"蓝天小雨点", @"自然码", @"首右2.0", @"首右plus", @"小鹤" ];
     _quanpinHelpcodeSchemaButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     [_quanpinHelpcodeSchemaButton addItemsWithTitles:helpcodeSchemeTitles];
     _quanpinHelpcodeSchemaButton.target = self;
@@ -982,8 +963,9 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _shuangpinHelpcodeSchemaButton.target = self;
     _shuangpinHelpcodeSchemaButton.action = @selector(shuangpinHelpcodeSchemaChanged:);
     _shuangpinHelpcodeSchemaButton.accessibilityLabel = @"双拼辅助码方案";
-    _candidateLearningButton =
-        [NSButton checkboxWithTitle:@"记住候选词频" target:self action:@selector(candidateLearningChanged:)];
+    _candidateLearningButton = [NSButton checkboxWithTitle:@"记住候选词频"
+                                                    target:self
+                                                    action:@selector(candidateLearningChanged:)];
 
     _statusLabel = [NSTextField labelWithString:@"检查词库状态…"];
     _statusLabel.accessibilityLabel = @"词库状态";
@@ -997,21 +979,22 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _resetLearningButton.contentTintColor = [NSColor systemRedColor];
     _resetLearningButton.accessibilityLabel = @"清除学习数据";
 
-    NSBox *learningCard =
-        CardWithViews(@[
+    NSBox *learningCard = CardWithViews(
+        @[
             _helpcodeButton, PreferenceRow(@"全拼辅助码方案", _quanpinHelpcodeSchemaButton),
             PreferenceRow(@"双拼辅助码方案", _shuangpinHelpcodeSchemaButton), _candidateLearningButton,
             _localInputModesButton
         ],
-                      9.0);
+        9.0);
     NSBox *dictionaryCard = CardWithViews(@[ _statusLabel ], 0.0);
-    NSBox *resetCard = CardWithViews(@[ PreferenceRow(@"候选词频、用户词典与拼音学习记录", _resetLearningButton) ], 0.0);
+    NSBox *resetCard =
+        CardWithViews(@[ PreferenceRow(@"候选词频、用户词典与拼音学习记录", _resetLearningButton) ], 0.0);
     learningCard.accessibilityLabel = @"候选与学习卡片";
     resetCard.accessibilityLabel = @"数据与隐私卡片";
-    NSView *dataPage =
-        PreferencesPage(@"词库与数据", @"管理候选学习、辅助码与本机词库状态。",
-                        @[ SectionLabel(@"候选与学习"), learningCard, SectionLabel(@"词库状态"), dictionaryCard,
-                           SectionLabel(@"数据与隐私"), resetCard ]);
+    NSView *dataPage = PreferencesPage(@"词库与数据", @"管理候选学习、辅助码与本机词库状态。", @[
+        SectionLabel(@"候选与学习"), learningCard, SectionLabel(@"词库状态"), dictionaryCard,
+        SectionLabel(@"数据与隐私"), resetCard
+    ]);
     dataPage.accessibilityLabel = @"词库与数据设置页";
 
     _versionLabel = [NSTextField labelWithString:@"开发构建"];
@@ -1024,25 +1007,20 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _automaticUpdateLabel.alignment = NSTextAlignmentRight;
     _automaticUpdateLabel.accessibilityLabel = @"自动更新状态";
 
-    _updatePageButton = [NSButton buttonWithTitle:@"检查更新…"
-                                           target:self
-                                           action:@selector(checkForUpdates:)];
+    _updatePageButton = [NSButton buttonWithTitle:@"检查更新…" target:self action:@selector(checkForUpdates:)];
     _updatePageButton.bezelStyle = NSBezelStyleRounded;
     _updatePageButton.accessibilityLabel = @"立即检查更新";
 
-    NSButton *feedbackButton = [NSButton buttonWithTitle:@"提交反馈…"
-                                                    target:self
-                                                    action:@selector(openFeedback:)];
+    NSButton *feedbackButton = [NSButton buttonWithTitle:@"提交反馈…" target:self action:@selector(openFeedback:)];
     feedbackButton.bezelStyle = NSBezelStyleInline;
     feedbackButton.accessibilityLabel = @"提交反馈";
     feedbackButton.contentTintColor = [NSColor linkColor];
-    feedbackButton.attributedTitle =
-        [[NSAttributedString alloc] initWithString:feedbackButton.title
-                                        attributes:@{
-                                            NSFontAttributeName :
-                                                [NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium],
-                                            NSForegroundColorAttributeName : [NSColor linkColor],
-                                        }];
+    feedbackButton.attributedTitle = [[NSAttributedString alloc]
+        initWithString:feedbackButton.title
+            attributes:@{
+                NSFontAttributeName : [NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium],
+                NSForegroundColorAttributeName : [NSColor linkColor],
+            }];
 
     NSButton *productWebsiteButton = [NSButton buttonWithTitle:@"访问 msime.app"
                                                         target:self
@@ -1050,24 +1028,27 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     productWebsiteButton.bezelStyle = NSBezelStyleInline;
     productWebsiteButton.accessibilityLabel = @"访问水杉官网";
     productWebsiteButton.contentTintColor = [NSColor linkColor];
-    productWebsiteButton.attributedTitle =
-        [[NSAttributedString alloc] initWithString:productWebsiteButton.title
-                                        attributes:@{
-                                            NSFontAttributeName :
-                                                [NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium],
-                                            NSForegroundColorAttributeName : [NSColor linkColor],
-                                        }];
+    productWebsiteButton.attributedTitle = [[NSAttributedString alloc]
+        initWithString:productWebsiteButton.title
+            attributes:@{
+                NSFontAttributeName : [NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium],
+                NSForegroundColorAttributeName : [NSColor linkColor],
+            }];
 
-    NSBox *updateCard = CardWithViews(@[
-        PreferenceRow(@"当前版本", _versionLabel),
-        PreferenceRow(@"自动更新", _automaticUpdateLabel),
-        PreferenceRow(@"立即检查", _updatePageButton),
-    ], 4.0);
+    NSBox *updateCard = CardWithViews(
+        @[
+            PreferenceRow(@"当前版本", _versionLabel),
+            PreferenceRow(@"自动更新", _automaticUpdateLabel),
+            PreferenceRow(@"立即检查", _updatePageButton),
+        ],
+        4.0);
     updateCard.accessibilityLabel = @"软件更新卡片";
-    NSBox *feedbackCard = CardWithViews(@[
-        PreferenceRow(@"问题反馈与功能建议", feedbackButton),
-        PreferenceRow(@"产品主页与使用帮助", productWebsiteButton),
-    ], 4.0);
+    NSBox *feedbackCard = CardWithViews(
+        @[
+            PreferenceRow(@"问题反馈与功能建议", feedbackButton),
+            PreferenceRow(@"产品主页与使用帮助", productWebsiteButton),
+        ],
+        4.0);
     feedbackCard.accessibilityLabel = @"反馈与帮助卡片";
     NSView *updatesPage =
         PreferencesPage(@"更新与反馈", @"保持水杉输入法为最新版本，并告诉我们哪里还可以做得更好。",
@@ -1150,8 +1131,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         return nil;
     }
     NSArray<NSString *> *labels = @[ @"键盘输入", @"外观", @"词库与数据", @"更新与反馈" ];
-    NSArray<NSString *> *symbols =
-        @[ @"keyboard", @"paintpalette", @"books.vertical", @"arrow.triangle.2.circlepath" ];
+    NSArray<NSString *> *symbols = @[ @"keyboard", @"paintpalette", @"books.vertical", @"arrow.triangle.2.circlepath" ];
     NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
     item.label = labels[index];
     item.paletteLabel = labels[index];
@@ -1167,13 +1147,12 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 {
     NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
     _versionLabel.stringValue = version.length == 0 ? @"开发构建" : [NSString stringWithFormat:@"v%@", version];
-    _automaticUpdateLabel.stringValue = _updateController.automaticallyChecksForUpdates
-                                            ? @"已开启自动检查"
-                                            : @"自动检查已关闭";
+    _automaticUpdateLabel.stringValue =
+        _updateController.automaticallyChecksForUpdates ? @"已开启自动检查" : @"自动检查已关闭";
     _updatePageButton.toolTip = @"通过 msime.app 检查水杉输入法的最新正式版本";
-    _updatePageButton.accessibilityHelp = version.length == 0
-                                              ? @"通过 msime.app 检查最新正式版本"
-                                              : [NSString stringWithFormat:@"当前版本 v%@，通过 msime.app 检查最新正式版本", version];
+    _updatePageButton.accessibilityHelp =
+        version.length == 0 ? @"通过 msime.app 检查最新正式版本"
+                            : [NSString stringWithFormat:@"当前版本 v%@，通过 msime.app 检查最新正式版本", version];
     _updatePageButton.enabled = YES;
 }
 
@@ -1276,42 +1255,53 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _shuangpinKeymapRow.hidden = storedScheme != 1;
     _shuangpinKeymapSeparator.hidden = storedScheme != 1;
     _wubiSettingsRow.hidden = storedScheme != 2;
-    _shuangpinKeymapButton.state =
-        [MetasequoiaPreferencesWindowController storedShuangpinKeymapEnabled] ? NSControlStateValueOn
-                                                                              : NSControlStateValueOff;
-    _autocorrectButton.state = [MetasequoiaPreferencesWindowController storedAutocorrectEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
-    _helpcodeButton.state = [MetasequoiaPreferencesWindowController storedHelpcodeEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
-    _localInputModesButton.state =
-        [MetasequoiaPreferencesWindowController storedLocalInputModesEnabled] ? NSControlStateValueOn
-                                                                              : NSControlStateValueOff;
+    _shuangpinKeymapButton.state = [MetasequoiaPreferencesWindowController storedShuangpinKeymapEnabled]
+                                       ? NSControlStateValueOn
+                                       : NSControlStateValueOff;
+    _autocorrectButton.state = [MetasequoiaPreferencesWindowController storedAutocorrectEnabled]
+                                   ? NSControlStateValueOn
+                                   : NSControlStateValueOff;
+    _helpcodeButton.state =
+        [MetasequoiaPreferencesWindowController storedHelpcodeEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
+    _localInputModesButton.state = [MetasequoiaPreferencesWindowController storedLocalInputModesEnabled]
+                                       ? NSControlStateValueOn
+                                       : NSControlStateValueOff;
     [_quanpinHelpcodeSchemaButton
         selectItemAtIndex:[MetasequoiaPreferencesWindowController storedQuanpinHelpcodeSchema]];
     [_shuangpinHelpcodeSchemaButton
         selectItemAtIndex:[MetasequoiaPreferencesWindowController storedShuangpinHelpcodeSchema]];
     _quanpinHelpcodeSchemaButton.enabled = _helpcodeButton.state == NSControlStateValueOn;
     _shuangpinHelpcodeSchemaButton.enabled = _helpcodeButton.state == NSControlStateValueOn;
-    _chinesePunctuationButton.state = [MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
+    _chinesePunctuationButton.state = [MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled]
+                                          ? NSControlStateValueOn
+                                          : NSControlStateValueOff;
     [_candidatePanelStyleButton selectItemAtIndex:[MetasequoiaPreferencesWindowController storedCandidatePanelStyle]];
-    [_candidatePageSizeButton selectItemAtIndex:static_cast<NSInteger>(metasequoia::mac::CandidatePageSizeOptionIndex(
-                                                        static_cast<size_t>([MetasequoiaPreferencesWindowController storedCandidatePageSize])))];
-    [_candidateFontSizeButton selectItemAtIndex:static_cast<NSInteger>(metasequoia::mac::CandidateFontSizeOptionIndex(
-                                                        static_cast<size_t>([MetasequoiaPreferencesWindowController storedCandidateFontSize])))];
+    [_candidatePageSizeButton
+        selectItemAtIndex:static_cast<NSInteger>(metasequoia::mac::CandidatePageSizeOptionIndex(
+                              static_cast<size_t>([MetasequoiaPreferencesWindowController storedCandidatePageSize])))];
+    [_candidateFontSizeButton
+        selectItemAtIndex:static_cast<NSInteger>(metasequoia::mac::CandidateFontSizeOptionIndex(
+                              static_cast<size_t>([MetasequoiaPreferencesWindowController storedCandidateFontSize])))];
     [_candidatePageShortcutButton
         selectItemAtIndex:[MetasequoiaPreferencesWindowController storedCandidatePageShortcut]];
     [_candidatePreview updatePanelStyle:[MetasequoiaPreferencesWindowController storedCandidatePanelStyle]
                                pageSize:[MetasequoiaPreferencesWindowController storedCandidatePageSize]
                                fontSize:[MetasequoiaPreferencesWindowController storedCandidateFontSize]];
-    _candidateLearningButton.state = [MetasequoiaPreferencesWindowController storedCandidateLearningEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
-    _inputModeShortcutButton.state = [MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
+    _candidateLearningButton.state = [MetasequoiaPreferencesWindowController storedCandidateLearningEnabled]
+                                         ? NSControlStateValueOn
+                                         : NSControlStateValueOff;
+    _inputModeShortcutButton.state = [MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled]
+                                         ? NSControlStateValueOn
+                                         : NSControlStateValueOff;
     _fullWidthInputButton.state = [MetasequoiaPreferencesWindowController storedFullWidthInputEnabled]
                                       ? NSControlStateValueOn
                                       : NSControlStateValueOff;
     _floatingToolbarButton.state = [MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled]
                                        ? NSControlStateValueOn
                                        : NSControlStateValueOff;
-    _wubiAutoCommitButton.state =
-        [MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled] ? NSControlStateValueOn
-                                                                                   : NSControlStateValueOff;
+    _wubiAutoCommitButton.state = [MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled]
+                                      ? NSControlStateValueOn
+                                      : NSControlStateValueOff;
 }
 
 - (void)refreshDictionaryStatus
@@ -1372,9 +1362,9 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     {
         _standaloneLaunch = NO;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [[NSNotificationCenter defaultCenter]
-                postNotificationName:MetasequoiaStandalonePreferencesDidCloseNotification
-                              object:self];
+          [[NSNotificationCenter defaultCenter]
+              postNotificationName:MetasequoiaStandalonePreferencesDidCloseNotification
+                            object:self];
         });
     }
 }
@@ -1388,8 +1378,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 - (void)localInputModesChanged:(id)sender
 {
     NSButton *button = (NSButton *)sender;
-    [MetasequoiaPreferencesWindowController
-        setLocalInputModesEnabled:button.state == NSControlStateValueOn];
+    [MetasequoiaPreferencesWindowController setLocalInputModesEnabled:button.state == NSControlStateValueOn];
     [self refreshControls];
 }
 
@@ -1513,33 +1502,34 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     alert.buttons[1].accessibilityLabel = @"确认清除学习数据";
     alert.window.defaultButtonCell = (NSButtonCell *)alert.buttons[0].cell;
 
-    [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse response) {
-        if (response != NSAlertSecondButtonReturn)
-        {
-            return;
-        }
+    [alert beginSheetModalForWindow:self.window
+                  completionHandler:^(NSModalResponse response) {
+                    if (response != NSAlertSecondButtonReturn)
+                    {
+                        return;
+                    }
 
-        self->_resetLearningButton.enabled = NO;
-        self->_statusLabel.stringValue = @"正在清除学习数据…";
-        self->_statusLabel.textColor = [NSColor secondaryLabelColor];
-        self->_statusLabel.toolTip = nil;
-        [MetasequoiaPreferencesWindowController prepareInputSessionsForLearnedDataReset];
+                    self->_resetLearningButton.enabled = NO;
+                    self->_statusLabel.stringValue = @"正在清除学习数据…";
+                    self->_statusLabel.textColor = [NSColor secondaryLabelColor];
+                    self->_statusLabel.toolTip = nil;
+                    [MetasequoiaPreferencesWindowController prepareInputSessionsForLearnedDataReset];
 
-        NSError *error = nil;
-        if (ResetMetasequoiaLearnedDataForCurrentUser(&error))
-        {
-            self->_statusLabel.stringValue = @"学习数据已清除；新的输入将从默认词频开始。";
-            self->_statusLabel.textColor = [NSColor systemGreenColor];
-            self->_statusLabel.toolTip = nil;
-        }
-        else
-        {
-            self->_statusLabel.stringValue = @"学习数据未能清除，请稍后重试。";
-            self->_statusLabel.textColor = [NSColor systemRedColor];
-            self->_statusLabel.toolTip = error.localizedDescription;
-        }
-        self->_resetLearningButton.enabled = YES;
-    }];
+                    NSError *error = nil;
+                    if (ResetMetasequoiaLearnedDataForCurrentUser(&error))
+                    {
+                        self->_statusLabel.stringValue = @"学习数据已清除；新的输入将从默认词频开始。";
+                        self->_statusLabel.textColor = [NSColor systemGreenColor];
+                        self->_statusLabel.toolTip = nil;
+                    }
+                    else
+                    {
+                        self->_statusLabel.stringValue = @"学习数据未能清除，请稍后重试。";
+                        self->_statusLabel.textColor = [NSColor systemRedColor];
+                        self->_statusLabel.toolTip = error.localizedDescription;
+                    }
+                    self->_resetLearningButton.enabled = YES;
+                  }];
 }
 
 - (void)restoreDefaults:(id)sender
@@ -1572,37 +1562,37 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
     NSNotificationCenter *notifications = [NSNotificationCenter defaultCenter];
     [notifications postNotificationName:@"MetasequoiaInputSchemeDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedScheme])];
+                                 object:@([MetasequoiaPreferencesWindowController storedScheme])];
     [notifications postNotificationName:@"MetasequoiaQuanpinAutocorrectDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedAutocorrectEnabled])];
+                                 object:@([MetasequoiaPreferencesWindowController storedAutocorrectEnabled])];
     [notifications postNotificationName:@"MetasequoiaHelpcodeDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedHelpcodeEnabled])];
+                                 object:@([MetasequoiaPreferencesWindowController storedHelpcodeEnabled])];
     [notifications postNotificationName:@"MetasequoiaQuanpinHelpcodeSchemaDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedQuanpinHelpcodeSchema])];
+                                 object:@([MetasequoiaPreferencesWindowController storedQuanpinHelpcodeSchema])];
     [notifications postNotificationName:@"MetasequoiaShuangpinHelpcodeSchemaDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedShuangpinHelpcodeSchema])];
+                                 object:@([MetasequoiaPreferencesWindowController storedShuangpinHelpcodeSchema])];
     [notifications postNotificationName:@"MetasequoiaChinesePunctuationDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled])];
+                                 object:@([MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled])];
     [notifications postNotificationName:@"MetasequoiaCandidatePanelStyleDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedCandidatePanelStyle])];
+                                 object:@([MetasequoiaPreferencesWindowController storedCandidatePanelStyle])];
     [notifications postNotificationName:@"MetasequoiaCandidatePageSizeDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedCandidatePageSize])];
+                                 object:@([MetasequoiaPreferencesWindowController storedCandidatePageSize])];
     [notifications postNotificationName:@"MetasequoiaCandidateFontSizeDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedCandidateFontSize])];
+                                 object:@([MetasequoiaPreferencesWindowController storedCandidateFontSize])];
     [notifications postNotificationName:@"MetasequoiaCandidatePageShortcutDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedCandidatePageShortcut])];
+                                 object:@([MetasequoiaPreferencesWindowController storedCandidatePageShortcut])];
     [notifications postNotificationName:@"MetasequoiaCandidateLearningDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedCandidateLearningEnabled])];
+                                 object:@([MetasequoiaPreferencesWindowController storedCandidateLearningEnabled])];
     [notifications postNotificationName:@"MetasequoiaInputModeShortcutDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled])];
+                                 object:@([MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled])];
     [notifications postNotificationName:@"MetasequoiaWubiAutoCommitUniqueDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled])];
+                                 object:@([MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled])];
     [notifications postNotificationName:@"MetasequoiaShuangpinKeymapDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedShuangpinKeymapEnabled])];
+                                 object:@([MetasequoiaPreferencesWindowController storedShuangpinKeymapEnabled])];
     [notifications postNotificationName:@"MetasequoiaFullWidthInputDidChangeNotification"
-                                  object:@([MetasequoiaPreferencesWindowController storedFullWidthInputEnabled])];
+                                 object:@([MetasequoiaPreferencesWindowController storedFullWidthInputEnabled])];
     [notifications postNotificationName:MetasequoiaFloatingToolbarDidChangeNotification
-                                  object:@([MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled])];
+                                 object:@([MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled])];
     [notifications
         postNotificationName:MetasequoiaTraditionalChineseOutputDidChangeNotification
                       object:@([MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled])];

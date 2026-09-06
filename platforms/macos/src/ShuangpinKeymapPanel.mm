@@ -10,7 +10,7 @@ constexpr CGFloat kScreenMargin = 16.0;
 
 NSDictionary<NSString *, NSString *> *Key(NSString *key, NSString *codes)
 {
-    return @{ @"key": key, @"codes": codes };
+    return @{@"key" : key, @"codes" : codes};
 }
 
 NSString *DisplayUnit(const std::string &unit)
@@ -36,8 +36,7 @@ void AppendProfileUnits(const std::unordered_map<std::string, std::string> &mapp
     }
 }
 
-NSString *CodesForKey(NSString *key,
-                      NSDictionary<NSString *, NSMutableArray<NSString *> *> *initialsByKey,
+NSString *CodesForKey(NSString *key, NSDictionary<NSString *, NSMutableArray<NSString *> *> *initialsByKey,
                       NSDictionary<NSString *, NSMutableArray<NSString *> *> *finalsByKey)
 {
     NSArray<NSString *> *initials = [initialsByKey[key] sortedArrayUsingSelector:@selector(compare:)];
@@ -52,12 +51,10 @@ NSString *CodesForKey(NSString *key,
 }
 
 NSArray<NSDictionary<NSString *, NSString *> *> *KeyDefinitions(
-    NSArray<NSString *> *keys,
-    NSDictionary<NSString *, NSMutableArray<NSString *> *> *initialsByKey,
+    NSArray<NSString *> *keys, NSDictionary<NSString *, NSMutableArray<NSString *> *> *initialsByKey,
     NSDictionary<NSString *, NSMutableArray<NSString *> *> *finalsByKey)
 {
-    NSMutableArray<NSDictionary<NSString *, NSString *> *> *definitions =
-        [NSMutableArray arrayWithCapacity:keys.count];
+    NSMutableArray<NSDictionary<NSString *, NSString *> *> *definitions = [NSMutableArray arrayWithCapacity:keys.count];
     for (NSString *key in keys)
     {
         [definitions addObject:Key(key, CodesForKey(key, initialsByKey, finalsByKey))];
@@ -78,14 +75,14 @@ NSColor *KeymapAccentColor()
 {
     return [NSColor colorWithName:@"MetasequoiaKeymapAccentColor"
                   dynamicProvider:^NSColor *(NSAppearance *appearance) {
-        NSString *match =
-            [appearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]];
-        if ([match isEqualToString:NSAppearanceNameDarkAqua])
-        {
-            return [NSColor colorWithSRGBRed:0.16 green:0.58 blue:0.54 alpha:1.0];
-        }
-        return [NSColor colorWithSRGBRed:0.07 green:0.49 blue:0.45 alpha:1.0];
-    }];
+                    NSString *match = [appearance
+                        bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]];
+                    if ([match isEqualToString:NSAppearanceNameDarkAqua])
+                    {
+                        return [NSColor colorWithSRGBRed:0.16 green:0.58 blue:0.54 alpha:1.0];
+                    }
+                    return [NSColor colorWithSRGBRed:0.07 green:0.49 blue:0.45 alpha:1.0];
+                  }];
 }
 } // namespace
 
@@ -120,17 +117,15 @@ NSColor *KeymapAccentColor()
     NSColor *fillColor = self.highlighted ? KeymapAccentColor() : [NSColor controlBackgroundColor];
     [fillColor setFill];
     [keyPath fill];
-    NSColor *borderColor = self.highlighted
-                               ? [[NSColor whiteColor] colorWithAlphaComponent:0.28]
-                               : [[NSColor separatorColor] colorWithAlphaComponent:0.62];
+    NSColor *borderColor = self.highlighted ? [[NSColor whiteColor] colorWithAlphaComponent:0.28]
+                                            : [[NSColor separatorColor] colorWithAlphaComponent:0.62];
     [borderColor setStroke];
     keyPath.lineWidth = 1.0;
     [keyPath stroke];
 
     NSColor *primaryColor = self.highlighted ? [NSColor whiteColor] : [NSColor labelColor];
-    NSColor *secondaryColor = self.highlighted
-                                  ? [[NSColor whiteColor] colorWithAlphaComponent:0.86]
-                                  : [NSColor secondaryLabelColor];
+    NSColor *secondaryColor =
+        self.highlighted ? [[NSColor whiteColor] colorWithAlphaComponent:0.86] : [NSColor secondaryLabelColor];
     NSDictionary<NSAttributedStringKey, id> *keyAttributes = @{
         NSFontAttributeName : [NSFont monospacedSystemFontOfSize:11.0 weight:NSFontWeightBold],
         NSForegroundColorAttributeName : primaryColor,
@@ -175,8 +170,7 @@ NSStackView *KeyRow(NSArray<NSDictionary<NSString *, NSString *> *> *definitions
     return row;
 }
 
-NSString *AccessibleKeymapDescription(NSArray<MetasequoiaShuangpinKeyView *> *keyViews,
-                                      NSString *highlightedKey)
+NSString *AccessibleKeymapDescription(NSArray<MetasequoiaShuangpinKeyView *> *keyViews, NSString *highlightedKey)
 {
     NSMutableArray<NSString *> *definitions = [NSMutableArray arrayWithCapacity:keyViews.count];
     NSString *highlightedDescription = nil;
@@ -200,19 +194,14 @@ NSArray<NSArray<NSDictionary<NSString *, NSString *> *> *> *MetasequoiaXiaoheKey
 {
     static NSArray<NSArray<NSDictionary<NSString *, NSString *> *> *> *rows = [] {
         const ShuangpinProfile &profile = GetXiaoheShuangpinProfile();
-        NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *initialsByKey =
-            [NSMutableDictionary dictionary];
-        NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *finalsByKey =
-            [NSMutableDictionary dictionary];
+        NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *initialsByKey = [NSMutableDictionary dictionary];
+        NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *finalsByKey = [NSMutableDictionary dictionary];
         AppendProfileUnits(profile.initials, initialsByKey);
         AppendProfileUnits(profile.finals, finalsByKey);
         return @[
-            KeyDefinitions(@[ @"Q", @"W", @"E", @"R", @"T", @"Y", @"U", @"I", @"O", @"P" ],
-                           initialsByKey, finalsByKey),
-            KeyDefinitions(@[ @"A", @"S", @"D", @"F", @"G", @"H", @"J", @"K", @"L" ],
-                           initialsByKey, finalsByKey),
-            KeyDefinitions(@[ @"Z", @"X", @"C", @"V", @"B", @"N", @"M" ], initialsByKey,
-                           finalsByKey),
+            KeyDefinitions(@[ @"Q", @"W", @"E", @"R", @"T", @"Y", @"U", @"I", @"O", @"P" ], initialsByKey, finalsByKey),
+            KeyDefinitions(@[ @"A", @"S", @"D", @"F", @"G", @"H", @"J", @"K", @"L" ], initialsByKey, finalsByKey),
+            KeyDefinitions(@[ @"Z", @"X", @"C", @"V", @"B", @"N", @"M" ], initialsByKey, finalsByKey),
         ];
     }();
     return rows;
@@ -225,8 +214,7 @@ NSString *MetasequoiaXiaoheZeroInitialText(void)
         NSMutableArray<NSString *> *entries = [NSMutableArray arrayWithCapacity:profile.zero_initials.size()];
         for (const auto &entry : profile.zero_initials)
         {
-            [entries addObject:[NSString stringWithFormat:@"%@=%@",
-                                                          DisplayUnit(entry.first),
+            [entries addObject:[NSString stringWithFormat:@"%@=%@", DisplayUnit(entry.first),
                                                           [NSString stringWithUTF8String:entry.second.c_str()]]];
         }
         // The profile is an unordered_map, so sort to keep the line stable across runs.
@@ -241,8 +229,8 @@ BOOL MetasequoiaShouldShowShuangpinKeymap(BOOL isShuangpin, BOOL enabled, BOOL h
     return isShuangpin && enabled && hasComposition;
 }
 
-NSRect MetasequoiaShuangpinKeymapPanelFrame(NSRect caretRect, NSSize panelSize,
-                                             CGFloat candidateClearance, NSRect visibleFrame)
+NSRect MetasequoiaShuangpinKeymapPanelFrame(NSRect caretRect, NSSize panelSize, CGFloat candidateClearance,
+                                            NSRect visibleFrame)
 {
     const CGFloat minimumX = NSMinX(visibleFrame) + kScreenMargin;
     const CGFloat maximumX = NSMaxX(visibleFrame) - kScreenMargin - panelSize.width;
@@ -251,8 +239,7 @@ NSRect MetasequoiaShuangpinKeymapPanelFrame(NSRect caretRect, NSSize panelSize,
     const CGFloat minimumY = NSMinY(visibleFrame) + kScreenMargin;
     const CGFloat maximumY = NSMaxY(visibleFrame) - kScreenMargin - panelSize.height;
     const CGFloat belowY = NSMinY(caretRect) - candidateClearance - 8.0 - panelSize.height;
-    const CGFloat preferredY =
-        belowY >= minimumY ? belowY : NSMaxY(caretRect) + candidateClearance + 8.0;
+    const CGFloat preferredY = belowY >= minimumY ? belowY : NSMaxY(caretRect) + candidateClearance + 8.0;
     const CGFloat y = Clamp(preferredY, minimumY, maximumY);
     return NSMakeRect(x, y, panelSize.width, panelSize.height);
 }
@@ -282,8 +269,7 @@ NSRect MetasequoiaShuangpinKeymapPanelFrame(NSRect caretRect, NSSize panelSize,
     self.hasShadow = YES;
     self.ignoresMouseEvents = YES;
     self.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
-                              NSWindowCollectionBehaviorFullScreenAuxiliary |
-                              NSWindowCollectionBehaviorTransient |
+                              NSWindowCollectionBehaviorFullScreenAuxiliary | NSWindowCollectionBehaviorTransient |
                               NSWindowCollectionBehaviorIgnoresCycle;
     self.animationBehavior = NSWindowAnimationBehaviorUtilityWindow;
 
@@ -343,7 +329,8 @@ NSRect MetasequoiaShuangpinKeymapPanelFrame(NSRect caretRect, NSSize panelSize,
         [zeroInitials.leadingAnchor constraintEqualToAnchor:background.leadingAnchor constant:14.0],
         [zeroInitials.trailingAnchor constraintEqualToAnchor:background.trailingAnchor constant:-14.0],
         [zeroInitials.topAnchor constraintEqualToAnchor:bottomRow.bottomAnchor constant:6.0],
-        // The height chain from the header down pins the panel, so state this row's height instead of depending on the label's intrinsic metrics.
+        // The height chain from the header down pins the panel, so state this row's height instead of depending on the
+        // label's intrinsic metrics.
         [zeroInitials.heightAnchor constraintEqualToConstant:13.0],
         [zeroInitials.bottomAnchor constraintEqualToAnchor:background.bottomAnchor constant:-10.0],
     ]];
@@ -383,8 +370,8 @@ NSRect MetasequoiaShuangpinKeymapPanelFrame(NSRect caretRect, NSSize panelSize,
         [self orderOut:nil];
         return;
     }
-    NSRect panelFrame = MetasequoiaShuangpinKeymapPanelFrame(
-        caretRect, NSMakeSize(kPanelWidth, kPanelHeight), candidateClearance, targetScreen.visibleFrame);
+    NSRect panelFrame = MetasequoiaShuangpinKeymapPanelFrame(caretRect, NSMakeSize(kPanelWidth, kPanelHeight),
+                                                             candidateClearance, targetScreen.visibleFrame);
     [self setFrame:panelFrame display:NO];
     [self orderFrontRegardless];
 }

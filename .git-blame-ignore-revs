@@ -1,0 +1,5 @@
+# 纯格式化提交：git blame 时跳过，否则每一行的责任人都会变成这一次机械重排。
+# 用法：git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: 按 clang-format 统一格式化 C++ 与 Objective-C++ 源码
+b3edf526928e04ba9710d36d79564e239d7627ad

@@ -16,9 +16,8 @@ inline KeyResult HandleCharacterWithWubiAutoCommit(Session &session, char charac
 {
     KeyResult result = session.character(character);
     const auto snapshot = session.snapshot();
-    if (result.handled &&
-        ShouldAutoCommitUniqueWubiCandidate(enabled, snapshot.scheme, snapshot.preedit.size(),
-                                            snapshot.candidates.size()))
+    if (result.handled && ShouldAutoCommitUniqueWubiCandidate(enabled, snapshot.scheme, snapshot.preedit.size(),
+                                                              snapshot.candidates.size()))
     {
         result = session.command(Command::CommitCandidate);
     }

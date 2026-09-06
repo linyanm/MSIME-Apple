@@ -14,8 +14,8 @@
     if (self != nil)
     {
         _updaterController = [[SPUStandardUpdaterController alloc] initWithStartingUpdater:YES
-                                                                          updaterDelegate:nil
-                                                                       userDriverDelegate:nil];
+                                                                           updaterDelegate:nil
+                                                                        userDriverDelegate:nil];
     }
     return self;
 }
@@ -49,13 +49,13 @@
     static MetasequoiaUpdateController *controller = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        MetasequoiaSparkleUpdateDriver *driver = [[MetasequoiaSparkleUpdateDriver alloc] init];
-        controller = [[MetasequoiaUpdateController alloc]
-            initWithDriver:driver
-         activationHandler:^{
-             [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
-             [NSApp activateIgnoringOtherApps:YES];
-         }];
+      MetasequoiaSparkleUpdateDriver *driver = [[MetasequoiaSparkleUpdateDriver alloc] init];
+      controller =
+          [[MetasequoiaUpdateController alloc] initWithDriver:driver
+                                            activationHandler:^{
+                                              [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+                                              [NSApp activateIgnoringOtherApps:YES];
+                                            }];
     });
     return controller;
 }

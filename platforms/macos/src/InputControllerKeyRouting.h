@@ -59,8 +59,7 @@ constexpr size_t CandidatePageEnd(size_t selectedIndex, size_t candidateCount, s
     {
         return 0;
     }
-    return std::min(CandidatePageStart(selectedIndex, candidateCount, pageSize) + pageSize - 1,
-                    candidateCount - 1);
+    return std::min(CandidatePageStart(selectedIndex, candidateCount, pageSize) + pageSize - 1, candidateCount - 1);
 }
 
 constexpr ControllerKeyAction ClassifyControllerKey(

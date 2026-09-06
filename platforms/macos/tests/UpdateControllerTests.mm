@@ -37,11 +37,10 @@ int main()
         FakeUpdateDriver *driver = [[FakeUpdateDriver alloc] init];
         driver.canCheckForUpdates = YES;
         driver.automaticallyChecksForUpdates = YES;
-        MetasequoiaUpdateController *controller =
-            [[MetasequoiaUpdateController alloc] initWithDriver:driver
-                                             activationHandler:^{
-                                                 activated = YES;
-                                             }];
+        MetasequoiaUpdateController *controller = [[MetasequoiaUpdateController alloc] initWithDriver:driver
+                                                                                    activationHandler:^{
+                                                                                      activated = YES;
+                                                                                    }];
 
         require(controller.canCheckForUpdates, "The controller did not expose the Sparkle driver's readiness.");
         require(controller.automaticallyChecksForUpdates,
@@ -53,8 +52,7 @@ int main()
         driver.canCheckForUpdates = NO;
         require(!controller.canCheckForUpdates, "The controller cached an obsolete readiness state.");
         driver.automaticallyChecksForUpdates = NO;
-        require(!controller.automaticallyChecksForUpdates,
-                "The controller cached an obsolete automatic-check state.");
+        require(!controller.automaticallyChecksForUpdates, "The controller cached an obsolete automatic-check state.");
     }
     return 0;
 }

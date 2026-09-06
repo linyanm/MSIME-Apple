@@ -111,7 +111,7 @@ NSButton *FindButton(NSView *view, NSString *identifier)
     }
     return nil;
 }
-}
+} // namespace
 
 int main()
 {
@@ -119,17 +119,14 @@ int main()
     {
         [NSApplication sharedApplication];
         NSRect visibleFrame = NSMakeRect(100.0, 80.0, 1200.0, 800.0);
-        NSRect defaultFrame = MetasequoiaFloatingToolbarFrame(NSMakeRect(0.0, 0.0, 272.0, 44.0),
-                                                               visibleFrame,
-                                                               NO);
+        NSRect defaultFrame = MetasequoiaFloatingToolbarFrame(NSMakeRect(0.0, 0.0, 272.0, 44.0), visibleFrame, NO);
         require(NearlyEqual(NSWidth(defaultFrame), 272.0) && NearlyEqual(NSHeight(defaultFrame), 44.0) &&
                     NearlyEqual(NSMaxX(defaultFrame), NSMaxX(visibleFrame) - 20.0) &&
                     NearlyEqual(NSMinY(defaultFrame), NSMinY(visibleFrame) + 20.0),
                 "The floating toolbar did not use its expected size and lower-right safe area.");
 
-        NSRect restoredFrame = MetasequoiaFloatingToolbarFrame(NSMakeRect(-300.0, 2000.0, 272.0, 44.0),
-                                                                visibleFrame,
-                                                                YES);
+        NSRect restoredFrame =
+            MetasequoiaFloatingToolbarFrame(NSMakeRect(-300.0, 2000.0, 272.0, 44.0), visibleFrame, YES);
         require(NSMinX(restoredFrame) >= NSMinX(visibleFrame) + 12.0 &&
                     NSMaxX(restoredFrame) <= NSMaxX(visibleFrame) - 12.0 &&
                     NSMinY(restoredFrame) >= NSMinY(visibleFrame) + 12.0 &&
@@ -149,9 +146,9 @@ int main()
         FloatingToolbarTestDelegate *secondDelegate = [[FloatingToolbarTestDelegate alloc] init];
         panel.toolbarDelegate = firstDelegate;
         [panel updateEnglishInputMode:NO
-            chinesePunctuationEnabled:YES
-                     fullWidthEnabled:NO
-        traditionalChineseOutputEnabled:NO];
+                  chinesePunctuationEnabled:YES
+                           fullWidthEnabled:NO
+            traditionalChineseOutputEnabled:NO];
 
         NSButton *inputModeButton = FindButton(panel.contentView, @"MetasequoiaFloatingToolbarInputMode");
         NSButton *punctuationButton = FindButton(panel.contentView, @"MetasequoiaFloatingToolbarPunctuation");
@@ -167,8 +164,7 @@ int main()
                 "The toolbar gear did not expose the native utility menu.");
         require([inputModeButton.title isEqualToString:@"中"] &&
                     [inputModeButton.accessibilityLabel isEqualToString:@"切换到英文输入"] &&
-                    [punctuationButton.title isEqualToString:@"。"] &&
-                    [fullWidthButton.title isEqualToString:@"半"] &&
+                    [punctuationButton.title isEqualToString:@"。"] && [fullWidthButton.title isEqualToString:@"半"] &&
                     [traditionalOutputButton.title isEqualToString:@"简"] &&
                     [traditionalOutputButton.accessibilityLabel isEqualToString:@"切换到繁体输出"],
                 "The floating toolbar did not reflect the active input states.");
@@ -177,13 +173,12 @@ int main()
         [punctuationButton performClick:nil];
         [fullWidthButton performClick:nil];
         [traditionalOutputButton performClick:nil];
-        require(firstDelegate.toggledInputMode && firstDelegate.toggledPunctuation &&
-                    firstDelegate.toggledFullWidth && firstDelegate.toggledTraditionalOutput,
+        require(firstDelegate.toggledInputMode && firstDelegate.toggledPunctuation && firstDelegate.toggledFullWidth &&
+                    firstDelegate.toggledTraditionalOutput,
                 "The floating toolbar did not forward every state action to its active input controller.");
 
         NSMenu *utilityMenu = CreateMetasequoiaFloatingToolbarUtilityMenu(panel);
-        require(utilityMenu.numberOfItems == 7 &&
-                    [[utilityMenu itemAtIndex:0].title isEqualToString:@"表情与符号…"] &&
+        require(utilityMenu.numberOfItems == 7 && [[utilityMenu itemAtIndex:0].title isEqualToString:@"表情与符号…"] &&
                     [[utilityMenu itemAtIndex:1].title isEqualToString:@"打开设置…"] &&
                     [[utilityMenu itemAtIndex:2].title isEqualToString:@"检查更新…"] &&
                     [utilityMenu itemAtIndex:3].separatorItem &&
@@ -208,14 +203,13 @@ int main()
         [utilityMenu performActionForItemAtIndex:4];
         [utilityMenu performActionForItemAtIndex:6];
         require(firstDelegate.openedCharacterPalette && firstDelegate.openedSettings &&
-                    firstDelegate.checkedForUpdates &&
-                    firstDelegate.openedWebsite && firstDelegate.hidToolbar,
+                    firstDelegate.checkedForUpdates && firstDelegate.openedWebsite && firstDelegate.hidToolbar,
                 "The toolbar utility menu did not forward every action to its active input controller.");
 
         [panel updateEnglishInputMode:YES
-            chinesePunctuationEnabled:NO
-                     fullWidthEnabled:YES
-        traditionalChineseOutputEnabled:YES];
+                  chinesePunctuationEnabled:NO
+                           fullWidthEnabled:YES
+            traditionalChineseOutputEnabled:YES];
         require([inputModeButton.title isEqualToString:@"英"] && [punctuationButton.title isEqualToString:@"."] &&
                     [fullWidthButton.title isEqualToString:@"全"] &&
                     [traditionalOutputButton.title isEqualToString:@"繁"],
@@ -256,7 +250,10 @@ int main()
         require(!panel.visible && panel.toolbarDelegate == nil,
                 "A deallocated input controller left the floating toolbar on screen.");
 
-        // Every panel above is still alive and still owns the autosave name, so AppKit can flush their frames over the seeded value at any point and the restored panel would read a position this test never wrote. Release the name first so the panel constructed below is the only claimant, which is also how the real process is configured.
+        // Every panel above is still alive and still owns the autosave name, so AppKit can flush their frames over the
+        // seeded value at any point and the restored panel would read a position this test never wrote. Release the
+        // name first so the panel constructed below is the only claimant, which is also how the real process is
+        // configured.
         [panel setFrameAutosaveName:@""];
 
         NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
@@ -266,13 +263,16 @@ int main()
         NSScreen *restoreScreen = panel.screen != nil ? panel.screen : NSScreen.mainScreen;
         NSRect restoreVisibleFrame =
             restoreScreen != nil ? restoreScreen.visibleFrame : NSMakeRect(0.0, 0.0, 1200.0, 800.0);
-        // Serializing through a panel writes exactly the string AppKit itself stores for that frame, so the test does not depend on the private layout of the saved-frame default. Its natural size is also the toolbar's real size, which changes whenever a button is added; MetasequoiaFloatingToolbarFrame forces the restored frame back to that size, so a hardcoded width here would move the origin and fail for a reason that has nothing to do with restoration.
+        // Serializing through a panel writes exactly the string AppKit itself stores for that frame, so the test does
+        // not depend on the private layout of the saved-frame default. Its natural size is also the toolbar's real
+        // size, which changes whenever a button is added; MetasequoiaFloatingToolbarFrame forces the restored frame
+        // back to that size, so a hardcoded width here would move the origin and fail for a reason that has nothing to
+        // do with restoration.
         MetasequoiaFloatingToolbarPanel *savingPanel = [[MetasequoiaFloatingToolbarPanel alloc] init];
         NSSize toolbarSize = savingPanel.frame.size;
         NSRect savedFrame = NSMakeRect(std::round(NSMaxX(restoreVisibleFrame) - toolbarSize.width - 60.0),
                                        std::round(NSMaxY(restoreVisibleFrame) - toolbarSize.height - 60.0),
-                                       toolbarSize.width,
-                                       toolbarSize.height);
+                                       toolbarSize.width, toolbarSize.height);
         [savingPanel setFrame:savedFrame display:NO];
         NSString *savedFrameDescriptor = savingPanel.stringWithSavedFrame;
         [savingPanel setFrameAutosaveName:@""];

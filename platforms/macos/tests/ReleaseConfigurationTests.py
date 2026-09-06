@@ -666,7 +666,6 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("utfcpp", notices)
         self.assertIn("THIRD_PARTY_NOTICES.txt", package_script)
         privacy = (PROJECT_ROOT / "PRIVACY.md").read_text()
-        security = (PROJECT_ROOT / "SECURITY.md").read_text()
         self.assertIn("~/Library/Application Support/metasequoiaime/", privacy)
         self.assertIn("does not send typed text", privacy)
         self.assertIn("does not sell personal data", privacy)
@@ -687,12 +686,16 @@ class ReleaseConfigurationTests(unittest.TestCase):
             "with; after it is committed or cancelled, newly started compositions do not update word frequencies.",
             privacy,
         )
-        self.assertIn("SECURITY.md", privacy)
-        self.assertIn("latest published version", security)
-        self.assertIn("Do not open a public issue", security)
-        self.assertIn("MetasequoiaImeApple security report", security)
+        # The security policy is the organization-wide one now. This repository used to carry its
+        # own weaker copy, and because GitHub prefers a repository file over the organization
+        # fallback, that copy was what users and reporters actually saw. It has been removed, so
+        # what is pinned here is that both documents still route a reporter to the policy that does
+        # exist -- an unqualified "SECURITY.md" would be satisfied by a dead relative link.
+        organization_policy = "https://github.com/metasequoiaime/.github/blob/main/SECURITY.md"
+        self.assertIn(organization_policy, privacy)
+        self.assertIn(organization_policy, readme)
+        self.assertFalse((PROJECT_ROOT / "SECURITY.md").exists())
         self.assertIn("PRIVACY.md", readme)
-        self.assertIn("SECURITY.md", readme)
 
     def test_dependabot_tracks_actions_and_expected_submodule_branches(self):
         dependabot = (PROJECT_ROOT / ".github/dependabot.yml").read_text()
