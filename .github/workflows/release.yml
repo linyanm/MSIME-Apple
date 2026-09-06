@@ -267,15 +267,19 @@ jobs:
           IOS_API_KEY_ISSUER_ID: ${{ secrets.IOS_APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
           IOS_APP_PROFILE_BASE64: ${{ secrets.IOS_APP_PROVISIONING_PROFILE_BASE64 }}
           IOS_KEYBOARD_PROFILE_BASE64: ${{ secrets.IOS_KEYBOARD_PROVISIONING_PROFILE_BASE64 }}
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          IOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_SIGNING_KEYCHAIN_PASSWORD }}
+          IOS_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
         run: |
           set -euo pipefail
-          if [[ -z "${IOS_API_KEY_BASE64:-}" && -z "${IOS_API_KEY_ID:-}" && -z "${IOS_API_KEY_ISSUER_ID:-}" && -z "${IOS_APP_PROFILE_BASE64:-}" && -z "${IOS_KEYBOARD_PROFILE_BASE64:-}" ]]; then
+          if [[ -z "${IOS_API_KEY_BASE64:-}" && -z "${IOS_API_KEY_ID:-}" && -z "${IOS_API_KEY_ISSUER_ID:-}" && -z "${IOS_APP_PROFILE_BASE64:-}" && -z "${IOS_KEYBOARD_PROFILE_BASE64:-}" && -z "${IOS_CERTIFICATE_BASE64:-}" && -z "${IOS_CERTIFICATE_PASSWORD:-}" ]]; then
             printf 'enabled=false\n' >> "$GITHUB_OUTPUT"
             echo 'TestFlight upload skipped: App Store Connect API Key secrets are not configured.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          if [[ -z "${IOS_API_KEY_BASE64:-}" || -z "${IOS_API_KEY_ID:-}" || -z "${IOS_API_KEY_ISSUER_ID:-}" || -z "${IOS_APP_PROFILE_BASE64:-}" || -z "${IOS_KEYBOARD_PROFILE_BASE64:-}" ]]; then
-            echo 'TestFlight upload requires the three App Store Connect API key secrets and both iOS provisioning profile secrets.' >&2
+          if [[ -z "${IOS_API_KEY_BASE64:-}" || -z "${IOS_API_KEY_ID:-}" || -z "${IOS_API_KEY_ISSUER_ID:-}" || -z "${IOS_APP_PROFILE_BASE64:-}" || -z "${IOS_KEYBOARD_PROFILE_BASE64:-}" || -z "${IOS_CERTIFICATE_BASE64:-}" || -z "${IOS_CERTIFICATE_PASSWORD:-}" || -z "${IOS_KEYCHAIN_PASSWORD:-}" ]]; then
+            echo 'TestFlight upload requires the three App Store Connect API key secrets, both iOS provisioning profile secrets, the iOS distribution certificate and its password.' >&2
             exit 1
           fi
           key_path="$RUNNER_TEMP/AuthKey_${IOS_API_KEY_ID}.p8"
@@ -286,6 +290,29 @@ jobs:
           printf '%s' "$IOS_APP_PROFILE_BASE64" | base64 -D > "$app_profile_path"
           printf '%s' "$IOS_KEYBOARD_PROFILE_BASE64" | base64 -D > "$keyboard_profile_path"
           chmod 600 "$app_profile_path" "$keyboard_profile_path"
+          ios_keychain="$RUNNER_TEMP/metasequoia-ios-signing.keychain-db"
+          ios_certificate="$RUNNER_TEMP/metasequoia-ios-distribution.p12"
+          printf '%s' "$IOS_CERTIFICATE_BASE64" | base64 -D > "$ios_certificate"
+          chmod 600 "$ios_certificate"
+          security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$ios_keychain"
+          security set-keychain-settings -lut 21600 "$ios_keychain"
+          security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$ios_keychain"
+          security import "$ios_certificate" -k "$ios_keychain" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$IOS_KEYCHAIN_PASSWORD" "$ios_keychain"
+          security list-keychains -d user -s "$ios_keychain" "$RUNNER_TEMP/metasequoia-signing.keychain-db"
+          security default-keychain -s "$ios_keychain"
+          if ! security find-identity -v -p codesigning "$ios_keychain" | grep -Fq 'Apple Distribution:'; then
+            echo 'The configured iOS certificate does not contain an Apple Distribution identity with a private key.' >&2
+            exit 1
+          fi
+          if ! security cms -D -i "$app_profile_path" | plutil -extract Entitlements.application-identifier raw -o - - | grep -Fxq "${IOS_TEAM_ID}.app.msime.ios"; then
+            echo 'The iOS host provisioning profile does not match app.msime.ios.' >&2
+            exit 1
+          fi
+          if ! security cms -D -i "$app_profile_path" | plutil -extract Entitlements.com.apple.security.application-groups.0 raw -o - - | grep -Fxq 'group.app.msime.ios'; then
+            echo 'The iOS host provisioning profile must include group.app.msime.ios.' >&2
+            exit 1
+          fi
           printf 'enabled=true\nkey_path=%s\napp_profile_path=%s\nkeyboard_profile_path=%s\n' \
             "$key_path" "$app_profile_path" "$keyboard_profile_path" >> "$GITHUB_OUTPUT"
       - name: Upload iOS build to TestFlight
