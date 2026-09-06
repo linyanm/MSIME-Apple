@@ -79,6 +79,17 @@ ctest --test-dir build-test --output-on-failure --timeout 20
 
 ## 发布
 
+Release 分两个频道，由触发方式决定：
+
+| 频道 | 触发 | 页面上的样子 | Sparkle 自动更新 |
+|---|---|---|---|
+| 发布 | 手动触发 `Release` workflow | 正常发布，最新的一个带 **Latest** 徽章 | **跟随这个频道** |
+| 自动构建 | 合并到 `main` 后自动 | 标记 **Pre-release**，标题带「（自动构建）」 | 不参与 |
+
+GitHub 没有自定义频道，只有 Latest / Pre-release / Draft 三种状态，所以这里用 `prerelease` 标志承载「自动、未经挑选」，而不是承载「内测」——两个频道当前都还是内测阶段。
+
+自动更新之所以只跟随发布频道，是因为 `Info.plist` 里的 Sparkle feed 指向 `releases/latest/download/appcast.xml`，而 Pre-release 不会成为 Latest，它的 appcast 取不到。想装自动构建的用户需要自己去 Releases 页面下载。
+
 合并到 `main` 会根据 conventional commit 历史更新 Release Please 的 pull request。合并该发布 PR 会更新 `version.txt`、`CMakeLists.txt` 和 `CHANGELOG.md`，创建对应的 `vX.Y.Z` 标签，构建并测试通用架构的输入法 bundle，然后发布带有以下产物的 GitHub Release：
 
 - `MetasequoiaIME-vX.Y.Z-macos-universal.pkg`
