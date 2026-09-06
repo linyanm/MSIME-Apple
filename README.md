@@ -1,5 +1,14 @@
 # 水杉输入法 Apple 平台版
 
+<!-- badges:start -->
+[![CI](https://img.shields.io/github/actions/workflow/status/metasequoiaime/MSIME-Apple/ci.yml?branch=main&label=CI)](https://github.com/metasequoiaime/MSIME-Apple/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/metasequoiaime/MSIME-Apple/codeql.yml?branch=main&label=CodeQL)](https://github.com/metasequoiaime/MSIME-Apple/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/metasequoiaime/MSIME-Apple?include_prereleases&label=release)](https://github.com/metasequoiaime/MSIME-Apple/releases)
+[![Downloads](https://img.shields.io/github/downloads/metasequoiaime/MSIME-Apple/total?label=downloads)](https://github.com/metasequoiaime/MSIME-Apple/releases)
+[![License](https://img.shields.io/github/license/metasequoiaime/MSIME-Apple)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/metasequoiaime/MSIME-Apple?style=flat)](https://github.com/metasequoiaime/MSIME-Apple/stargazers)
+<!-- badges:end -->
+
 本仓库包含水杉输入法（Metasequoia IME）的 Apple 平台原生前端。已发布的 macOS 前端基于 InputMethodKit 与 AppKit，iOS 宿主 App 与自定义键盘扩展正在逐步添加。两个平台共用同一套 C++ 组词引擎，各自的生命周期、输入路由、候选展示、设置界面与辅助功能 UI 则保持原生且相互独立。
 
 目标模块边界与迁移顺序记录在 [Apple 平台架构文档](docs/apple-platform-architecture.md)。已发布的 macOS 实现位于 `platforms/macos/`，iOS 代码随开发进度放在 `platforms/ios/`。
@@ -111,6 +120,8 @@ GitHub 没有自定义频道，只有 Latest / Pre-release / Draft 三种状态�
 - `.ipa` 是给试用者的。用 Sideloadly、AltStore 这类工具配自己的 Apple ID 重新签名后即可安装，装完在「设置 > 通用 > 键盘 > 键盘」里启用水杉。免费 Apple ID 签出的有效期 7 天，付费 Developer Program 账号 1 年，到期后需要重新签名。
 - `.xcarchive.zip` 是给维护者的。用 Xcode Organizer 打开即可分发到 TestFlight 或 App Store，导出的就是这个 tag 构建并测试过的产物，无需重新构建。
 
+iOS 最终走哪条分发路线**尚未决定**：App Store 的服务条款与 GPLv3 冲突，而 bundle 里的 `msime.db` 含第三方 GPL-3.0 数据，作者无权单方面为其附加例外。三个可选路线与各自代价见 [docs/ios-distribution.md](docs/ios-distribution.md)。在决定之前不要向 App Store 提交，也不要在面向用户的材料里承诺上架。
+
 常规安装请使用 ZIP 并运行其中的 `Install.command`，或使用 PKG 通过 macOS 原生安装器安装。两种方式都会安装当前用户的 bundle，并尝试自动注册并启用水杉，无需注销或重启 Mac。如果没有已登录的图形界面用户，或 macOS 拦截了未签名 App，可稍后在「系统设置 > 键盘 > 文本输入 > 编辑」中启用。
 
 如果选择 PKG，请下载安装包及其校验和文件，校验通过后双击安装。它会把副本安装到当前用户的 `~/Library/Input Methods`；原生安装器可能会请求管理员授权。安装过程不会自动注销或重启 Mac。macOS 仍可能要求你在方便的时候注销并重新登录，新复制的输入法才会出现。
@@ -165,7 +176,7 @@ shasum -a 256 -c MetasequoiaIME-vX.Y.Z-macos-universal.zip.sha256
 
 ## 许可证
 
-水杉输入法 Apple 平台版依据 GNU General Public License version 3 分发。发布归档、安装包和应用 bundle 均包含适用的 GPL 与第三方许可声明，详见 `LICENSE` 与 `THIRD_PARTY_NOTICES.txt`。
+水杉输入法 Apple 平台版依据 GNU General Public License version 3 分发。macOS 的发布归档、安装包与应用 bundle 都包含适用的 GPL 与第三方许可声明（`Contents/Resources/Licenses/`）；iOS 宿主 App 的 bundle 同样打包 `LICENSE` 与 `THIRD_PARTY_NOTICES.txt`——键盘扩展本身没有可以展示许可的界面，由宿主 App 承载。详见仓库根的 `LICENSE` 与 `THIRD_PARTY_NOTICES.txt`。
 
 ## 隐私与安全
 
@@ -174,3 +185,11 @@ shasum -a 256 -c MetasequoiaIME-vX.Y.Z-macos-universal.zip.sha256
 ### 词库产品边界
 
 macOS 使用固定发布词库；iOS 从同一已校验的数据库调用 `vendor/MetasequoiaImeEngine/build_profile.py --profile mobile --source ...`。初始化工具：`git submodule update --init --recursive`。工具 gitlink 与数据发布源 commit 分别记录，移动产物同时带格式、压缩规则、来源摘要和文件摘要清单。现代发布必须携带清单；已锁定的 `dict-2026.09.05` 是明确的无清单兼容入口。
+
+<!-- star-history:start -->
+## Star History
+
+<a href="https://star-history.com/#metasequoiaime/MSIME-Apple&Date">
+  <img src="https://api.star-history.com/svg?repos=metasequoiaime/MSIME-Apple&type=Date" alt="Star History Chart" width="600">
+</a>
+<!-- star-history:end -->

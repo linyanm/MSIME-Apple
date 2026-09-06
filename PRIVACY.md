@@ -2,7 +2,9 @@
 
 Metasequoia IME for macOS processes keystrokes, pre-edit text, and candidates locally on the user's Mac. The keyboard engine does not send typed text, candidates, learned words, preferences, diagnostics, analytics, or crash reports over the network. It does not include cloud synchronization.
 
-The app contacts GitHub's public Releases API at most once per day to discover new stable versions, and when the user manually requests an update check. The request does not include typed text, preferences, or dictionary data. GitHub may receive the IP address and standard network request metadata. Opening an available update uses the corresponding fixed page under `github.com/metasequoiaime/MSIME-Apple`.
+Updates use [Sparkle](https://sparkle-project.org), not the GitHub API. The app fetches a signed appcast from `https://github.com/metasequoiaime/MSIME-Apple/releases/latest/download/appcast.xml` on Sparkle's default schedule (about once a day) and when the user asks for a check. The request carries no typed text, preferences or dictionary data; GitHub may see the IP address and standard network request metadata. System profiling, which Sparkle can attach to update checks, is off -- `SUEnableSystemProfiling` is not set, so no hardware or OS inventory is sent.
+
+Two Sparkle settings in `Info.plist` are worth stating because they are what make the update path trustworthy rather than merely encrypted: `SURequireSignedFeed` and `SUVerifyUpdateBeforeExtraction` are both true, so an update is checked against the project's Ed25519 public key (`SUPublicEDKey`) before it is unpacked. A tampered appcast or archive is rejected even though the macOS build itself is not yet Developer ID signed.
 
 The input method stores its settings in the current user's macOS preferences. When candidate learning is enabled, learned word-frequency changes are stored locally under `~/Library/Application Support/metasequoiaime/`. The bundled dictionary is copied to the same directory so it can be upgraded safely. These files are available only through the permissions of the local macOS account; users should protect that account and its backups as they would other personal data.
 

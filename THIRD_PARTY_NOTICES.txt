@@ -1,4 +1,4 @@
-Metasequoia IME for macOS — Third-Party Notices
+Metasequoia IME for macOS and iOS — Third-Party Notices
 ================================================
 
 This application embeds MetasequoiaImeEngine, which is distributed under

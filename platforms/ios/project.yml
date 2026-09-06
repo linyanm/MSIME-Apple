@@ -86,6 +86,15 @@ targets:
       - path: platforms/ios/SharedUI
       - path: platforms/ios/SharedResources/PrivacyInfo.xcprivacy
         buildPhase: resources
+      # GPLv3 sections 4 and 6 require the licence to reach whoever receives the program, and the
+      # bundled msime.db is built from rime-ice, which is itself GPL-3.0. macOS already packages
+      # these into Resources/Licenses via CMakeLists.txt; iOS shipped neither. They go on the host
+      # app rather than the keyboard extension because the extension has no UI that could present
+      # them.
+      - path: LICENSE
+        buildPhase: resources
+      - path: THIRD_PARTY_NOTICES.txt
+        buildPhase: resources
     settings:
       base:
         GENERATE_INFOPLIST_FILE: NO
