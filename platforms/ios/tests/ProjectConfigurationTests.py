@@ -175,6 +175,13 @@ class ProjectConfigurationTests(unittest.TestCase):
         self.assertIn('<string>app-store-connect</string>', script)
         self.assertIn('<string>automatic</string>', script)
 
+    def test_testflight_export_reports_missing_cloud_profiles_without_blocking_the_release(self):
+        script = (IOS_ROOT / "scripts/package_ios_testflight.sh").read_text()
+
+        self.assertIn("Cloud signing permission error|No profiles for ", script)
+        self.assertIn("TestFlight upload skipped", script)
+        self.assertIn("The unsigned iOS artifacts remain available in this release.", script)
+
     def test_keyboard_is_local_and_declares_the_system_extension_contract(self):
         with (IOS_ROOT / "KeyboardExtension/Resources/Info.plist").open("rb") as info_file:
             info = plistlib.load(info_file)

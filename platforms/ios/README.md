@@ -38,7 +38,8 @@ The public release assets remain unsigned and reproducible. When the repository 
 `IOS_APP_STORE_CONNECT_API_KEY_ISSUER_ID` Actions secrets, `release.yml` additionally uses Xcode
 automatic signing on the macOS runner and uploads a distribution-signed build to TestFlight. The
 API key must be a Team API key with permission to manage signing assets; the App ID records must exist for
-`app.msime.ios` and `app.msime.ios.keyboard`.
+`app.msime.ios` and `app.msime.ios.keyboard`. If those signing permissions are unavailable, the release
+keeps its unsigned iOS artifacts and records the skipped TestFlight upload in the workflow summary.
 
 To create the base64 secret without printing the private key:
 
