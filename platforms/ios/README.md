@@ -35,10 +35,11 @@ The host app also exposes a simplified/traditional output setting, shared throug
 
 The public release assets remain unsigned and reproducible. When the repository has all three
 `IOS_APP_STORE_CONNECT_API_KEY_BASE64`, `IOS_APP_STORE_CONNECT_API_KEY_ID`, and
-`IOS_APP_STORE_CONNECT_API_KEY_ISSUER_ID` Actions secrets, `release.yml` additionally uses Xcode
-automatic signing on the macOS runner and uploads a distribution-signed build to TestFlight. The
-API key must be a Team API key with permission to manage signing assets; the App ID records must exist for
-`app.msime.ios` and `app.msime.ios.keyboard`.
+`IOS_APP_STORE_CONNECT_API_KEY_ISSUER_ID` plus the two distribution profile secrets
+`IOS_APP_PROVISIONING_PROFILE_BASE64` and `IOS_KEYBOARD_PROVISIONING_PROFILE_BASE64`, `release.yml`
+uses the matching distribution profiles on the macOS runner and uploads the build to TestFlight. The
+API key must be a Team API key with permission to manage signing assets; the App ID records and the
+profiles must exist for `app.msime.ios` and `app.msime.ios.keyboard`.
 
 To create the base64 secret without printing the private key:
 
