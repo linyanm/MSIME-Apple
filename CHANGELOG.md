@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.45.2](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.45.1...v0.45.2) (2026-09-06)
+
+
+### Bug Fixes
+
+* **consolidation:** align data notices and release checks with Engine ([47362d3](https://github.com/metasequoiaime/MSIME-Apple/commit/47362d30aeb4580a8cde3c4d88dc6a61550daec9))
+* **release:** accept the current semantic dictionary tag in configuration checks ([e89e205](https://github.com/metasequoiaime/MSIME-Apple/commit/e89e205d4963a410531eaf573566e83d3c03e6dc))
+
 ## [0.45.1](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.45.0...v0.45.1) (2026-09-05)
 
 
