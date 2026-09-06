@@ -15,9 +15,9 @@ int main(int argc, const char *argv[])
         {
             NSURL *bundleURL = NSBundle.mainBundle.bundleURL;
             NSString *bundleIdentifier = NSBundle.mainBundle.bundleIdentifier;
-            OSStatus status = MetasequoiaRegisterAndEnableInputSources(
-                bundleURL, bundleIdentifier, TISRegisterInputSource, TISCreateInputSourceList,
-                TISGetInputSourceProperty, TISEnableInputSource);
+            OSStatus status = MetasequoiaRegisterAndEnableInputSources(bundleURL, bundleIdentifier,
+                                                                       TISRegisterInputSource, TISCreateInputSourceList,
+                                                                       TISGetInputSourceProperty, TISEnableInputSource);
             if (status != noErr)
             {
                 std::fprintf(stderr, "Input source registration or enable failed with OSStatus %d.\n", status);
@@ -36,8 +36,8 @@ int main(int argc, const char *argv[])
                             object:nil
                              queue:NSOperationQueue.mainQueue
                         usingBlock:^(NSNotification *notification) {
-                            (void)notification;
-                            [application terminate:nil];
+                          (void)notification;
+                          [application terminate:nil];
                         }];
             [[MetasequoiaPreferencesWindowController sharedController] showAndActivateForStandaloneLaunch];
             [application run];

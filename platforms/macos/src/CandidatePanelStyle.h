@@ -14,13 +14,13 @@ enum class CandidatePanelStyle : NSInteger
 inline CandidatePanelStyle NormalizeCandidatePanelStyle(NSInteger value)
 {
     return value == static_cast<NSInteger>(CandidatePanelStyle::Vertical) ? CandidatePanelStyle::Vertical
-                                                                         : CandidatePanelStyle::Horizontal;
+                                                                          : CandidatePanelStyle::Horizontal;
 }
 
 inline IMKCandidatePanelType CandidatePanelTypeForStyle(CandidatePanelStyle style)
 {
     return style == CandidatePanelStyle::Vertical ? kIMKSingleColumnScrollingCandidatePanel
-                                                   : kIMKSingleRowSteppingCandidatePanel;
+                                                  : kIMKSingleRowSteppingCandidatePanel;
 }
 
 inline bool IsPrimaryCandidateDirection(unsigned short keyCode, IMKCandidatePanelType panelType)

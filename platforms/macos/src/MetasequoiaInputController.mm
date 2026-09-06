@@ -80,12 +80,10 @@ bool SchemeUsesHelpcodes(SchemeType scheme)
 
 bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const SessionPreferences &preferences)
 {
-    const bool helpcodeMatches = !SchemeUsesHelpcodes(preferences.scheme) ||
-                                 options.helpcode == preferences.helpcodeEnabled;
-    return options.scheme == preferences.scheme &&
-           options.autocorrect == preferences.autocorrectEnabled &&
-           helpcodeMatches &&
-           options.chinese_punctuation == preferences.chinesePunctuationEnabled &&
+    const bool helpcodeMatches =
+        !SchemeUsesHelpcodes(preferences.scheme) || options.helpcode == preferences.helpcodeEnabled;
+    return options.scheme == preferences.scheme && options.autocorrect == preferences.autocorrectEnabled &&
+           helpcodeMatches && options.chinese_punctuation == preferences.chinesePunctuationEnabled &&
            options.learning == preferences.candidateLearningEnabled;
 }
 } // namespace
@@ -129,8 +127,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
         _candidatePanel.delegate = self;
         _floatingToolbarPanel = [MetasequoiaFloatingToolbarPanel sharedPanel];
         _shuangpinKeymapPanel = [[MetasequoiaShuangpinKeymapPanel alloc] init];
-        [_candidatePanel setAttributes:metasequoia::mac::CandidatePanelAttributes(
-                                           static_cast<size_t>([MetasequoiaPreferencesWindowController storedCandidateFontSize]))];
+        [_candidatePanel setAttributes:metasequoia::mac::CandidatePanelAttributes(static_cast<size_t>(
+                                           [MetasequoiaPreferencesWindowController storedCandidateFontSize]))];
 
         if (metasequoia::mac::ShouldPrepareInputSession(
                 [MetasequoiaPreferencesWindowController storedEnglishInputMode]))
@@ -161,7 +159,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 - (void)dealloc
 {
     [_voiceService cancel];
-    if (_voiceMouseMonitor) [NSEvent removeMonitor:_voiceMouseMonitor];
+    if (_voiceMouseMonitor)
+        [NSEvent removeMonitor:_voiceMouseMonitor];
     [_floatingToolbarPanel deactivateForDelegate:self];
     [_shuangpinKeymapPanel orderOut:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -170,24 +169,23 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 - (void)refreshFloatingToolbar
 {
     [_floatingToolbarPanel
-              updateEnglishInputMode:[MetasequoiaPreferencesWindowController storedEnglishInputMode]
-        chinesePunctuationEnabled:[MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled]
-                 fullWidthEnabled:[MetasequoiaPreferencesWindowController storedFullWidthInputEnabled]
-    traditionalChineseOutputEnabled:[MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled]];
+                 updateEnglishInputMode:[MetasequoiaPreferencesWindowController storedEnglishInputMode]
+              chinesePunctuationEnabled:[MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled]
+                       fullWidthEnabled:[MetasequoiaPreferencesWindowController storedFullWidthInputEnabled]
+        traditionalChineseOutputEnabled:[MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled]];
     if (!_serverActive || _floatingToolbarPanel.toolbarDelegate != self)
     {
         return;
     }
-    [_floatingToolbarPanel
-        setVisible:[MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled]
-       forDelegate:self];
+    [_floatingToolbarPanel setVisible:[MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled]
+                          forDelegate:self];
 }
 
 - (void)floatingToolbarPreferenceDidChange:(NSNotification *)notification
 {
     [self refreshFloatingToolbar];
-    if ([notification.name isEqualToString:MetasequoiaTraditionalChineseOutputDidChangeNotification] &&
-        _serverActive && _session != nullptr && !_sessionSnapshot.preedit.empty())
+    if ([notification.name isEqualToString:MetasequoiaTraditionalChineseOutputDidChangeNotification] && _serverActive &&
+        _session != nullptr && !_sessionSnapshot.preedit.empty())
     {
         [self refreshCandidatePanelPreservingSelection];
     }
@@ -315,16 +313,14 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     [super activateServer:sender];
     _serverActive = YES;
     _dictionaryRetryAfter = 0.0;
-    if (metasequoia::mac::ShouldPrepareInputSession(
-            [MetasequoiaPreferencesWindowController storedEnglishInputMode]) &&
+    if (metasequoia::mac::ShouldPrepareInputSession([MetasequoiaPreferencesWindowController storedEnglishInputMode]) &&
         [self prepareSessionIfNeeded])
     {
         [self reloadSessionFromPreferences];
     }
     [self refreshFloatingToolbar];
-    [_floatingToolbarPanel
-        activateForDelegate:self
-                    visible:[MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled]];
+    [_floatingToolbarPanel activateForDelegate:self
+                                       visible:[MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled]];
 }
 
 - (void)trackCandidateAtIndex:(NSUInteger)index
@@ -336,8 +332,7 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 
     _candidateSelection.update(static_cast<size_t>(index), _sessionSnapshot.candidates[index].word);
     _candidateHighlightedIndex = index;
-    _candidatePageStart = metasequoia::mac::CandidatePageStart(
-        index, _candidateData.count, _candidatePageSize);
+    _candidatePageStart = metasequoia::mac::CandidatePageStart(index, _candidateData.count, _candidatePageSize);
 }
 
 - (void)showCurrentCandidatePage
@@ -395,16 +390,16 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     }
     const NSUInteger line = index - pageStart;
     const NSInteger identifier = [_candidatePanel candidateIdentifierAtLineNumber:static_cast<NSInteger>(line)];
-    const BOOL lineMappingIsUsable = !_candidateLineIdentifiersCollapsed && identifier != NSNotFound &&
+    const BOOL lineMappingIsUsable =
+        !_candidateLineIdentifiersCollapsed && identifier != NSNotFound &&
         [_candidatePanel lineNumberForCandidateWithIdentifier:identifier] == static_cast<NSInteger>(line);
     BOOL selected = NO;
     if (lineMappingIsUsable)
     {
         selected = [_candidatePanel selectCandidateWithIdentifier:identifier] &&
-            [[_candidatePanel selectedCandidateString].string isEqualToString:[_candidateData[index] string]];
+                   [[_candidatePanel selectedCandidateString].string isEqualToString:[_candidateData[index] string]];
     }
-    else if (_candidateLineIdentifiersCollapsed &&
-             NSProcessInfo.processInfo.operatingSystemVersion.majorVersion == 26)
+    else if (_candidateLineIdentifiersCollapsed && NSProcessInfo.processInfo.operatingSystemVersion.majorVersion == 26)
     {
         // This workaround takes an ordinal within the data passed to the panel,
         // which is now the current page, not the complete engine candidate list.
@@ -431,26 +426,27 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     {
         return NO;
     }
-    const NSEventModifierFlags voiceModifiers = event.modifierFlags &
-        (NSEventModifierFlagControl | NSEventModifierFlagOption | NSEventModifierFlagCommand | NSEventModifierFlagShift);
+    const NSEventModifierFlags voiceModifiers =
+        event.modifierFlags & (NSEventModifierFlagControl | NSEventModifierFlagOption | NSEventModifierFlagCommand |
+                               NSEventModifierFlagShift);
     if (event.keyCode == 9 && voiceModifiers == (NSEventModifierFlagControl | NSEventModifierFlagOption))
     {
-        if (!event.isARepeat) [self toggleVoiceInput:sender];
+        if (!event.isARepeat)
+            [self toggleVoiceInput:sender];
         return YES;
     }
     if (_voiceService.active)
     {
         [self cancelVoiceInput];
-        if (event.keyCode == 53) return YES;
+        if (event.keyCode == 53)
+            return YES;
     }
-    const NSEventModifierFlags inputModeModifiers =
-        event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+    const NSEventModifierFlags inputModeModifiers = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
     // Both toggles swallow their repeats. Holding the chord past the system repeat delay used to
     // flip the persisted preference once per repeat and land on whichever parity the repeat count
     // reached, which is the same reason the voice shortcut above guards on isARepeat.
-    if (metasequoia::mac::ShouldToggleInputMode(
-            [MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled], event.keyCode,
-            inputModeModifiers))
+    if (metasequoia::mac::ShouldToggleInputMode([MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled],
+                                                event.keyCode, inputModeModifiers))
     {
         if (!event.isARepeat)
         {
@@ -467,8 +463,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     {
         if (!event.isARepeat)
         {
-            [MetasequoiaPreferencesWindowController setFullWidthInputEnabled:
-                ![MetasequoiaPreferencesWindowController storedFullWidthInputEnabled]];
+            [MetasequoiaPreferencesWindowController
+                setFullWidthInputEnabled:![MetasequoiaPreferencesWindowController storedFullWidthInputEnabled]];
         }
         return YES;
     }
@@ -512,8 +508,7 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     case metasequoia::mac::ControllerKeyAction::MoveCandidateLeft:
     case metasequoia::mac::ControllerKeyAction::MoveCandidateRight:
     case metasequoia::mac::ControllerKeyAction::MoveCandidateUp:
-    case metasequoia::mac::ControllerKeyAction::MoveCandidateDown:
-    {
+    case metasequoia::mac::ControllerKeyAction::MoveCandidateDown: {
         if (!metasequoia::mac::IsPrimaryCandidateDirection(event.keyCode, _candidatePanel.panelType))
         {
             return YES;
@@ -521,8 +516,9 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
         const BOOL backwards = event.keyCode == kVK_LeftArrow || event.keyCode == kVK_UpArrow;
         const NSUInteger target = backwards ? (_candidateHighlightedIndex > 0 ? _candidateHighlightedIndex - 1 : 0)
                                             : std::min(_candidateHighlightedIndex + 1, _candidateData.count - 1);
-        [self selectCandidateAtIndex:target pageStart:metasequoia::mac::CandidatePageStart(
-            target, _candidateData.count, _candidatePageSize)];
+        [self selectCandidateAtIndex:target
+                           pageStart:metasequoia::mac::CandidatePageStart(target, _candidateData.count,
+                                                                          _candidatePageSize)];
         return YES;
     }
     case metasequoia::mac::ControllerKeyAction::MoveCandidatePageUp:
@@ -543,9 +539,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
         [self selectCandidateAtIndex:_candidatePageStart pageStart:_candidatePageStart];
         return YES;
     case metasequoia::mac::ControllerKeyAction::MoveCandidateEnd:
-        [self selectCandidateAtIndex:metasequoia::mac::CandidatePageEnd(
-                                         _candidatePageStart, _candidateData.count,
-                                         _candidatePageSize)
+        [self selectCandidateAtIndex:metasequoia::mac::CandidatePageEnd(_candidatePageStart, _candidateData.count,
+                                                                        _candidatePageSize)
                            pageStart:_candidatePageStart];
         return YES;
     case metasequoia::mac::ControllerKeyAction::Backspace:
@@ -560,17 +555,18 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     case metasequoia::mac::ControllerKeyAction::CommitCandidate:
         result = _candidateSelection.commit(*_session);
         break;
-    case metasequoia::mac::ControllerKeyAction::Character:
-    {
+    case metasequoia::mac::ControllerKeyAction::Character: {
         NSString *characters = event.characters;
         if (characters.length == 1)
         {
             const unichar character = [characters characterAtIndex:0];
-            // Only lowercase reaches the session. The engine now treats A-Z during a composition as helpcode input, which macOS never asked for and does not document; forwarding it would swallow the capital instead of committing the leading candidate and letting the application insert it.
+            // Only lowercase reaches the session. The engine now treats A-Z during a composition as helpcode input,
+            // which macOS never asked for and does not document; forwarding it would swallow the capital instead of
+            // committing the leading candidate and letting the application insert it.
             if (character >= 'a' && character <= 'z')
             {
-                result = metasequoia::mac::HandleCharacterWithWubiAutoCommit(
-                    *_session, static_cast<char>(character), _wubiAutoCommitUniqueEnabled);
+                result = metasequoia::mac::HandleCharacterWithWubiAutoCommit(*_session, static_cast<char>(character),
+                                                                             _wubiAutoCommitUniqueEnabled);
             }
             // Shift and a capital with nothing being composed is how the engine opens a local input
             // mode. It stays out of the helpcode path above, which only applies during a
@@ -597,8 +593,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
                 }
                 else if (character >= '1' && character <= '9')
                 {
-                    result = _candidateSelection.commit_number(
-                        *_session, static_cast<char>(character), _candidatePageSize);
+                    result =
+                        _candidateSelection.commit_number(*_session, static_cast<char>(character), _candidatePageSize);
                     if (!result.handled && !_sessionSnapshot.preedit.empty())
                     {
                         return YES;
@@ -610,11 +606,10 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
             // inserting ASCII while 中文标点 was on. handle_punctuation returns an unhandled result
             // when the preference is off, which leaves the existing ASCII and full-width fallback
             // in charge exactly as before.
-            else if (character == ',' || character == '.' || character == '?' || character == '!' ||
-                     character == ';' || character == ':' || character == '"' || character == '\'' ||
-                     character == '(' || character == ')' || character == '[' || character == ']' ||
-                     character == '<' || character == '>' || character == '\\' ||
-                     character == '`' || character == '$' || character == '^' || character == '_')
+            else if (character == ',' || character == '.' || character == '?' || character == '!' || character == ';' ||
+                     character == ':' || character == '"' || character == '\'' || character == '(' ||
+                     character == ')' || character == '[' || character == ']' || character == '<' || character == '>' ||
+                     character == '\\' || character == '`' || character == '$' || character == '^' || character == '_')
             {
                 result = _session->punctuation(static_cast<char>(character));
             }
@@ -659,15 +654,15 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     // was committed. The rest of the composition still finishes from the engine's first candidate,
     // which is what the default argument means and what this path already did.
     const metasequoia::LocalInputMode localMode = _sessionSnapshot.local_mode;
-    const auto result =
-        _session->finish(_candidateSelection.live_selected_index(_sessionSnapshot).value_or(0));
+    const auto result = _session->finish(_candidateSelection.live_selected_index(_sessionSnapshot).value_or(0));
     if (result.handled)
     {
         [self applyResult:result localMode:localMode client:sender];
     }
 }
 
-// Single source of truth for the traditional-output predicate so the candidate panel and the committed text can never disagree about which script the user sees.
+// Single source of truth for the traditional-output predicate so the candidate panel and the committed text can never
+// disagree about which script the user sees.
 - (BOOL)traditionalChineseOutputActive
 {
     return _session != nullptr && _sessionSnapshot.scheme != SchemeType::JapaneseRomaji &&
@@ -681,9 +676,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 // the Japanese romaji exclusion above cannot apply to the stored preference.
 - (BOOL)voiceOutputUsesTraditionalChinese
 {
-    return _session != nullptr
-               ? [self traditionalChineseOutputActive]
-               : [MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled];
+    return _session != nullptr ? [self traditionalChineseOutputActive]
+                               : [MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled];
 }
 
 // The local input mode is taken as an argument rather than read from the session, because
@@ -699,10 +693,9 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     const NSRange replacementRange = NSMakeRange(NSNotFound, NSNotFound);
     if (result.commit.has_value())
     {
-        const BOOL traditionalOutput = [self traditionalChineseOutputActive] &&
-                                       metasequoia::mac::ScriptConversionAppliesToLocalMode(localMode);
-        NSString *commit = MetasequoiaChineseOutputString(MetasequoiaStringFromUtf8(*result.commit),
-                                                           traditionalOutput);
+        const BOOL traditionalOutput =
+            [self traditionalChineseOutputActive] && metasequoia::mac::ScriptConversionAppliesToLocalMode(localMode);
+        NSString *commit = MetasequoiaChineseOutputString(MetasequoiaStringFromUtf8(*result.commit), traditionalOutput);
         [client insertText:commit replacementRange:replacementRange];
         _candidateSelection.reset();
         if (_sessionSnapshot.preedit.empty())
@@ -723,8 +716,7 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 {
     const BOOL hasComposition = _session != nullptr && !_sessionSnapshot.preedit.empty();
     const BOOL isShuangpin = _session != nullptr && _sessionSnapshot.scheme == SchemeType::Shuangpin;
-    if (!MetasequoiaShouldShowShuangpinKeymap(isShuangpin, _shuangpinKeymapEnabled, hasComposition) ||
-        client == nil)
+    if (!MetasequoiaShouldShowShuangpinKeymap(isShuangpin, _shuangpinKeymapEnabled, hasComposition) || client == nil)
     {
         [_shuangpinKeymapPanel orderOut:nil];
         return;
@@ -732,9 +724,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 
     NSRect caretRect = NSZeroRect;
     [client attributesForCharacterIndex:0 lineHeightRectangle:&caretRect];
-    if (!std::isfinite(NSMinX(caretRect)) || !std::isfinite(NSMinY(caretRect)) ||
-        !std::isfinite(NSMaxX(caretRect)) || !std::isfinite(NSMaxY(caretRect)) ||
-        NSHeight(caretRect) <= 0.0)
+    if (!std::isfinite(NSMinX(caretRect)) || !std::isfinite(NSMinY(caretRect)) || !std::isfinite(NSMaxX(caretRect)) ||
+        !std::isfinite(NSMaxY(caretRect)) || NSHeight(caretRect) <= 0.0)
     {
         [_shuangpinKeymapPanel orderOut:nil];
         return;
@@ -752,14 +743,13 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     }
     [_shuangpinKeymapPanel updateHighlightedKey:highlightedKey];
 
-    const CGFloat fontSize = static_cast<CGFloat>(
-        [MetasequoiaPreferencesWindowController storedCandidateFontSize]);
+    const CGFloat fontSize = static_cast<CGFloat>([MetasequoiaPreferencesWindowController storedCandidateFontSize]);
     CGFloat candidateClearance = fontSize + 42.0;
     if (_candidatePanel.panelType != kIMKSingleRowSteppingCandidatePanel)
     {
-        const NSUInteger visibleCandidates = MIN(
-            _candidateData.count,
-            static_cast<NSUInteger>([MetasequoiaPreferencesWindowController storedCandidatePageSize]));
+        const NSUInteger visibleCandidates =
+            MIN(_candidateData.count,
+                static_cast<NSUInteger>([MetasequoiaPreferencesWindowController storedCandidatePageSize]));
         candidateClearance = (fontSize + 10.0) * visibleCandidates + 24.0;
     }
     [_shuangpinKeymapPanel showNearCaretRect:caretRect candidateClearance:candidateClearance];
@@ -789,10 +779,10 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     _candidateLineIdentifiersCollapsed = NO;
     NSMutableArray *data = [NSMutableArray arrayWithCapacity:_sessionSnapshot.candidates.size()];
     const metasequoia::LocalInputMode localMode = _sessionSnapshot.local_mode;
-    const BOOL traditionalOutput = [self traditionalChineseOutputActive] &&
-                                   metasequoia::mac::ScriptConversionAppliesToLocalMode(localMode);
-    const bool annotateHelpcodes =
-        (_sessionOptions.helpcode && SchemeUsesHelpcodes(_sessionSnapshot.scheme)) && metasequoia::mac::HelpcodesAnnotateLocalMode(localMode);
+    const BOOL traditionalOutput =
+        [self traditionalChineseOutputActive] && metasequoia::mac::ScriptConversionAppliesToLocalMode(localMode);
+    const bool annotateHelpcodes = (_sessionOptions.helpcode && SchemeUsesHelpcodes(_sessionSnapshot.scheme)) &&
+                                   metasequoia::mac::HelpcodesAnnotateLocalMode(localMode);
     NSUInteger candidateIndex = 0;
     for (const WordItem &candidate : _sessionSnapshot.candidates)
     {
@@ -805,9 +795,12 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     _candidateData = [data copy];
     if (!_sessionSnapshot.preedit.empty() && _candidateData.count > 0)
     {
-        const NSUInteger selectedIndex = preservedSelection.has_value() && preservedSelection.value() < _candidateData.count
-                                             ? preservedSelection.value() : 0;
-        _candidatePageStart = metasequoia::mac::CandidatePageStart(selectedIndex, _candidateData.count, _candidatePageSize);
+        const NSUInteger selectedIndex =
+            preservedSelection.has_value() && preservedSelection.value() < _candidateData.count
+                ? preservedSelection.value()
+                : 0;
+        _candidatePageStart =
+            metasequoia::mac::CandidatePageStart(selectedIndex, _candidateData.count, _candidatePageSize);
         [self showCurrentCandidatePage];
         if (preservedSelection.has_value())
         {
@@ -854,7 +847,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
         {
             for (NSUInteger candidateIndex = 0; candidateIndex < _visibleCandidateData.count; ++candidateIndex)
             {
-                if ([_candidatePanel candidateStringIdentifier:_visibleCandidateData[candidateIndex]] != selectedIdentifier)
+                if ([_candidatePanel candidateStringIdentifier:_visibleCandidateData[candidateIndex]] !=
+                    selectedIdentifier)
                 {
                     continue;
                 }
@@ -876,11 +870,13 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
             [displayStrings addObject:candidate.string];
         }
         const NSUInteger line = MetasequoiaUniqueStringIndex(displayStrings, candidateString.string);
-        if (line != NSNotFound) index = _candidatePageStart + line;
+        if (line != NSNotFound)
+            index = _candidatePageStart + line;
     }
     if (index == NSNotFound)
     {
-        // Last resort for display strings that collide after conversion (干/乾): the highlighted line is only trustworthy relative to the page the controller itself navigated to, so exact text matching runs first.
+        // Last resort for display strings that collide after conversion (干/乾): the highlighted line is only
+        // trustworthy relative to the page the controller itself navigated to, so exact text matching runs first.
         const NSInteger selectedIdentifier = [_candidatePanel selectedCandidate];
         const NSInteger selectedLine = selectedIdentifier == NSNotFound
                                            ? NSNotFound
@@ -938,7 +934,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 
 - (id<MetasequoiaVoiceService>)voiceService
 {
-    if (!_voiceService) _voiceService = [MetasequoiaVoiceInputService new];
+    if (!_voiceService)
+        _voiceService = [MetasequoiaVoiceInputService new];
     return _voiceService;
 }
 
@@ -946,7 +943,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 {
     ++_voiceGeneration;
     [_voiceService cancel];
-    if (_voiceMouseMonitor) [NSEvent removeMonitor:_voiceMouseMonitor];
+    if (_voiceMouseMonitor)
+        [NSEvent removeMonitor:_voiceMouseMonitor];
     _voiceMouseMonitor = nil;
 }
 
@@ -958,41 +956,63 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 - (void)showVoiceError:(NSError *)error
 {
     dispatch_async(dispatch_get_main_queue(), ^{
-        NSAlert *alert = [NSAlert new];
-        alert.messageText = @"语音输入未完成";
-        alert.informativeText = error.localizedDescription;
-        [alert addButtonWithTitle:@"好"];
-        [alert runModal];
+      NSAlert *alert = [NSAlert new];
+      alert.messageText = @"语音输入未完成";
+      alert.informativeText = error.localizedDescription;
+      [alert addButtonWithTitle:@"好"];
+      [alert runModal];
     });
 }
 
 - (void)toggleVoiceInput:(id)sender
 {
     (void)sender;
-    if (!_serverActive) return;
+    if (!_serverActive)
+        return;
     id<MetasequoiaVoiceService> service = [self voiceService];
-    if (service.recording) { [service stop]; return; }
-    if (service.active) { [self cancelVoiceInput]; return; }
+    if (service.recording)
+    {
+        [service stop];
+        return;
+    }
+    if (service.active)
+    {
+        [self cancelVoiceInput];
+        return;
+    }
     id client = self.client;
-    if (!client) return;
+    if (!client)
+        return;
     [self commitLeadingCandidate:client];
     const NSUInteger generation = ++_voiceGeneration;
-    const NSRange selection = [client respondsToSelector:@selector(selectedRange)] ? [client selectedRange] : NSMakeRange(NSNotFound, 0);
+    const NSRange selection =
+        [client respondsToSelector:@selector(selectedRange)] ? [client selectedRange] : NSMakeRange(NSNotFound, 0);
     __weak MetasequoiaInputController *weakSelf = self;
-    _voiceMouseMonitor = [NSEvent addGlobalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDown | NSEventMaskRightMouseDown
-        handler:^(NSEvent *event) { (void)event; [weakSelf cancelVoiceInput]; }];
+    _voiceMouseMonitor =
+        [NSEvent addGlobalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDown | NSEventMaskRightMouseDown
+                                               handler:^(NSEvent *event) {
+                                                 (void)event;
+                                                 [weakSelf cancelVoiceInput];
+                                               }];
     [service startWithCompletion:^(NSString *text, NSError *error) {
-        MetasequoiaInputController *owner = weakSelf;
-        if (!owner || !owner->_serverActive || owner->_voiceGeneration != generation || owner.client != client) return;
-        const NSRange currentSelection = [client respondsToSelector:@selector(selectedRange)] ? [client selectedRange] : NSMakeRange(NSNotFound, 0);
-        [owner cancelVoiceInput];
-        if (!NSEqualRanges(currentSelection, selection)) return;
-        if (error) { [owner showVoiceError:error]; return; }
-        if (text.length > 0)
-        {
-            NSString *output = MetasequoiaChineseOutputString(text, [owner voiceOutputUsesTraditionalChinese]);
-            [client insertText:output replacementRange:NSMakeRange(NSNotFound, NSNotFound)];
-        }
+      MetasequoiaInputController *owner = weakSelf;
+      if (!owner || !owner->_serverActive || owner->_voiceGeneration != generation || owner.client != client)
+          return;
+      const NSRange currentSelection =
+          [client respondsToSelector:@selector(selectedRange)] ? [client selectedRange] : NSMakeRange(NSNotFound, 0);
+      [owner cancelVoiceInput];
+      if (!NSEqualRanges(currentSelection, selection))
+          return;
+      if (error)
+      {
+          [owner showVoiceError:error];
+          return;
+      }
+      if (text.length > 0)
+      {
+          NSString *output = MetasequoiaChineseOutputString(text, [owner voiceOutputUsesTraditionalChinese]);
+          [client insertText:output replacementRange:NSMakeRange(NSNotFound, NSNotFound)];
+      }
     }];
 }
 
@@ -1017,7 +1037,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 - (void)openCharacterPalette:(id)sender
 {
     (void)sender;
-    // The Character Viewer inserts straight into the client, so settle any marked text first; otherwise the session would resend the pending composition after the inserted symbol.
+    // The Character Viewer inserts straight into the client, so settle any marked text first; otherwise the session
+    // would resend the pending composition after the inserted symbol.
     [self commitLeadingCandidate:self.client];
     [NSApp orderFrontCharacterPalette:nil];
 }
@@ -1037,16 +1058,15 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 - (void)floatingToolbarDidRequestToggleInputMode:(MetasequoiaFloatingToolbarPanel *)toolbar
 {
     (void)toolbar;
-    [self setEnglishInputMode:![MetasequoiaPreferencesWindowController storedEnglishInputMode]
-                       client:self.client];
+    [self setEnglishInputMode:![MetasequoiaPreferencesWindowController storedEnglishInputMode] client:self.client];
 }
 
 - (void)floatingToolbarDidRequestTogglePunctuation:(MetasequoiaFloatingToolbarPanel *)toolbar
 {
     (void)toolbar;
     [self commitLeadingCandidate:self.client];
-    [MetasequoiaPreferencesWindowController setChinesePunctuationEnabled:
-        ![MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled]];
+    [MetasequoiaPreferencesWindowController
+        setChinesePunctuationEnabled:![MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled]];
     if (_session != nullptr)
     {
         [self reloadSessionFromPreferences];
@@ -1056,15 +1076,16 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 - (void)floatingToolbarDidRequestToggleFullWidth:(MetasequoiaFloatingToolbarPanel *)toolbar
 {
     (void)toolbar;
-    [MetasequoiaPreferencesWindowController setFullWidthInputEnabled:
-        ![MetasequoiaPreferencesWindowController storedFullWidthInputEnabled]];
+    [MetasequoiaPreferencesWindowController
+        setFullWidthInputEnabled:![MetasequoiaPreferencesWindowController storedFullWidthInputEnabled]];
 }
 
 - (void)floatingToolbarDidRequestToggleTraditionalOutput:(MetasequoiaFloatingToolbarPanel *)toolbar
 {
     (void)toolbar;
-    [MetasequoiaPreferencesWindowController setTraditionalChineseOutputEnabled:
-        ![MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled]];
+    [MetasequoiaPreferencesWindowController
+        setTraditionalChineseOutputEnabled:![MetasequoiaPreferencesWindowController
+                                               storedTraditionalChineseOutputEnabled]];
 }
 
 - (void)floatingToolbarDidRequestOpenCharacterPalette:(MetasequoiaFloatingToolbarPanel *)toolbar
@@ -1123,9 +1144,8 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 
 - (NSMenu *)menu
 {
-    return CreateMetasequoiaInputMenu(
-        self, [MetasequoiaPreferencesWindowController storedEnglishInputMode],
-        [MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled]);
+    return CreateMetasequoiaInputMenu(self, [MetasequoiaPreferencesWindowController storedEnglishInputMode],
+                                      [MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled]);
 }
 
 - (NSUInteger)recognizedEvents:(id)sender

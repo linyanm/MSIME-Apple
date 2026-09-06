@@ -6,7 +6,7 @@ namespace
 {
 constexpr CGFloat kToolbarWidth = 272.0;
 constexpr CGFloat kToolbarHeight = 44.0;
-NSString * const kToolbarFrameAutosaveName = @"MetasequoiaFloatingToolbarFrame";
+NSString *const kToolbarFrameAutosaveName = @"MetasequoiaFloatingToolbarFrame";
 
 NSButton *ToolbarButton(NSString *title, NSString *identifier, id target, SEL action)
 {
@@ -50,7 +50,7 @@ NSScreen *ScreenContainingMouse()
     }
     return NSScreen.mainScreen;
 }
-}
+} // namespace
 
 NSRect MetasequoiaFloatingToolbarFrame(NSRect proposedFrame, NSRect visibleFrame, BOOL hasSavedFrame)
 {
@@ -83,8 +83,8 @@ NSMenu *CreateMetasequoiaFloatingToolbarUtilityMenu(id target)
     menu.autoenablesItems = NO;
     for (NSMenuItem *item in @[
              [[NSMenuItem alloc] initWithTitle:@"表情与符号…"
-                                       action:@selector(openCharacterPalette:)
-                                keyEquivalent:@""],
+                                        action:@selector(openCharacterPalette:)
+                                 keyEquivalent:@""],
              [[NSMenuItem alloc] initWithTitle:@"打开设置…" action:@selector(openSettings:) keyEquivalent:@""],
              [[NSMenuItem alloc] initWithTitle:@"检查更新…" action:@selector(checkForUpdates:) keyEquivalent:@""],
          ])
@@ -95,15 +95,15 @@ NSMenu *CreateMetasequoiaFloatingToolbarUtilityMenu(id target)
     }
     [menu addItem:[NSMenuItem separatorItem]];
     NSMenuItem *website = [[NSMenuItem alloc] initWithTitle:@"访问 msime.app"
-                                                    action:@selector(openWebsite:)
-                                             keyEquivalent:@""];
+                                                     action:@selector(openWebsite:)
+                                              keyEquivalent:@""];
     website.target = target;
     website.enabled = YES;
     [menu addItem:website];
     [menu addItem:[NSMenuItem separatorItem]];
     NSMenuItem *hide = [[NSMenuItem alloc] initWithTitle:@"隐藏悬浮状态栏"
-                                                 action:@selector(dismissFloatingToolbar:)
-                                          keyEquivalent:@""];
+                                                  action:@selector(dismissFloatingToolbar:)
+                                           keyEquivalent:@""];
     hide.target = target;
     hide.enabled = YES;
     [menu addItem:hide];
@@ -123,7 +123,7 @@ NSMenu *CreateMetasequoiaFloatingToolbarUtilityMenu(id target)
     static MetasequoiaFloatingToolbarPanel *panel = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        panel = [[MetasequoiaFloatingToolbarPanel alloc] init];
+      panel = [[MetasequoiaFloatingToolbarPanel alloc] init];
     });
     return panel;
 }
@@ -146,10 +146,11 @@ NSMenu *CreateMetasequoiaFloatingToolbarUtilityMenu(id target)
     self.hidesOnDeactivate = NO;
     self.becomesKeyOnlyIfNeeded = YES;
     self.movableByWindowBackground = YES;
-    self.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
-                              NSWindowCollectionBehaviorFullScreenAuxiliary;
+    self.collectionBehavior =
+        NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary;
     [self setFrameAutosaveName:kToolbarFrameAutosaveName];
-    // The autosave name only writes the frame out; a programmatically created window has to read it back itself, and force: is required because this panel is borderless and therefore not resizable.
+    // The autosave name only writes the frame out; a programmatically created window has to read it back itself, and
+    // force: is required because this panel is borderless and therefore not resizable.
     [self setFrameUsingName:kToolbarFrameAutosaveName force:YES];
 
     NSVisualEffectView *background = [[NSVisualEffectView alloc] initWithFrame:self.contentView.bounds];
@@ -162,16 +163,14 @@ NSMenu *CreateMetasequoiaFloatingToolbarUtilityMenu(id target)
     background.layer.masksToBounds = YES;
     self.contentView = background;
 
-    _inputModeButton = ToolbarButton(@"中", @"MetasequoiaFloatingToolbarInputMode", self,
-                                     @selector(toggleInputMode:));
-    _punctuationButton = ToolbarButton(@"。", @"MetasequoiaFloatingToolbarPunctuation", self,
-                                       @selector(togglePunctuation:));
-    _fullWidthButton = ToolbarButton(@"半", @"MetasequoiaFloatingToolbarFullWidth", self,
-                                     @selector(toggleFullWidth:));
-    _traditionalOutputButton = ToolbarButton(@"简", @"MetasequoiaFloatingToolbarTraditionalOutput", self,
-                                             @selector(toggleTraditionalOutput:));
-    NSButton *settingsButton = ToolbarButton(@"", @"MetasequoiaFloatingToolbarSettings", self,
-                                             @selector(showUtilityMenu:));
+    _inputModeButton = ToolbarButton(@"中", @"MetasequoiaFloatingToolbarInputMode", self, @selector(toggleInputMode:));
+    _punctuationButton =
+        ToolbarButton(@"。", @"MetasequoiaFloatingToolbarPunctuation", self, @selector(togglePunctuation:));
+    _fullWidthButton = ToolbarButton(@"半", @"MetasequoiaFloatingToolbarFullWidth", self, @selector(toggleFullWidth:));
+    _traditionalOutputButton =
+        ToolbarButton(@"简", @"MetasequoiaFloatingToolbarTraditionalOutput", self, @selector(toggleTraditionalOutput:));
+    NSButton *settingsButton =
+        ToolbarButton(@"", @"MetasequoiaFloatingToolbarSettings", self, @selector(showUtilityMenu:));
     settingsButton.image = [NSImage imageWithSystemSymbolName:@"gearshape" accessibilityDescription:@"设置"];
     settingsButton.accessibilityLabel = @"打开水杉输入法工具菜单";
     settingsButton.toolTip = settingsButton.accessibilityLabel;
@@ -192,9 +191,9 @@ NSMenu *CreateMetasequoiaFloatingToolbarUtilityMenu(id target)
         [actions.centerYAnchor constraintEqualToAnchor:background.centerYAnchor],
     ]];
     [self updateEnglishInputMode:NO
-        chinesePunctuationEnabled:YES
-                 fullWidthEnabled:NO
-    traditionalChineseOutputEnabled:NO];
+              chinesePunctuationEnabled:YES
+                       fullWidthEnabled:NO
+        traditionalChineseOutputEnabled:NO];
     return self;
 }
 
@@ -204,15 +203,14 @@ NSMenu *CreateMetasequoiaFloatingToolbarUtilityMenu(id target)
 }
 
 - (void)updateEnglishInputMode:(BOOL)englishInputMode
-    chinesePunctuationEnabled:(BOOL)chinesePunctuationEnabled
-             fullWidthEnabled:(BOOL)fullWidthEnabled
-traditionalChineseOutputEnabled:(BOOL)traditionalChineseOutputEnabled
+          chinesePunctuationEnabled:(BOOL)chinesePunctuationEnabled
+                   fullWidthEnabled:(BOOL)fullWidthEnabled
+    traditionalChineseOutputEnabled:(BOOL)traditionalChineseOutputEnabled
 {
     _inputModeButton.title = englishInputMode ? @"英" : @"中";
     _inputModeButton.accessibilityLabel = englishInputMode ? @"切换到中文输入" : @"切换到英文输入";
     _punctuationButton.title = chinesePunctuationEnabled ? @"。" : @".";
-    _punctuationButton.accessibilityLabel =
-        chinesePunctuationEnabled ? @"切换到西文标点" : @"切换到中文标点";
+    _punctuationButton.accessibilityLabel = chinesePunctuationEnabled ? @"切换到西文标点" : @"切换到中文标点";
     _fullWidthButton.title = fullWidthEnabled ? @"全" : @"半";
     _fullWidthButton.accessibilityLabel = fullWidthEnabled ? @"切换到半角输入" : @"切换到全角输入";
     _traditionalOutputButton.title = traditionalChineseOutputEnabled ? @"繁" : @"简";
@@ -243,13 +241,15 @@ traditionalChineseOutputEnabled:(BOOL)traditionalChineseOutputEnabled
     }
     if (self.visible)
     {
-        // Only clamp the frame when the panel comes on screen; re-showing a visible panel must not move it away from where the user dragged it.
+        // Only clamp the frame when the panel comes on screen; re-showing a visible panel must not move it away from
+        // where the user dragged it.
         [self orderFrontRegardless];
         return;
     }
 
-    BOOL hasSavedFrame = [[NSUserDefaults standardUserDefaults]
-        objectForKey:[@"NSWindow Frame " stringByAppendingString:kToolbarFrameAutosaveName]] != nil;
+    BOOL hasSavedFrame =
+        [[NSUserDefaults standardUserDefaults]
+            objectForKey:[@"NSWindow Frame " stringByAppendingString:kToolbarFrameAutosaveName]] != nil;
     NSScreen *screen = hasSavedFrame ? ScreenContainingFrame(self.frame) : ScreenContainingMouse();
     if (screen == nil)
     {
@@ -264,7 +264,8 @@ traditionalChineseOutputEnabled:(BOOL)traditionalChineseOutputEnabled
 
 - (void)deactivateForDelegate:(id<MetasequoiaFloatingToolbarDelegate>)delegate
 {
-    // A deallocating owner reads back as nil through the weak property, so a nil owner is treated as released by the caller rather than as a mismatch.
+    // A deallocating owner reads back as nil through the weak property, so a nil owner is treated as released by the
+    // caller rather than as a mismatch.
     id<MetasequoiaFloatingToolbarDelegate> owner = self.toolbarDelegate;
     if (owner != nil && owner != delegate)
     {
@@ -332,7 +333,7 @@ traditionalChineseOutputEnabled:(BOOL)traditionalChineseOutputEnabled
 {
     NSMenu *menu = CreateMetasequoiaFloatingToolbarUtilityMenu(self);
     [menu popUpMenuPositioningItem:nil
-                       atLocation:NSMakePoint(NSMinX(sender.bounds), NSMaxY(sender.bounds) + 4.0)
-                           inView:sender];
+                        atLocation:NSMakePoint(NSMinX(sender.bounds), NSMaxY(sender.bounds) + 4.0)
+                            inView:sender];
 }
 @end

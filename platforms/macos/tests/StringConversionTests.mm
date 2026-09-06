@@ -18,8 +18,7 @@ int main()
 {
     @autoreleasepool
     {
-        Require([MetasequoiaStringFromUtf8("") isEqualToString:@""],
-                "An empty UTF-8 string did not remain empty.");
+        Require([MetasequoiaStringFromUtf8("") isEqualToString:@""], "An empty UTF-8 string did not remain empty.");
         Require([MetasequoiaStringFromUtf8("水杉 input") isEqualToString:@"水杉 input"],
                 "Valid UTF-8 text changed during conversion.");
 
@@ -39,22 +38,22 @@ int main()
         Require(truncatedString != nil && [truncatedString isEqualToString:@"end�"],
                 "A truncated UTF-8 sequence was not replaced safely.");
 
-        NSArray<NSString *> *uniqueValues = @[@"first", invalidLeadString, @"last"];
+        NSArray<NSString *> *uniqueValues = @[ @"first", invalidLeadString, @"last" ];
         Require(MetasequoiaUniqueStringIndex(uniqueValues, invalidLeadString) == 1,
                 "A uniquely displayed sanitized candidate did not retain its array index.");
         Require(MetasequoiaUniqueStringIndex(uniqueValues, @"missing") == NSNotFound,
                 "A missing display candidate unexpectedly resolved to an index.");
-        Require(MetasequoiaUniqueStringIndex(@[invalidLeadString, truncatedString], @"valid�text") == 0,
+        Require(MetasequoiaUniqueStringIndex(@[ invalidLeadString, truncatedString ], @"valid�text") == 0,
                 "Different sanitized candidates were not compared by their complete display text.");
-        Require(MetasequoiaUniqueStringIndex(@[invalidLeadString, invalidLeadString], invalidLeadString) == NSNotFound,
+        Require(MetasequoiaUniqueStringIndex(@[ invalidLeadString, invalidLeadString ], invalidLeadString) ==
+                    NSNotFound,
                 "An ambiguous sanitized candidate resolved to the wrong engine index.");
 
         NSAttributedString *firstCollision = MetasequoiaIndexedCandidateString(@"乾", 0);
         NSAttributedString *secondCollision = MetasequoiaIndexedCandidateString(@"乾", 1);
         Require([firstCollision.string isEqualToString:secondCollision.string],
                 "The collision fixture did not preserve identical visible text.");
-        Require(MetasequoiaCandidateIndex(firstCollision) == 0 &&
-                    MetasequoiaCandidateIndex(secondCollision) == 1,
+        Require(MetasequoiaCandidateIndex(firstCollision) == 0 && MetasequoiaCandidateIndex(secondCollision) == 1,
                 "Identical visible candidates did not preserve distinct engine identities.");
         Require(MetasequoiaCandidateIndex([[NSAttributedString alloc] initWithString:@"乾"]) == NSNotFound,
                 "An unindexed candidate unexpectedly resolved to an engine identity.");

@@ -28,8 +28,16 @@ void require(bool condition, const char *message)
 @end
 
 @implementation PreferencesTarget
-- (void)toggleVoiceInput:(id)sender { (void)sender; self.voiceToggled = YES; }
-- (void)showVoiceSettings:(id)sender { (void)sender; self.voiceSettingsShown = YES; }
+- (void)toggleVoiceInput:(id)sender
+{
+    (void)sender;
+    self.voiceToggled = YES;
+}
+- (void)showVoiceSettings:(id)sender
+{
+    (void)sender;
+    self.voiceSettingsShown = YES;
+}
 - (void)showPreferences:(id)sender
 {
     (void)sender;
@@ -99,12 +107,12 @@ int main()
         NSMenuItem *simplifiedItem = [menu itemAtIndex:3];
         NSMenuItem *traditionalItem = [menu itemAtIndex:4];
         require([simplifiedItem.title isEqualToString:@"简体输出"] &&
-                    simplifiedItem.action == @selector(selectSimplifiedOutput:) &&
-                    simplifiedItem.target == target && simplifiedItem.state == NSControlStateValueOn,
+                    simplifiedItem.action == @selector(selectSimplifiedOutput:) && simplifiedItem.target == target &&
+                    simplifiedItem.state == NSControlStateValueOn,
                 "Simplified output was not represented as selected.");
         require([traditionalItem.title isEqualToString:@"繁体输出"] &&
-                    traditionalItem.action == @selector(selectTraditionalOutput:) &&
-                    traditionalItem.target == target && traditionalItem.state == NSControlStateValueOff,
+                    traditionalItem.action == @selector(selectTraditionalOutput:) && traditionalItem.target == target &&
+                    traditionalItem.state == NSControlStateValueOff,
                 "Traditional output was not represented as unselected.");
         require([menu itemAtIndex:5].separatorItem,
                 "The output character-set actions were not separated from utilities.");
@@ -148,8 +156,7 @@ int main()
         [englishMenu performActionForItemAtIndex:3];
         require(target.simplifiedSelected, "The simplified output action was not dispatched.");
         [menu performActionForItemAtIndex:6];
-        require(target.characterPaletteOpened,
-                "The character palette action did not invoke openCharacterPalette:.");
+        require(target.characterPaletteOpened, "The character palette action did not invoke openCharacterPalette:.");
         [menu performActionForItemAtIndex:7];
         require(target.updateCheckStarted, "The update action did not invoke checkForUpdates:.");
         [menu performActionForItemAtIndex:8];

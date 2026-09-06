@@ -24,10 +24,20 @@ NSString *const MetasequoiaResetCommittedPhase = @"committed";
 NSArray<NSString *> *MutableDictionaryFileNames()
 {
     static NSArray<NSString *> *fileNames = @[
-        @"msime.db", @"msime.db-wal", @"msime.db-shm", @"msime.db-journal", @"msime.db.sha256",
-        @"msime_user.db", @"msime_user.db-wal", @"msime_user.db-shm", @"msime_user.db-journal",
-        @"msime_english.db", @"msime_english.db-wal", @"msime_english.db-shm",
-        @"msime_english.db-journal", @"user_dict.dat",
+        @"msime.db",
+        @"msime.db-wal",
+        @"msime.db-shm",
+        @"msime.db-journal",
+        @"msime.db.sha256",
+        @"msime_user.db",
+        @"msime_user.db-wal",
+        @"msime_user.db-shm",
+        @"msime_user.db-journal",
+        @"msime_english.db",
+        @"msime_english.db-wal",
+        @"msime_english.db-shm",
+        @"msime_english.db-journal",
+        @"user_dict.dat",
     ];
     return fileNames;
 }
@@ -35,8 +45,8 @@ NSArray<NSString *> *MutableDictionaryFileNames()
 NSArray<NSString *> *HelpcodeFileNames()
 {
     static NSArray<NSString *> *fileNames = @[
-        @"helpcode.txt", @"zrm_helpcode_big_unique.txt", @"shouyou2_0_helpcode.txt",
-        @"shouyouplus_helpcode.txt", @"xiaohe_helpcode.txt"
+        @"helpcode.txt", @"zrm_helpcode_big_unique.txt", @"shouyou2_0_helpcode.txt", @"shouyouplus_helpcode.txt",
+        @"xiaohe_helpcode.txt"
     ];
     return fileNames;
 }
@@ -47,7 +57,7 @@ BOOL Fail(NSError **error, NSInteger code, NSString *description)
     {
         *error = [NSError errorWithDomain:MetasequoiaDictionaryErrorDomain
                                      code:code
-                                 userInfo:@{NSLocalizedDescriptionKey: description}];
+                                 userInfo:@{NSLocalizedDescriptionKey : description}];
     }
     return NO;
 }
@@ -69,8 +79,8 @@ BOOL DictionaryMatchesFingerprint(NSURL *dictionary, NSString *fingerprint)
     }
 
     NSString *normalizedFingerprint = fingerprint.lowercaseString;
-    NSCharacterSet *nonHexadecimal = [[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"]
-        invertedSet];
+    NSCharacterSet *nonHexadecimal =
+        [[NSCharacterSet characterSetWithCharactersInString:@"0123456789abcdef"] invertedSet];
     if ([normalizedFingerprint rangeOfCharacterFromSet:nonHexadecimal].location != NSNotFound)
     {
         return NO;
@@ -143,9 +153,9 @@ BOOL IsUsableDictionary(NSURL *dictionary)
     }
 
     sqlite3_stmt *integrityStatement = nullptr;
-    BOOL integrityValid = sqlite3_prepare_v2(database, "PRAGMA quick_check(1)", -1, &integrityStatement, nullptr) ==
-                              SQLITE_OK &&
-                          sqlite3_step(integrityStatement) == SQLITE_ROW;
+    BOOL integrityValid =
+        sqlite3_prepare_v2(database, "PRAGMA quick_check(1)", -1, &integrityStatement, nullptr) == SQLITE_OK &&
+        sqlite3_step(integrityStatement) == SQLITE_ROW;
     if (integrityValid)
     {
         const unsigned char *result = sqlite3_column_text(integrityStatement, 0);
@@ -172,14 +182,13 @@ NSString *ResetBackupName(NSString *fileName, NSString *identifier)
 
 NSURL *ResetTemporaryDictionary(NSURL *dataDirectory, NSString *identifier)
 {
-    return [dataDirectory URLByAppendingPathComponent:
-                              [@".msime.db.resetting." stringByAppendingString:identifier]];
+    return [dataDirectory URLByAppendingPathComponent:[@".msime.db.resetting." stringByAppendingString:identifier]];
 }
 
 NSURL *ResetTemporaryFingerprint(NSURL *dataDirectory, NSString *identifier)
 {
-    return [dataDirectory URLByAppendingPathComponent:
-                              [@".msime.db.sha256.resetting." stringByAppendingString:identifier]];
+    return
+        [dataDirectory URLByAppendingPathComponent:[@".msime.db.sha256.resetting." stringByAppendingString:identifier]];
 }
 
 BOOL SyncURL(NSURL *url, BOOL directory, NSError **error)
@@ -218,23 +227,24 @@ BOOL WriteResetMarker(NSURL *dataDirectory, NSString *identifier, NSString *phas
                       NSArray<NSString *> *originalFileNames, NSError **error)
 {
     NSDictionary *marker = @{
-        @"version": @1,
-        @"identifier": identifier,
-        @"phase": phase,
-        @"originalFileNames": originalFileNames,
+        @"version" : @1,
+        @"identifier" : identifier,
+        @"phase" : phase,
+        @"originalFileNames" : originalFileNames,
     };
     NSData *data = [NSPropertyListSerialization dataWithPropertyList:marker
-                                                               format:NSPropertyListBinaryFormat_v1_0
-                                                              options:0
-                                                                error:error];
+                                                              format:NSPropertyListBinaryFormat_v1_0
+                                                             options:0
+                                                               error:error];
     if (data == nil)
     {
         return NO;
     }
 
     NSURL *markerURL = [dataDirectory URLByAppendingPathComponent:MetasequoiaResetMarkerName];
-    NSURL *temporaryMarker = [dataDirectory
-        URLByAppendingPathComponent:[@".metasequoia-learning-reset.tmp." stringByAppendingString:NSUUID.UUID.UUIDString]];
+    NSURL *temporaryMarker =
+        [dataDirectory URLByAppendingPathComponent:[@".metasequoia-learning-reset.tmp."
+                                                       stringByAppendingString:NSUUID.UUID.UUIDString]];
     if (![data writeToURL:temporaryMarker options:0 error:error] || !SyncURL(temporaryMarker, NO, error))
     {
         [[NSFileManager defaultManager] removeItemAtURL:temporaryMarker error:nil];
@@ -277,8 +287,7 @@ BOOL ValidateResetMarker(NSDictionary *marker, NSString **identifier, NSString *
     id names = marker[@"originalFileNames"];
     if (![version isKindOfClass:[NSNumber class]] || [version integerValue] != 1 ||
         ![markerIdentifier isKindOfClass:[NSString class]] ||
-        [[NSUUID alloc] initWithUUIDString:markerIdentifier] == nil ||
-        ![markerPhase isKindOfClass:[NSString class]] ||
+        [[NSUUID alloc] initWithUUIDString:markerIdentifier] == nil || ![markerPhase isKindOfClass:[NSString class]] ||
         (![markerPhase isEqualToString:MetasequoiaResetPreparedPhase] &&
          ![markerPhase isEqualToString:MetasequoiaResetBackedUpPhase] &&
          ![markerPhase isEqualToString:MetasequoiaResetRollingBackPhase] &&
@@ -315,18 +324,18 @@ BOOL RecoverPreparedReset(NSFileManager *fileManager, NSURL *dataDirectory, NSSt
         NSURL *backup = [dataDirectory URLByAppendingPathComponent:ResetBackupName(fileName, identifier)];
         if ([fileManager fileExistsAtPath:backup.path])
         {
-            if (!RemoveIfPresent(fileManager, original, error) ||
-                ![fileManager moveItemAtURL:backup toURL:original error:error])
+            if (!RemoveIfPresent(fileManager, original, error) || ![fileManager moveItemAtURL:backup
+                                                                                        toURL:original
+                                                                                        error:error])
             {
                 return NO;
             }
         }
-        else if ([originalNames containsObject:fileName] &&
-                 ![fileManager fileExistsAtPath:original.path])
+        else if ([originalNames containsObject:fileName] && ![fileManager fileExistsAtPath:original.path])
         {
-            return Fail(error, 9, rollbackWasStarted
-                                      ? @"A learned-data reset rollback cannot find an original or backup file."
-                                      : @"A prepared learned-data reset cannot find an original or backup file.");
+            return Fail(error, 9,
+                        rollbackWasStarted ? @"A learned-data reset rollback cannot find an original or backup file."
+                                           : @"A prepared learned-data reset cannot find an original or backup file.");
         }
         else if (![originalNames containsObject:fileName] &&
                  ([fileName isEqualToString:@"msime.db"] || [fileName isEqualToString:@"msime.db.sha256"]) &&
@@ -365,9 +374,9 @@ BOOL CleanupCommittedReset(NSFileManager *fileManager, NSURL *dataDirectory, NSS
 BOOL CleanupOrphanedResetTemporaryFiles(NSFileManager *fileManager, NSURL *dataDirectory, NSError **error)
 {
     NSArray<NSURL *> *contents = [fileManager contentsOfDirectoryAtURL:dataDirectory
-                                             includingPropertiesForKeys:nil
-                                                                options:0
-                                                                  error:error];
+                                            includingPropertiesForKeys:nil
+                                                               options:0
+                                                                 error:error];
     if (contents == nil)
     {
         return NO;
@@ -380,12 +389,9 @@ BOOL CleanupOrphanedResetTemporaryFiles(NSFileManager *fileManager, NSURL *dataD
         // error paths inside their own function, so a process killed mid-copy leaked the staged
         // file forever — a full dictionary copy in the case of .msime.db.installing. Every caller
         // reaches this sweep before staging anything of its own.
-        if (![name hasPrefix:@".msime.db.resetting."] &&
-            ![name hasPrefix:@".msime.db.sha256.resetting."] &&
-            ![name hasPrefix:@".msime.db.installing."] &&
-            ![name hasPrefix:@".helpcodes.installing."] &&
-            ![name hasPrefix:@".helpcodes.backup."] &&
-            ![name hasPrefix:@".metasequoia-learning-reset.tmp."])
+        if (![name hasPrefix:@".msime.db.resetting."] && ![name hasPrefix:@".msime.db.sha256.resetting."] &&
+            ![name hasPrefix:@".msime.db.installing."] && ![name hasPrefix:@".helpcodes.installing."] &&
+            ![name hasPrefix:@".helpcodes.backup."] && ![name hasPrefix:@".metasequoia-learning-reset.tmp."])
         {
             continue;
         }
@@ -425,8 +431,7 @@ BOOL RecoverLearningReset(NSFileManager *fileManager, NSURL *dataDirectory, NSEr
                 return Fail(error, 9, @"A durable learned-data reset backup is missing.");
             }
         }
-        if (!WriteResetMarker(dataDirectory, identifier, MetasequoiaResetRollingBackPhase,
-                              originalFileNames, error))
+        if (!WriteResetMarker(dataDirectory, identifier, MetasequoiaResetRollingBackPhase, originalFileNames, error))
         {
             return NO;
         }
@@ -434,10 +439,8 @@ BOOL RecoverLearningReset(NSFileManager *fileManager, NSURL *dataDirectory, NSEr
     }
 
     const BOOL recovered = [phase isEqualToString:MetasequoiaResetCommittedPhase]
-                               ? CleanupCommittedReset(fileManager, dataDirectory, identifier,
-                                                       originalFileNames, error)
-                               : RecoverPreparedReset(fileManager, dataDirectory, identifier,
-                                                      originalFileNames,
+                               ? CleanupCommittedReset(fileManager, dataDirectory, identifier, originalFileNames, error)
+                               : RecoverPreparedReset(fileManager, dataDirectory, identifier, originalFileNames,
                                                       [phase isEqualToString:MetasequoiaResetRollingBackPhase], error);
     if (!recovered || ![fileManager removeItemAtURL:markerURL error:error] ||
         !CleanupOrphanedResetTemporaryFiles(fileManager, dataDirectory, error))
@@ -448,8 +451,7 @@ BOOL RecoverLearningReset(NSFileManager *fileManager, NSURL *dataDirectory, NSEr
 }
 } // namespace
 
-BOOL InstallMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString *dictionaryFingerprint,
-                                  NSError **error)
+BOOL InstallMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString *dictionaryFingerprint, NSError **error)
 {
     if (error != nullptr)
     {
@@ -464,15 +466,15 @@ BOOL InstallMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString 
     {
         NSFileManager *fileManager = [NSFileManager defaultManager];
         if (![fileManager createDirectoryAtURL:dataDirectory
-                    withIntermediateDirectories:YES
-                                     attributes:nil
-                                          error:error] ||
+                   withIntermediateDirectories:YES
+                                    attributes:nil
+                                         error:error] ||
             !RecoverLearningReset(fileManager, dataDirectory, error))
         {
             return NO;
         }
-        NSDictionary<NSFileAttributeKey, id> *sourceAttributes =
-            [fileManager attributesOfItemAtPath:source.path error:error];
+        NSDictionary<NSFileAttributeKey, id> *sourceAttributes = [fileManager attributesOfItemAtPath:source.path
+                                                                                               error:error];
         if (sourceAttributes == nil || sourceAttributes.fileSize == 0)
         {
             if (sourceAttributes != nil)
@@ -494,8 +496,9 @@ BOOL InstallMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString 
                 return NO;
             }
 
-            installedFingerprint =
-                [NSString stringWithContentsOfURL:fingerprintFile encoding:NSUTF8StringEncoding error:nil];
+            installedFingerprint = [NSString stringWithContentsOfURL:fingerprintFile
+                                                            encoding:NSUTF8StringEncoding
+                                                               error:nil];
             if (destinationAttributes.fileSize > 0 && [installedFingerprint isEqualToString:dictionaryFingerprint])
             {
                 return YES;
@@ -534,8 +537,7 @@ BOOL InstallMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString 
 
         NSURL *userDatabase = [dataDirectory URLByAppendingPathComponent:@"msime_user.db" isDirectory:NO];
         NSURL *englishDatabase = [dataDirectory URLByAppendingPathComponent:@"msime_english.db" isDirectory:NO];
-        if ([fileManager fileExistsAtPath:userDatabase.path] &&
-            ![fileManager fileExistsAtPath:englishDatabase.path] &&
+        if ([fileManager fileExistsAtPath:userDatabase.path] && ![fileManager fileExistsAtPath:englishDatabase.path] &&
             ![fileManager createFileAtPath:englishDatabase.path contents:nil attributes:nil])
         {
             [fileManager removeItemAtURL:temporary error:nil];
@@ -546,9 +548,8 @@ BOOL InstallMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString 
         if (replay.failed != 0 || !replay.error.empty())
         {
             [fileManager removeItemAtURL:temporary error:nil];
-            NSString *description = [NSString
-                stringWithFormat:@"User dictionary replay failed (%d operation(s)): %s", replay.failed,
-                                 replay.error.c_str()];
+            NSString *description = [NSString stringWithFormat:@"User dictionary replay failed (%d operation(s)): %s",
+                                                               replay.failed, replay.error.c_str()];
             return Fail(error, 3, description);
         }
 
@@ -577,7 +578,7 @@ BOOL InstallMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString 
         // here, a different dictionary. The reset path already discards these; the swap has to as
         // well. Removed after the swap, never before, so a failure here cannot strip a live
         // database of the journal it still needs.
-        for (NSString *sidecarName in @[@"msime.db-journal", @"msime.db-wal", @"msime.db-shm"])
+        for (NSString *sidecarName in @[ @"msime.db-journal", @"msime.db-wal", @"msime.db-shm" ])
         {
             NSURL *sidecar = [dataDirectory URLByAppendingPathComponent:sidecarName isDirectory:NO];
             if (!RemoveIfPresent(fileManager, sidecar, error))
@@ -593,8 +594,7 @@ BOOL InstallMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString 
     }
 }
 
-BOOL ResetMetasequoiaLearnedData(NSURL *source, NSURL *dataDirectory, NSString *dictionaryFingerprint,
-                                 NSError **error)
+BOOL ResetMetasequoiaLearnedData(NSURL *source, NSURL *dataDirectory, NSString *dictionaryFingerprint, NSError **error)
 {
     if (error != nullptr)
     {
@@ -608,9 +608,9 @@ BOOL ResetMetasequoiaLearnedData(NSURL *source, NSURL *dataDirectory, NSString *
     {
         NSFileManager *fileManager = [NSFileManager defaultManager];
         if (![fileManager createDirectoryAtURL:dataDirectory
-                    withIntermediateDirectories:YES
-                                     attributes:nil
-                                          error:error] ||
+                   withIntermediateDirectories:YES
+                                    attributes:nil
+                                         error:error] ||
             !RecoverLearningReset(fileManager, dataDirectory, error))
         {
             return NO;
@@ -662,8 +662,7 @@ BOOL ResetMetasequoiaLearnedData(NSURL *source, NSURL *dataDirectory, NSString *
                 [originalFileNames addObject:fileName];
             }
         }
-        if (!WriteResetMarker(dataDirectory, identifier, MetasequoiaResetPreparedPhase,
-                              originalFileNames, error))
+        if (!WriteResetMarker(dataDirectory, identifier, MetasequoiaResetPreparedPhase, originalFileNames, error))
         {
             [fileManager removeItemAtURL:temporaryDictionary error:nil];
             [fileManager removeItemAtURL:temporaryFingerprint error:nil];
@@ -681,9 +680,10 @@ BOOL ResetMetasequoiaLearnedData(NSURL *source, NSURL *dataDirectory, NSString *
                 NSError *recoveryError = nil;
                 if (!RecoverLearningReset(fileManager, dataDirectory, &recoveryError))
                 {
-                    return Fail(error, 8,
-                                [NSString stringWithFormat:@"The learned-data reset failed and rollback could not finish: %@",
-                                                           recoveryError.localizedDescription]);
+                    return Fail(
+                        error, 8,
+                        [NSString stringWithFormat:@"The learned-data reset failed and rollback could not finish: %@",
+                                                   recoveryError.localizedDescription]);
                 }
                 if (error != nullptr)
                 {
@@ -699,9 +699,10 @@ BOOL ResetMetasequoiaLearnedData(NSURL *source, NSURL *dataDirectory, NSString *
             NSError *recoveryError = nil;
             if (!RecoverLearningReset(fileManager, dataDirectory, &recoveryError))
             {
-                return Fail(error, 8,
-                            [NSString stringWithFormat:@"The learned-data reset failed and rollback could not finish: %@",
-                                                       recoveryError.localizedDescription]);
+                return Fail(
+                    error, 8,
+                    [NSString stringWithFormat:@"The learned-data reset failed and rollback could not finish: %@",
+                                               recoveryError.localizedDescription]);
             }
             if (error != nullptr)
             {
@@ -709,16 +710,16 @@ BOOL ResetMetasequoiaLearnedData(NSURL *source, NSURL *dataDirectory, NSString *
             }
             return NO;
         }
-        if (!WriteResetMarker(dataDirectory, identifier, MetasequoiaResetBackedUpPhase,
-                              originalFileNames, error))
+        if (!WriteResetMarker(dataDirectory, identifier, MetasequoiaResetBackedUpPhase, originalFileNames, error))
         {
             NSError *operationError = error == nullptr ? nil : *error;
             NSError *recoveryError = nil;
             if (!RecoverLearningReset(fileManager, dataDirectory, &recoveryError))
             {
-                return Fail(error, 8,
-                            [NSString stringWithFormat:@"The learned-data reset failed and rollback could not finish: %@",
-                                                       recoveryError.localizedDescription]);
+                return Fail(
+                    error, 8,
+                    [NSString stringWithFormat:@"The learned-data reset failed and rollback could not finish: %@",
+                                               recoveryError.localizedDescription]);
             }
             if (error != nullptr)
             {
@@ -738,9 +739,10 @@ BOOL ResetMetasequoiaLearnedData(NSURL *source, NSURL *dataDirectory, NSString *
             NSError *recoveryError = nil;
             if (!RecoverLearningReset(fileManager, dataDirectory, &recoveryError))
             {
-                return Fail(error, 8,
-                            [NSString stringWithFormat:@"The learned-data reset failed and rollback could not finish: %@",
-                                                       recoveryError.localizedDescription]);
+                return Fail(
+                    error, 8,
+                    [NSString stringWithFormat:@"The learned-data reset failed and rollback could not finish: %@",
+                                               recoveryError.localizedDescription]);
             }
             if (error != nullptr)
             {
@@ -749,16 +751,16 @@ BOOL ResetMetasequoiaLearnedData(NSURL *source, NSURL *dataDirectory, NSString *
             return NO;
         }
 
-        if (!WriteResetMarker(dataDirectory, identifier, MetasequoiaResetCommittedPhase,
-                              originalFileNames, error))
+        if (!WriteResetMarker(dataDirectory, identifier, MetasequoiaResetCommittedPhase, originalFileNames, error))
         {
             NSError *operationError = error == nullptr ? nil : *error;
             NSError *recoveryError = nil;
             if (!RecoverLearningReset(fileManager, dataDirectory, &recoveryError))
             {
-                return Fail(error, 8,
-                            [NSString stringWithFormat:@"The learned-data reset failed and rollback could not finish: %@",
-                                                       recoveryError.localizedDescription]);
+                return Fail(
+                    error, 8,
+                    [NSString stringWithFormat:@"The learned-data reset failed and rollback could not finish: %@",
+                                               recoveryError.localizedDescription]);
             }
             if (error != nullptr)
             {
@@ -770,15 +772,14 @@ BOOL ResetMetasequoiaLearnedData(NSURL *source, NSURL *dataDirectory, NSString *
         NSError *cleanupError = nil;
         if (!RecoverLearningReset(fileManager, dataDirectory, &cleanupError))
         {
-            NSLog(@"Learned-data reset committed; deferred cleanup remains pending (%@:%ld).",
-                  cleanupError.domain, static_cast<long>(cleanupError.code));
+            NSLog(@"Learned-data reset committed; deferred cleanup remains pending (%@:%ld).", cleanupError.domain,
+                  static_cast<long>(cleanupError.code));
         }
         return YES;
     }
 }
 
-BOOL PrepareMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString *dictionaryFingerprint,
-                                  NSError **error)
+BOOL PrepareMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString *dictionaryFingerprint, NSError **error)
 {
     if (dataDirectory == nil)
     {
@@ -788,9 +789,9 @@ BOOL PrepareMetasequoiaDictionary(NSURL *source, NSURL *dataDirectory, NSString 
     {
         NSFileManager *fileManager = [NSFileManager defaultManager];
         if (![fileManager createDirectoryAtURL:dataDirectory
-                    withIntermediateDirectories:YES
-                                     attributes:nil
-                                          error:error] ||
+                   withIntermediateDirectories:YES
+                                    attributes:nil
+                                         error:error] ||
             !RecoverLearningReset(fileManager, dataDirectory, error))
         {
             return NO;
@@ -846,40 +847,36 @@ BOOL InstallMetasequoiaHelpCodes(NSURL *sourceDirectory, NSURL *dataDirectory, N
         for (NSString *fileName in HelpcodeFileNames())
         {
             NSURL *source = [sourceDirectory URLByAppendingPathComponent:fileName isDirectory:NO];
-            NSDictionary<NSFileAttributeKey, id> *attributes =
-                [fileManager attributesOfItemAtPath:source.path error:error];
+            NSDictionary<NSFileAttributeKey, id> *attributes = [fileManager attributesOfItemAtPath:source.path
+                                                                                             error:error];
             if (attributes == nil || ![attributes.fileType isEqualToString:NSFileTypeRegular] ||
                 attributes.fileSize == 0)
             {
                 if (attributes != nil)
                 {
-                    Fail(error, 10,
-                         [NSString stringWithFormat:@"The bundled helpcode table %@ is invalid.", fileName]);
+                    Fail(error, 10, [NSString stringWithFormat:@"The bundled helpcode table %@ is invalid.", fileName]);
                 }
                 return NO;
             }
         }
 
         if (![fileManager createDirectoryAtURL:dataDirectory
-                    withIntermediateDirectories:YES
-                                     attributes:nil
-                                          error:error])
+                   withIntermediateDirectories:YES
+                                    attributes:nil
+                                         error:error])
         {
             return NO;
         }
 
         NSString *identifier = NSUUID.UUID.UUIDString;
         NSURL *destination = [dataDirectory URLByAppendingPathComponent:@"helpcodes" isDirectory:YES];
-        NSURL *staging = [dataDirectory
-            URLByAppendingPathComponent:[@".helpcodes.installing." stringByAppendingString:identifier]
-                             isDirectory:YES];
-        NSURL *backup = [dataDirectory
-            URLByAppendingPathComponent:[@".helpcodes.backup." stringByAppendingString:identifier]
-                             isDirectory:YES];
-        if (![fileManager createDirectoryAtURL:staging
-                    withIntermediateDirectories:NO
-                                     attributes:nil
-                                          error:error])
+        NSURL *staging =
+            [dataDirectory URLByAppendingPathComponent:[@".helpcodes.installing." stringByAppendingString:identifier]
+                                           isDirectory:YES];
+        NSURL *backup =
+            [dataDirectory URLByAppendingPathComponent:[@".helpcodes.backup." stringByAppendingString:identifier]
+                                           isDirectory:YES];
+        if (![fileManager createDirectoryAtURL:staging withIntermediateDirectories:NO attributes:nil error:error])
         {
             return NO;
         }
@@ -931,8 +928,7 @@ BOOL EnsureMetasequoiaDictionary(NSError **error)
     }
 
     NSURL *dataDirectory = [applicationSupport URLByAppendingPathComponent:@"metasequoiaime" isDirectory:YES];
-    NSURL *helpcodeSource = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"helpcodes"
-                                                                    isDirectory:YES];
+    NSURL *helpcodeSource = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"helpcodes" isDirectory:YES];
     if (!InstallMetasequoiaHelpCodes(helpcodeSource, dataDirectory, error))
     {
         return NO;

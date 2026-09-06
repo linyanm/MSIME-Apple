@@ -48,11 +48,9 @@ double RelativeLuminance(NSColor *color)
     require(srgb != nil, "A candidate preview color could not be converted to sRGB.");
     [srgb getRed:&red green:&green blue:&blue alpha:&alpha];
     auto linearChannel = [](CGFloat component) {
-        return component <= 0.03928 ? component / 12.92
-                                    : std::pow((component + 0.055) / 1.055, 2.4);
+        return component <= 0.03928 ? component / 12.92 : std::pow((component + 0.055) / 1.055, 2.4);
     };
-    return (0.2126 * linearChannel(red)) + (0.7152 * linearChannel(green)) +
-           (0.0722 * linearChannel(blue));
+    return (0.2126 * linearChannel(red)) + (0.7152 * linearChannel(green)) + (0.0722 * linearChannel(blue));
 }
 
 double ContrastRatio(NSColor *first, NSColor *second)
@@ -73,8 +71,7 @@ bool WaitUntil(BOOL (^condition)(void))
         {
             return false;
         }
-        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
-                                 beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
     }
     return true;
 }
@@ -189,13 +186,10 @@ int main()
         [MetasequoiaPreferencesWindowController setInputModeShortcutEnabled:NO];
         [MetasequoiaPreferencesWindowController setFullWidthInputEnabled:NO];
         [MetasequoiaPreferencesWindowController setWubiAutoCommitUniqueEnabled:NO];
-        [[NSUserDefaults standardUserDefaults] setBool:YES
-                                                forKey:@"MetasequoiaImeShuangpinKeymapEnabled"];
+        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MetasequoiaImeShuangpinKeymapEnabled"];
         [MetasequoiaPreferencesWindowController setHelpcodeEnabled:YES];
-        [[NSUserDefaults standardUserDefaults] setInteger:1
-                                                   forKey:@"MetasequoiaImeQuanpinHelpcodeSchema"];
-        [[NSUserDefaults standardUserDefaults] setInteger:3
-                                                   forKey:@"MetasequoiaImeShuangpinHelpcodeSchema"];
+        [[NSUserDefaults standardUserDefaults] setInteger:1 forKey:@"MetasequoiaImeQuanpinHelpcodeSchema"];
+        [[NSUserDefaults standardUserDefaults] setInteger:3 forKey:@"MetasequoiaImeShuangpinHelpcodeSchema"];
         [MetasequoiaPreferencesWindowController setStoredScheme:2];
         require([MetasequoiaPreferencesWindowController storedScheme] == 2,
                 "The Wubi input scheme preference was not stored.");
@@ -225,14 +219,14 @@ int main()
         PreferencesFakeUpdateDriver *updateDriver = [[PreferencesFakeUpdateDriver alloc] init];
         updateDriver.canCheckForUpdates = YES;
         updateDriver.automaticallyChecksForUpdates = YES;
-        MetasequoiaUpdateController *updateController =
-            [[MetasequoiaUpdateController alloc] initWithDriver:updateDriver activationHandler:^{}];
+        MetasequoiaUpdateController *updateController = [[MetasequoiaUpdateController alloc] initWithDriver:updateDriver
+                                                                                          activationHandler:^{
+                                                                                          }];
         MetasequoiaPreferencesWindowController *controller =
             [[MetasequoiaPreferencesWindowController alloc] initWithUpdateController:updateController];
         [controller refreshControls];
         require(controller.window.titleVisibility == NSWindowTitleVisible &&
-                    !controller.window.titlebarAppearsTransparent &&
-                    !controller.window.movableByWindowBackground,
+                    !controller.window.titlebarAppearsTransparent && !controller.window.movableByWindowBackground,
                 "The settings window did not use standard macOS window chrome.");
         require(FindViewWithAccessibilityLabel(controller.window.contentView, @"水杉输入法导航") == nil,
                 "The settings window still exposed the custom branded sidebar.");
@@ -260,9 +254,7 @@ int main()
                     generalPage.hidden && !appearancePage.hidden && dataPage.hidden &&
                     [toolbar.selectedItemIdentifier isEqualToString:appearanceNavigationItem.itemIdentifier],
                 "The appearance toolbar item did not reveal and select the appearance page.");
-        require([NSApp sendAction:dataNavigationItem.action
-                               to:dataNavigationItem.target
-                             from:dataNavigationItem] &&
+        require([NSApp sendAction:dataNavigationItem.action to:dataNavigationItem.target from:dataNavigationItem] &&
                     generalPage.hidden && appearancePage.hidden && !dataPage.hidden &&
                     [toolbar.selectedItemIdentifier isEqualToString:dataNavigationItem.itemIdentifier],
                 "The data toolbar item did not reveal and select the data page.");
@@ -301,8 +293,7 @@ int main()
         // those keystrokes insert a bare capital today, so it must never arrive switched on.
         NSButton *localInputModesButton =
             FindButtonWithTitle(controller.window.contentView, @"启用本地输入模式（Shift+U/T/K/J）");
-        require(localInputModesButton != nil,
-                "The settings window did not expose the local input mode switch.");
+        require(localInputModesButton != nil, "The settings window did not expose the local input mode switch.");
         require(localInputModesButton.state == NSControlStateValueOff,
                 "The local input mode switch did not default to off.");
         // A real click flips the state before the action runs, so the test has to do the same.
@@ -325,8 +316,7 @@ int main()
         NSButton *fullWidthButton = FindButtonWithTitle(controller.window.contentView, @"Option+Shift+H 切换全半角");
         require(quanpinSchemeButton != nil && shuangpinSchemeButton != nil && wubiSchemeButton != nil,
                 "The keyboard-input page did not expose every supported input scheme.");
-        NSView *shuangpinSchemeView =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"双拼方案");
+        NSView *shuangpinSchemeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"双拼方案");
         NSView *wubiSchemeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"五笔方案");
         require([shuangpinSchemeView isKindOfClass:[NSPopUpButton class]] &&
                     ((NSPopUpButton *)shuangpinSchemeView).numberOfItems == 1 &&
@@ -335,10 +325,8 @@ int main()
                     ((NSPopUpButton *)wubiSchemeView).numberOfItems == 1 &&
                     [[((NSPopUpButton *)wubiSchemeView) itemTitleAtIndex:0] isEqualToString:@"86 五笔"],
                 "The input-scheme rows did not expose their concrete scheme choices.");
-        NSView *wubiSettingsRow =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"五笔功能行");
-        NSView *shuangpinKeymapRow =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"双拼键位提示行");
+        NSView *wubiSettingsRow = FindViewWithAccessibilityLabel(controller.window.contentView, @"五笔功能行");
+        NSView *shuangpinKeymapRow = FindViewWithAccessibilityLabel(controller.window.contentView, @"双拼键位提示行");
         NSView *shuangpinKeymapView =
             FindViewWithAccessibilityLabel(controller.window.contentView, @"显示小鹤双拼键位提示");
         require(wubiSettingsRow != nil && !wubiSettingsRow.hidden,
@@ -357,36 +345,28 @@ int main()
         [shuangpinSchemeButton performClick:nil];
         require([MetasequoiaPreferencesWindowController storedScheme] == 1,
                 "The Shuangpin scheme choice did not persist its selection.");
-        require(wubiSettingsRow.hidden,
-                "The Wubi settings row remained visible after another scheme was selected.");
-        require(!shuangpinKeymapRow.hidden &&
-                    ((NSButton *)shuangpinKeymapView).state == NSControlStateValueOn,
+        require(wubiSettingsRow.hidden, "The Wubi settings row remained visible after another scheme was selected.");
+        require(!shuangpinKeymapRow.hidden && ((NSButton *)shuangpinKeymapView).state == NSControlStateValueOn,
                 "Selecting Shuangpin did not reveal the stored beginner keymap option.");
         ((NSButton *)shuangpinKeymapView).state = NSControlStateValueOff;
         require([NSApp sendAction:((NSButton *)shuangpinKeymapView).action
                                to:((NSButton *)shuangpinKeymapView).target
                              from:shuangpinKeymapView] &&
-                    ![[NSUserDefaults standardUserDefaults]
-                        boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"],
+                    ![[NSUserDefaults standardUserDefaults] boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"],
                 "The Shuangpin keymap option did not persist its disabled state.");
         [wubiSchemeButton performClick:nil];
         require([MetasequoiaPreferencesWindowController storedScheme] == 2,
                 "The Wubi scheme choice did not persist its selection.");
-        require(!wubiSettingsRow.hidden,
-                "Selecting Wubi did not reveal the inline settings entry.");
-        require(shuangpinKeymapRow.hidden,
-                "The Shuangpin keymap option remained visible after Wubi was selected.");
-        NSView *wubiSettingsView =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"五笔功能设置");
+        require(!wubiSettingsRow.hidden, "Selecting Wubi did not reveal the inline settings entry.");
+        require(shuangpinKeymapRow.hidden, "The Shuangpin keymap option remained visible after Wubi was selected.");
+        NSView *wubiSettingsView = FindViewWithAccessibilityLabel(controller.window.contentView, @"五笔功能设置");
         require([wubiSettingsView isKindOfClass:[NSButton class]],
                 "The keyboard-input page did not expose the Wubi settings entry.");
         NSButton *wubiSettingsButton = (NSButton *)wubiSettingsView;
-        NSColor *wubiSettingsTitleColor =
-            [wubiSettingsButton.attributedTitle attribute:NSForegroundColorAttributeName
-                                                   atIndex:0
-                                            effectiveRange:nil];
-        require(!wubiSettingsButton.bordered &&
-                    [wubiSettingsButton.contentTintColor isEqual:[NSColor labelColor]] &&
+        NSColor *wubiSettingsTitleColor = [wubiSettingsButton.attributedTitle attribute:NSForegroundColorAttributeName
+                                                                                atIndex:0
+                                                                         effectiveRange:nil];
+        require(!wubiSettingsButton.bordered && [wubiSettingsButton.contentTintColor isEqual:[NSColor labelColor]] &&
                     [wubiSettingsTitleColor isEqual:[NSColor labelColor]],
                 "The Wubi settings entry did not use the readable dynamic label color.");
         [wubiSettingsButton performClick:nil];
@@ -428,10 +408,8 @@ int main()
         NSView *candidatePageShortcutCard =
             FindViewWithAccessibilityLabel(controller.window.contentView, @"候选翻页快捷键卡片");
         NSView *learningCard = FindViewWithAccessibilityLabel(controller.window.contentView, @"候选与学习卡片");
-        NSView *dataPrivacyCard =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"数据与隐私卡片");
-        NSView *softwareUpdateCard =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"软件更新卡片");
+        NSView *dataPrivacyCard = FindViewWithAccessibilityLabel(controller.window.contentView, @"数据与隐私卡片");
+        NSView *softwareUpdateCard = FindViewWithAccessibilityLabel(controller.window.contentView, @"软件更新卡片");
         NSView *feedbackCard = FindViewWithAccessibilityLabel(controller.window.contentView, @"反馈与帮助卡片");
         require(schemeCard.frame.size.width == behaviorCard.frame.size.width &&
                     schemeCard.frame.size.width == candidatePageShortcutCard.frame.size.width &&
@@ -439,8 +417,8 @@ int main()
                     schemeCard.frame.size.width == softwareUpdateCard.frame.size.width &&
                     schemeCard.frame.size.width == feedbackCard.frame.size.width,
                 "The settings cards did not consistently fill the content width.");
-        NSRect candidatePageShortcutCardRect =
-            [generalPage convertRect:candidatePageShortcutCard.bounds fromView:candidatePageShortcutCard];
+        NSRect candidatePageShortcutCardRect = [generalPage convertRect:candidatePageShortcutCard.bounds
+                                                               fromView:candidatePageShortcutCard];
         require(NSMaxY(candidatePageShortcutCardRect) <= NSMaxY(generalPage.bounds),
                 "The candidate page shortcut card overflowed the keyboard-input page.");
         NSButton *footerRestoreButton = FindButtonWithTitle(controller.window.contentView, @"恢复默认设置");
@@ -448,8 +426,8 @@ int main()
         NSRect candidatePageShortcutRectInWindow =
             [controller.window.contentView convertRect:candidatePageShortcutCard.bounds
                                               fromView:candidatePageShortcutCard];
-        NSRect footerRestoreRectInWindow =
-            [controller.window.contentView convertRect:footerRestoreButton.bounds fromView:footerRestoreButton];
+        NSRect footerRestoreRectInWindow = [controller.window.contentView convertRect:footerRestoreButton.bounds
+                                                                             fromView:footerRestoreButton];
         require(NSMinY(candidatePageShortcutRectInWindow) >= NSMaxY(footerRestoreRectInWindow) + 8.0,
                 "The keyboard-input controls overlapped the settings footer.");
         NSView *wubiSettingsRowInCard = FindViewWithAccessibilityLabel(controller.window.contentView, @"五笔功能行");
@@ -464,8 +442,8 @@ int main()
         require(NSMaxY(feedbackCardRect) <= NSMaxY(updatesPage.bounds),
                 "The feedback card overflowed the updates page.");
         require(dataPrivacyCard != nil, "The data page did not expose its final preference card.");
-        NSRect dataPrivacyRectInWindow =
-            [controller.window.contentView convertRect:dataPrivacyCard.bounds fromView:dataPrivacyCard];
+        NSRect dataPrivacyRectInWindow = [controller.window.contentView convertRect:dataPrivacyCard.bounds
+                                                                           fromView:dataPrivacyCard];
         require(NSMinY(dataPrivacyRectInWindow) >= NSMaxY(footerRestoreRectInWindow) + 8.0,
                 "The data-page controls overlapped the settings footer.");
 
@@ -473,8 +451,7 @@ int main()
         require([view isKindOfClass:[NSPopUpButton class]],
                 "The settings window did not expose the candidate layout control.");
         NSPopUpButton *styleButton = (NSPopUpButton *)view;
-        require(styleButton.numberOfItems == 2 &&
-                    [[styleButton itemTitleAtIndex:0] isEqualToString:@"横向排列"] &&
+        require(styleButton.numberOfItems == 2 && [[styleButton itemTitleAtIndex:0] isEqualToString:@"横向排列"] &&
                     [[styleButton itemTitleAtIndex:1] isEqualToString:@"纵向列表"],
                 "The candidate layout control did not contain both supported layouts.");
         require(styleButton.indexOfSelectedItem == 1,
@@ -484,8 +461,7 @@ int main()
         require([pageSizeView isKindOfClass:[NSPopUpButton class]],
                 "The settings window did not expose the candidate page-size control.");
         NSPopUpButton *pageSizeButton = (NSPopUpButton *)pageSizeView;
-        require(pageSizeButton.numberOfItems == 3 &&
-                    [[pageSizeButton itemTitleAtIndex:0] isEqualToString:@"5 个"] &&
+        require(pageSizeButton.numberOfItems == 3 && [[pageSizeButton itemTitleAtIndex:0] isEqualToString:@"5 个"] &&
                     [[pageSizeButton itemTitleAtIndex:1] isEqualToString:@"7 个"] &&
                     [[pageSizeButton itemTitleAtIndex:2] isEqualToString:@"9 个"],
                 "The candidate page-size control did not contain all supported values.");
@@ -504,12 +480,9 @@ int main()
         require(fontSizeButton.indexOfSelectedItem == 0,
                 "The candidate font-size control did not reflect the stored value.");
 
-        NSView *candidatePreview =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"候选窗口预览");
-        NSView *appearanceCard =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"候选窗口卡片");
-        require(candidatePreview != nil,
-                "The appearance page did not expose a candidate-window preview.");
+        NSView *candidatePreview = FindViewWithAccessibilityLabel(controller.window.contentView, @"候选窗口预览");
+        NSView *appearanceCard = FindViewWithAccessibilityLabel(controller.window.contentView, @"候选窗口卡片");
+        require(candidatePreview != nil, "The appearance page did not expose a candidate-window preview.");
         require(candidatePreview.frame.size.width == appearanceCard.frame.size.width,
                 "The candidate preview did not fill the appearance-page content width.");
         NSRect appearanceCardRect = [appearancePage convertRect:appearanceCard.bounds fromView:appearanceCard];
@@ -517,16 +490,13 @@ int main()
                 "The appearance controls overflowed the settings page below the preview.");
         require([candidatePreview.accessibilityValue isEqualToString:@"纵向列表，5 个候选，16 pt"],
                 "The candidate preview did not reflect the stored appearance settings.");
-        NSView *floatingToolbarView =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"显示悬浮状态栏");
-        NSView *floatingToolbarCard =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"悬浮状态栏卡片");
+        NSView *floatingToolbarView = FindViewWithAccessibilityLabel(controller.window.contentView, @"显示悬浮状态栏");
+        NSView *floatingToolbarCard = FindViewWithAccessibilityLabel(controller.window.contentView, @"悬浮状态栏卡片");
         require([floatingToolbarView isKindOfClass:[NSButton class]],
                 "The appearance page did not expose the floating-toolbar control.");
-        require(floatingToolbarCard != nil,
-                "The appearance page did not expose the floating-toolbar preference card.");
-        NSRect floatingToolbarRectInWindow =
-            [controller.window.contentView convertRect:floatingToolbarCard.bounds fromView:floatingToolbarCard];
+        require(floatingToolbarCard != nil, "The appearance page did not expose the floating-toolbar preference card.");
+        NSRect floatingToolbarRectInWindow = [controller.window.contentView convertRect:floatingToolbarCard.bounds
+                                                                               fromView:floatingToolbarCard];
         require(NSMinY(floatingToolbarRectInWindow) >= NSMaxY(footerRestoreRectInWindow) + 8.0,
                 "The floating-toolbar preference overlapped the settings footer.");
         NSButton *floatingToolbarButton = (NSButton *)floatingToolbarView;
@@ -537,12 +507,11 @@ int main()
         __block NSColor *darkPanelColor = nil;
         __block NSColor *darkAccentColor = nil;
         [darkAppearance performAsCurrentDrawingAppearance:^{
-            darkCanvasColor = [[NSColor controlBackgroundColor]
-                colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
-            darkPanelColor = [[candidatePreview valueForKey:@"previewPanelFillColor"]
-                colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
-            darkAccentColor = [[candidatePreview valueForKey:@"previewAccentColor"]
-                colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+          darkCanvasColor = [[NSColor controlBackgroundColor] colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+          darkPanelColor = [[candidatePreview valueForKey:@"previewPanelFillColor"]
+              colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+          darkAccentColor =
+              [[candidatePreview valueForKey:@"previewAccentColor"] colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
         }];
         require(std::abs(RelativeLuminance(darkPanelColor) - RelativeLuminance(darkCanvasColor)) >= 0.01,
                 "The candidate panel collapsed into the preview canvas in Dark Aqua.");
@@ -568,35 +537,30 @@ int main()
                 "The settings window did not expose both helpcode scheme controls.");
         NSPopUpButton *quanpinHelpcodeSchemaButton = (NSPopUpButton *)quanpinHelpcodeSchemaView;
         NSPopUpButton *shuangpinHelpcodeSchemaButton = (NSPopUpButton *)shuangpinHelpcodeSchemaView;
-        NSArray<NSString *> *helpcodeSchemaTitles =
-            @[ @"蓝天小雨点", @"自然码", @"首右2.0", @"首右plus", @"小鹤" ];
+        NSArray<NSString *> *helpcodeSchemaTitles = @[ @"蓝天小雨点", @"自然码", @"首右2.0", @"首右plus", @"小鹤" ];
         require([quanpinHelpcodeSchemaButton.itemTitles isEqualToArray:helpcodeSchemaTitles] &&
                     [shuangpinHelpcodeSchemaButton.itemTitles isEqualToArray:helpcodeSchemaTitles],
                 "The helpcode controls did not contain all five Windows-compatible schemes.");
         require(quanpinHelpcodeSchemaButton.indexOfSelectedItem == 1 &&
-                    shuangpinHelpcodeSchemaButton.indexOfSelectedItem == 3 &&
-                    quanpinHelpcodeSchemaButton.enabled && shuangpinHelpcodeSchemaButton.enabled,
+                    shuangpinHelpcodeSchemaButton.indexOfSelectedItem == 3 && quanpinHelpcodeSchemaButton.enabled &&
+                    shuangpinHelpcodeSchemaButton.enabled,
                 "The helpcode controls did not reflect the stored schemes and enabled state.");
 
-        NSView *shortcutView = FindViewWithAccessibilityLabel(controller.window.contentView,
-                                                               @"Shift+Space 切换中英文");
+        NSView *shortcutView = FindViewWithAccessibilityLabel(controller.window.contentView, @"Shift+Space 切换中英文");
         require([shortcutView isKindOfClass:[NSButton class]],
                 "The settings window did not expose the input-mode shortcut control.");
         NSButton *shortcutButton = (NSButton *)shortcutView;
         require(shortcutButton.state == NSControlStateValueOff,
                 "The input-mode shortcut control did not reflect the stored disabled value.");
 
-        NSView *resetLearningView = FindViewWithAccessibilityLabel(controller.window.contentView,
-                                                                   @"清除学习数据");
+        NSView *resetLearningView = FindViewWithAccessibilityLabel(controller.window.contentView, @"清除学习数据");
         require([resetLearningView isKindOfClass:[NSButton class]],
                 "The settings window did not expose the learned-data reset button.");
         NSButton *resetLearningButton = (NSButton *)resetLearningView;
         NSView *versionView = FindViewWithAccessibilityLabel(controller.window.contentView, @"当前版本");
-        require([versionView isKindOfClass:[NSTextField class]] &&
-                    ((NSTextField *)versionView).stringValue.length > 0,
+        require([versionView isKindOfClass:[NSTextField class]] && ((NSTextField *)versionView).stringValue.length > 0,
                 "The updates page did not expose the installed version.");
-        NSView *automaticUpdatesView =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"自动更新状态");
+        NSView *automaticUpdatesView = FindViewWithAccessibilityLabel(controller.window.contentView, @"自动更新状态");
         require([automaticUpdatesView isKindOfClass:[NSTextField class]] &&
                     [((NSTextField *)automaticUpdatesView).stringValue isEqualToString:@"已开启自动检查"],
                 "The updates page did not show the enabled automatic-check state.");
@@ -618,22 +582,22 @@ int main()
                     ((NSButton *)feedbackView).action == @selector(openFeedback:) &&
                     ((NSButton *)feedbackView).target == controller,
                 "The updates page did not expose a feedback action.");
-        NSColor *feedbackTitleColor = [((NSButton *)feedbackView).attributedTitle
-            attribute:NSForegroundColorAttributeName
-              atIndex:0
-       effectiveRange:nil];
+        NSColor *feedbackTitleColor =
+            [((NSButton *)feedbackView).attributedTitle attribute:NSForegroundColorAttributeName
+                                                          atIndex:0
+                                                   effectiveRange:nil];
         require([feedbackTitleColor isEqual:[NSColor linkColor]],
                 "The updates-page actions did not remain visually distinct from disabled controls.");
 
         __block bool resetStartedAfterCancel = false;
-        id cancelObserver = [[NSNotificationCenter defaultCenter]
-            addObserverForName:MetasequoiaWillResetLearnedDataNotification
-                        object:nil
-                         queue:nil
-                    usingBlock:^(NSNotification *notification) {
-                        (void)notification;
-                        resetStartedAfterCancel = true;
-                    }];
+        id cancelObserver =
+            [[NSNotificationCenter defaultCenter] addObserverForName:MetasequoiaWillResetLearnedDataNotification
+                                                              object:nil
+                                                               queue:nil
+                                                          usingBlock:^(NSNotification *notification) {
+                                                            (void)notification;
+                                                            resetStartedAfterCancel = true;
+                                                          }];
         [resetLearningButton performClick:nil];
         [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
         NSWindow *confirmationSheet = controller.window.attachedSheet;
@@ -651,14 +615,14 @@ int main()
                 "Cancelling the learned-data reset started destructive work.");
 
         __block bool resetNotificationReceived = false;
-        id resetObserver = [[NSNotificationCenter defaultCenter]
-            addObserverForName:MetasequoiaWillResetLearnedDataNotification
-                        object:nil
-                         queue:nil
-                    usingBlock:^(NSNotification *notification) {
-                        (void)notification;
-                        resetNotificationReceived = true;
-                    }];
+        id resetObserver =
+            [[NSNotificationCenter defaultCenter] addObserverForName:MetasequoiaWillResetLearnedDataNotification
+                                                              object:nil
+                                                               queue:nil
+                                                          usingBlock:^(NSNotification *notification) {
+                                                            (void)notification;
+                                                            resetNotificationReceived = true;
+                                                          }];
         [MetasequoiaPreferencesWindowController prepareInputSessionsForLearnedDataReset];
         [[NSNotificationCenter defaultCenter] removeObserver:resetObserver];
         require(resetNotificationReceived,
@@ -702,17 +666,21 @@ int main()
                 "The keyboard-input page did not expose the Chinese punctuation toggle.");
         [MetasequoiaPreferencesWindowController setChinesePunctuationEnabled:NO];
         require(chinesePunctuationButton.state == NSControlStateValueOff,
-                "The Chinese punctuation control did not follow the preference after the toolbar switched to ASCII punctuation.");
+                "The Chinese punctuation control did not follow the preference after the toolbar switched to ASCII "
+                "punctuation.");
         [MetasequoiaPreferencesWindowController setChinesePunctuationEnabled:YES];
         require(chinesePunctuationButton.state == NSControlStateValueOn,
-                "The Chinese punctuation control did not follow the preference after the toolbar restored Chinese punctuation.");
+                "The Chinese punctuation control did not follow the preference after the toolbar restored Chinese "
+                "punctuation.");
 
         [MetasequoiaPreferencesWindowController setFullWidthInputEnabled:NO];
         require(fullWidthButton.state == NSControlStateValueOff,
-                "The full-width input control did not follow the preference after the toolbar switched to half-width input.");
+                "The full-width input control did not follow the preference after the toolbar switched to half-width "
+                "input.");
         [MetasequoiaPreferencesWindowController setFullWidthInputEnabled:YES];
         require(fullWidthButton.state == NSControlStateValueOn,
-                "The full-width input control did not follow the preference after the toolbar switched to full-width input.");
+                "The full-width input control did not follow the preference after the toolbar switched to full-width "
+                "input.");
 
         learningButton.state = NSControlStateValueOn;
         require([NSApp sendAction:learningButton.action to:learningButton.target from:learningButton],
@@ -728,10 +696,8 @@ int main()
                     [NSApp sendAction:shuangpinHelpcodeSchemaButton.action
                                    to:shuangpinHelpcodeSchemaButton.target
                                  from:shuangpinHelpcodeSchemaButton] &&
-                    [[NSUserDefaults standardUserDefaults]
-                            integerForKey:@"MetasequoiaImeQuanpinHelpcodeSchema"] == 4 &&
-                    [[NSUserDefaults standardUserDefaults]
-                            integerForKey:@"MetasequoiaImeShuangpinHelpcodeSchema"] == 2,
+                    [[NSUserDefaults standardUserDefaults] integerForKey:@"MetasequoiaImeQuanpinHelpcodeSchema"] == 4 &&
+                    [[NSUserDefaults standardUserDefaults] integerForKey:@"MetasequoiaImeShuangpinHelpcodeSchema"] == 2,
                 "The helpcode scheme controls did not persist independent selections.");
         helpcodeButton.state = NSControlStateValueOff;
         require([NSApp sendAction:helpcodeButton.action to:helpcodeButton.target from:helpcodeButton] &&
@@ -768,8 +734,7 @@ int main()
         [MetasequoiaPreferencesWindowController setTraditionalChineseOutputEnabled:YES];
         [MetasequoiaPreferencesWindowController setEnglishInputMode:YES];
         [MetasequoiaPreferencesWindowController setWubiAutoCommitUniqueEnabled:YES];
-        [[NSUserDefaults standardUserDefaults] setBool:YES
-                                                forKey:@"MetasequoiaImeShuangpinKeymapEnabled"];
+        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MetasequoiaImeShuangpinKeymapEnabled"];
         NSButton *restoreDefaultsButton = FindButtonWithTitle(controller.window.contentView, @"恢复默认设置");
         require(restoreDefaultsButton != nil, "The settings window did not expose the restore-defaults button.");
         [restoreDefaultsButton performClick:nil];
@@ -787,8 +752,7 @@ int main()
                     [MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled] &&
                     ![MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled] &&
                     ![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled] &&
-                    ![[NSUserDefaults standardUserDefaults]
-                        boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"],
+                    ![[NSUserDefaults standardUserDefaults] boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"],
                 "Restoring defaults did not restore every visible setting.");
         NSArray<NSString *> *preferenceKeys = @[
             @"MetasequoiaImeInputScheme",
@@ -826,23 +790,22 @@ int main()
                         object:nil
                          queue:nil
                     usingBlock:^(NSNotification *notification) {
-                        (void)notification;
-                        standaloneCloseObserved = true;
+                      (void)notification;
+                      standaloneCloseObserved = true;
                     }];
         MetasequoiaPreferencesWindowController *standaloneController =
             [[MetasequoiaPreferencesWindowController alloc] initWithUpdateController:updateController];
         [standaloneController showAndActivateForStandaloneLaunch];
-        NSView *standaloneResetView = FindViewWithAccessibilityLabel(standaloneController.window.contentView,
-                                                                     @"清除学习数据");
-        require([standaloneResetView isKindOfClass:[NSButton class]] &&
-                    !((NSButton *)standaloneResetView).enabled &&
+        NSView *standaloneResetView =
+            FindViewWithAccessibilityLabel(standaloneController.window.contentView, @"清除学习数据");
+        require([standaloneResetView isKindOfClass:[NSButton class]] && !((NSButton *)standaloneResetView).enabled &&
                     [((NSButton *)standaloneResetView).accessibilityHelp containsString:@"输入菜单"],
                 "Standalone settings allowed an unsafe learned-data reset.");
         NSButton *standaloneCloseButton = FindButtonWithTitle(standaloneController.window.contentView, @"关闭");
         require(standaloneCloseButton != nil, "The standalone settings window did not expose its close action.");
         [standaloneCloseButton performClick:nil];
         require(WaitUntil(^BOOL {
-                    return standaloneCloseObserved && !standaloneController.window.visible;
+                  return standaloneCloseObserved && !standaloneController.window.visible;
                 }),
                 "Closing standalone settings did not finish or request application termination.");
         [[NSNotificationCenter defaultCenter] removeObserver:standaloneCloseObserver];

@@ -3,7 +3,8 @@
 #include <map>
 #include <string>
 
-namespace metasequoia::apple {
+namespace metasequoia::apple
+{
 // Per-key double-pinyin hint text derived from the engine's own profile, so a frontend never
 // hardcodes a keymap that can drift from the scheme the session actually runs.
 //

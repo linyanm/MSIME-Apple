@@ -91,8 +91,8 @@ int main()
         sourceList = CFArrayCreate(nullptr, sources, 2, nullptr);
         NSString *bundleIdentifier = @"com.houko.inputmethod.MetasequoiaIME";
         require(MetasequoiaRegisterAndEnableInputSources(bundleURL, bundleIdentifier, CaptureRegistration,
-                                                         CopyInputSources, GetInputSourceProperty, EnableInputSource) ==
-                    noErr,
+                                                         CopyInputSources, GetInputSourceProperty,
+                                                         EnableInputSource) == noErr,
                 "A registered input method was not enabled.");
         require([listedBundleIdentifier isEqualToString:bundleIdentifier] && enableCapableOnly && includedAllInstalled,
                 "Input source discovery did not use the registered bundle identifier.");
@@ -102,16 +102,16 @@ int main()
         enabledSources.clear();
         rejectedSource = modeSource;
         require(MetasequoiaRegisterAndEnableInputSources(bundleURL, bundleIdentifier, CaptureRegistration,
-                                                         CopyInputSources, GetInputSourceProperty, EnableInputSource) ==
-                    -50,
+                                                         CopyInputSources, GetInputSourceProperty,
+                                                         EnableInputSource) == -50,
                 "An input source enable failure was not preserved.");
         rejectedSource = nullptr;
 
         CFRelease(sourceList);
         sourceList = CFArrayCreate(nullptr, nullptr, 0, nullptr);
         require(MetasequoiaRegisterAndEnableInputSources(bundleURL, bundleIdentifier, CaptureRegistration,
-                                                         CopyInputSources, GetInputSourceProperty, EnableInputSource) ==
-                    fnfErr,
+                                                         CopyInputSources, GetInputSourceProperty,
+                                                         EnableInputSource) == fnfErr,
                 "A registration with no discoverable input sources was accepted.");
         CFRelease(sourceList);
         sourceList = nullptr;
@@ -120,16 +120,16 @@ int main()
         sourceList = CFArrayCreate(nullptr, modeOnlySources, 1, nullptr);
         enabledSources.clear();
         require(MetasequoiaRegisterAndEnableInputSources(bundleURL, bundleIdentifier, CaptureRegistration,
-                                                         CopyInputSources, GetInputSourceProperty, EnableInputSource) ==
-                    fnfErr,
+                                                         CopyInputSources, GetInputSourceProperty,
+                                                         EnableInputSource) == fnfErr,
                 "An input mode without its enabled parent was accepted.");
         require(enabledSources.empty(), "An input mode was enabled before its parent was found.");
         CFRelease(sourceList);
         sourceList = nullptr;
 
         require(MetasequoiaRegisterAndEnableInputSources(bundleURL, bundleIdentifier, RejectRegistration,
-                                                         CopyInputSources, GetInputSourceProperty, EnableInputSource) ==
-                    -50,
+                                                         CopyInputSources, GetInputSourceProperty,
+                                                         EnableInputSource) == -50,
                 "A registration failure was not returned before discovery.");
         require(MetasequoiaRegisterAndEnableInputSources(bundleURL, nil, CaptureRegistration, CopyInputSources,
                                                          GetInputSourceProperty, EnableInputSource) == paramErr,

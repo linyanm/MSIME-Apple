@@ -1,7 +1,7 @@
 #pragma once
 #import <Foundation/Foundation.h>
 NS_ASSUME_NONNULL_BEGIN
-typedef void (^MetasequoiaVoiceCompletion)(NSString * _Nullable text, NSError * _Nullable error);
+typedef void (^MetasequoiaVoiceCompletion)(NSString *_Nullable text, NSError *_Nullable error);
 @protocol MetasequoiaVoiceService <NSObject>
 @property(nonatomic, readonly) BOOL active;
 @property(nonatomic, readonly) BOOL recording;

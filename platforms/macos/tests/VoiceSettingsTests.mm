@@ -3,13 +3,21 @@
 #include <cstdio>
 #include <cstdlib>
 
-namespace {
-void Require(bool value, const char *message) {
-    if (!value) { std::fprintf(stderr, "%s\n", message); std::exit(1); }
+namespace
+{
+void Require(bool value, const char *message)
+{
+    if (!value)
+    {
+        std::fprintf(stderr, "%s\n", message);
+        std::exit(1);
+    }
 }
-}
-int main() {
-    @autoreleasepool {
+} // namespace
+int main()
+{
+    @autoreleasepool
+    {
         MetasequoiaVoiceSettings *settings = [MetasequoiaVoiceSettings new];
         settings.provider = @"cloud";
         settings.endpoint = @"https://example.test/v1/audio/transcriptions";
@@ -21,7 +29,11 @@ int main() {
         settings.polishModel = @"";
         settings.polishToken = @"";
         Require([settings validate:nil], "valid cloud configuration rejected");
-        for (NSString *invalid in @[@"http://example.test/asr", @"https:///", @"https://user:password@example.test/asr", @"https://example.test/asr#fragment", @"file:///tmp/asr"]) {
+        for (NSString *invalid in @[
+                 @"http://example.test/asr", @"https:///", @"https://user:password@example.test/asr",
+                 @"https://example.test/asr#fragment", @"file:///tmp/asr"
+             ])
+        {
             settings.endpoint = invalid;
             NSError *error = nil;
             Require(![settings validate:&error] && error != nil, "unsafe endpoint accepted");
@@ -44,7 +56,8 @@ int main() {
         settings.modelPath = NSTemporaryDirectory();
         Require(![settings validate:nil], "directory accepted as model");
         NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString];
-        Require([@"model fixture" writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil], "model fixture creation failed");
+        Require([@"model fixture" writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil],
+                "model fixture creation failed");
         settings.modelPath = path;
         Require([settings validate:nil], "local mode requires unused cloud credentials");
         [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
@@ -52,10 +65,12 @@ int main() {
         Require(![settings validate:nil], "unknown provider accepted");
 
         NSDictionary *asr = Key(@"asr", @"https://EXAMPLE.test/v1/audio/transcriptions");
-        Require([asr isEqual:Key(@"asr", @"https://example.test:443/another-path")], "same origin has different credential scope");
+        Require([asr isEqual:Key(@"asr", @"https://example.test:443/another-path")],
+                "same origin has different credential scope");
         Require(![asr isEqual:Key(@"asr", @"https://another.test/asr")], "credentials shared across hosts");
         Require(![asr isEqual:Key(@"asr", @"https://example.test:8443/asr")], "credentials shared across ports");
-        Require(![asr isEqual:Key(@"polish", @"https://example.test/asr")], "ASR and polish credentials share an account");
+        Require(![asr isEqual:Key(@"polish", @"https://example.test/asr")],
+                "ASR and polish credentials share an account");
     }
     return 0;
 }

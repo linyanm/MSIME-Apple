@@ -74,8 +74,7 @@ NSDictionary<NSString *, NSSet<NSString *> *> *ExpectedXiaoheUnitsByKey()
 
 NSSet<NSString *> *DisplayedUnits(NSDictionary<NSString *, NSString *> *definition)
 {
-    NSString *normalized = [definition[@"codes"] stringByReplacingOccurrencesOfString:@" / "
-                                                                           withString:@" · "];
+    NSString *normalized = [definition[@"codes"] stringByReplacingOccurrencesOfString:@" / " withString:@" · "];
     return [NSSet setWithArray:[normalized componentsSeparatedByString:@" · "]];
 }
 } // namespace
@@ -85,9 +84,8 @@ int main(int argc, const char *argv[])
     @autoreleasepool
     {
         [NSApplication sharedApplication];
-        const BOOL preview = argc == 2 &&
-                             (std::strcmp(argv[1], "--preview") == 0 ||
-                              std::strcmp(argv[1], "--preview-dark") == 0);
+        const BOOL preview =
+            argc == 2 && (std::strcmp(argv[1], "--preview") == 0 || std::strcmp(argv[1], "--preview-dark") == 0);
         if (preview)
         {
             [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
@@ -96,14 +94,13 @@ int main(int argc, const char *argv[])
             {
                 NSApp.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
             }
-            MetasequoiaShuangpinKeymapPanel *previewPanel =
-                [[MetasequoiaShuangpinKeymapPanel alloc] init];
+            MetasequoiaShuangpinKeymapPanel *previewPanel = [[MetasequoiaShuangpinKeymapPanel alloc] init];
             [previewPanel updateHighlightedKey:@"v"];
-            NSWindow *previewWindow = [[NSWindow alloc]
-                initWithContentRect:NSMakeRect(0.0, 0.0, 620.0, 203.0)
-                          styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
-                            backing:NSBackingStoreBuffered
-                              defer:NO];
+            NSWindow *previewWindow =
+                [[NSWindow alloc] initWithContentRect:NSMakeRect(0.0, 0.0, 620.0, 203.0)
+                                            styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
+                                              backing:NSBackingStoreBuffered
+                                                defer:NO];
             previewWindow.title = @"小鹤双拼键位提示预览";
             previewWindow.contentView = previewPanel.contentView;
             [previewWindow center];
@@ -113,8 +110,7 @@ int main(int argc, const char *argv[])
             return 0;
         }
 
-        NSArray<NSArray<NSDictionary<NSString *, NSString *> *> *> *rows =
-            MetasequoiaXiaoheKeymapRows();
+        NSArray<NSArray<NSDictionary<NSString *, NSString *> *> *> *rows = MetasequoiaXiaoheKeymapRows();
         Require(rows.count == 3 && rows[0].count == 10 && rows[1].count == 9 && rows[2].count == 7,
                 "The Xiaohe keymap did not preserve the three physical QWERTY rows.");
         NSDictionary<NSString *, NSSet<NSString *> *> *expectedUnits = ExpectedXiaoheUnitsByKey();
@@ -125,14 +121,13 @@ int main(int argc, const char *argv[])
         }
         NSString *zeroInitialText = MetasequoiaXiaoheZeroInitialText();
         const ShuangpinProfile &xiaohe = GetXiaoheShuangpinProfile();
-        Require(xiaohe.zero_initials.size() > 0,
-                "The Xiaohe profile stopped carrying zero-initial syllables.");
+        Require(xiaohe.zero_initials.size() > 0, "The Xiaohe profile stopped carrying zero-initial syllables.");
         for (const auto &entry : xiaohe.zero_initials)
         {
-            NSString *pair = [NSString stringWithFormat:@"%@=%@",
-                                                        DisplayUnit(entry.first),
+            NSString *pair = [NSString stringWithFormat:@"%@=%@", DisplayUnit(entry.first),
                                                         [NSString stringWithUTF8String:entry.second.c_str()]];
-            // These codes are the part of Xiaohe a beginner cannot derive from the key caps, and they map to a two-letter code rather than to one key, so the panel has to spell them out.
+            // These codes are the part of Xiaohe a beginner cannot derive from the key caps, and they map to a
+            // two-letter code rather than to one key, so the panel has to spell them out.
             Require([zeroInitialText containsString:pair],
                     "The keymap hint dropped a zero-initial syllable from the engine's Xiaohe profile.");
         }
@@ -142,8 +137,7 @@ int main(int argc, const char *argv[])
         // come out of an unordered_map, so only the sort keeps the line from rendering in an order
         // that depends on the toolchain's hashing.
         NSString *zeroInitialPrefix = @"零声母  ";
-        Require([zeroInitialText hasPrefix:zeroInitialPrefix],
-                "The zero-initial line lost its label.");
+        Require([zeroInitialText hasPrefix:zeroInitialPrefix], "The zero-initial line lost its label.");
         NSArray<NSString *> *renderedEntries =
             [[zeroInitialText substringFromIndex:zeroInitialPrefix.length] componentsSeparatedByString:@" · "];
         Require(renderedEntries.count == xiaohe.zero_initials.size(),
@@ -159,27 +153,24 @@ int main(int argc, const char *argv[])
 
         const NSRect visibleFrame = NSMakeRect(0.0, 0.0, 1440.0, 900.0);
         const NSSize panelSize = NSMakeSize(620.0, 203.0);
-        NSRect frame = MetasequoiaShuangpinKeymapPanelFrame(
-            NSMakeRect(400.0, 400.0, 2.0, 20.0), panelSize, 60.0, visibleFrame);
-        // Assert the gap the placement exists to preserve rather than a literal origin, so growing the panel does not fail this for a reason unrelated to placement.
+        NSRect frame =
+            MetasequoiaShuangpinKeymapPanelFrame(NSMakeRect(400.0, 400.0, 2.0, 20.0), panelSize, 60.0, visibleFrame);
+        // Assert the gap the placement exists to preserve rather than a literal origin, so growing the panel does not
+        // fail this for a reason unrelated to placement.
         Require(NearlyEqual(frame.origin.x, 400.0) && NearlyEqual(NSMaxY(frame) + 60.0 + 8.0, 400.0),
                 "The keymap panel was not placed below the candidate clearance.");
-        frame = MetasequoiaShuangpinKeymapPanelFrame(
-            NSMakeRect(1400.0, 400.0, 2.0, 20.0), panelSize, 60.0, visibleFrame);
-        Require(NearlyEqual(frame.origin.x, 804.0),
-                "The keymap panel was not clamped inside the screen's right edge.");
-        frame = MetasequoiaShuangpinKeymapPanelFrame(
-            NSMakeRect(300.0, 20.0, 2.0, 20.0), panelSize, 60.0, visibleFrame);
+        frame =
+            MetasequoiaShuangpinKeymapPanelFrame(NSMakeRect(1400.0, 400.0, 2.0, 20.0), panelSize, 60.0, visibleFrame);
+        Require(NearlyEqual(frame.origin.x, 804.0), "The keymap panel was not clamped inside the screen's right edge.");
+        frame = MetasequoiaShuangpinKeymapPanelFrame(NSMakeRect(300.0, 20.0, 2.0, 20.0), panelSize, 60.0, visibleFrame);
         Require(NearlyEqual(frame.origin.y, 108.0),
                 "The keymap panel did not clear candidates above the caret near the screen bottom.");
 
         MetasequoiaShuangpinKeymapPanel *panel = [[MetasequoiaShuangpinKeymapPanel alloc] init];
         Require((panel.styleMask & NSWindowStyleMaskNonactivatingPanel) != 0,
                 "The keymap panel could activate the input-method process.");
-        Require(panel.level == NSPopUpMenuWindowLevel,
-                "The keymap panel could render behind the input client.");
-        Require(!panel.opaque && panel.hasShadow,
-                "The keymap panel did not preserve its floating surface appearance.");
+        Require(panel.level == NSPopUpMenuWindowLevel, "The keymap panel could render behind the input client.");
+        Require(!panel.opaque && panel.hasShadow, "The keymap panel did not preserve its floating surface appearance.");
         Require([panel.contentView.accessibilityLabel isEqualToString:@"小鹤双拼键位提示"],
                 "The keymap panel did not expose an accessible identity.");
         [panel updateHighlightedKey:@"v"];

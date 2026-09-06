@@ -34,8 +34,8 @@ constexpr size_t CandidateFontSizeOptionIndex(size_t fontSize)
 inline NSDictionary *CandidatePanelAttributes(size_t fontSize)
 {
     return @{
-        IMKCandidatesSendServerKeyEventFirst: @YES,
-        NSFontAttributeName: [NSFont systemFontOfSize:static_cast<CGFloat>(NormalizeCandidateFontSize(fontSize))],
+        IMKCandidatesSendServerKeyEventFirst : @YES,
+        NSFontAttributeName : [NSFont systemFontOfSize:static_cast<CGFloat>(NormalizeCandidateFontSize(fontSize))],
     };
 }
 } // namespace metasequoia::mac

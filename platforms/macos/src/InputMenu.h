@@ -19,13 +19,12 @@ inline NSMenu *CreateMetasequoiaInputMenu(id target, BOOL englishMode, BOOL trad
     [menu addItem:CreateInputModeItem(@"中文输入", @selector(selectChineseMode:), target, !englishMode)];
     [menu addItem:CreateInputModeItem(@"英文输入", @selector(selectEnglishMode:), target, englishMode)];
     [menu addItem:[NSMenuItem separatorItem]];
-    [menu addItem:CreateInputModeItem(@"简体输出", @selector(selectSimplifiedOutput:), target,
-                                     !traditionalOutput)];
-    [menu addItem:CreateInputModeItem(@"繁体输出", @selector(selectTraditionalOutput:), target,
-                                     traditionalOutput)];
+    [menu addItem:CreateInputModeItem(@"简体输出", @selector(selectSimplifiedOutput:), target, !traditionalOutput)];
+    [menu addItem:CreateInputModeItem(@"繁体输出", @selector(selectTraditionalOutput:), target, traditionalOutput)];
     [menu addItem:[NSMenuItem separatorItem]];
 
-    // The IMK menu is the only entry point left once the floating toolbar is hidden, so it carries the character palette too.
+    // The IMK menu is the only entry point left once the floating toolbar is hidden, so it carries the character
+    // palette too.
     NSMenuItem *characterPaletteItem = [[NSMenuItem alloc] initWithTitle:@"表情与符号…"
                                                                   action:@selector(openCharacterPalette:)
                                                            keyEquivalent:@""];
@@ -47,9 +46,17 @@ inline NSMenu *CreateMetasequoiaInputMenu(id target, BOOL englishMode, BOOL trad
     settingsItem.enabled = YES;
     [menu addItem:settingsItem];
     [menu addItem:[NSMenuItem separatorItem]];
-    NSMenuItem *voice = [[NSMenuItem alloc] initWithTitle:@"开始/结束语音输入（⌃⌥V）" action:@selector(toggleVoiceInput:) keyEquivalent:@""];
-    voice.target = target; voice.enabled = YES; [menu addItem:voice];
-    NSMenuItem *voiceSettings = [[NSMenuItem alloc] initWithTitle:@"语音输入设置…" action:@selector(showVoiceSettings:) keyEquivalent:@""];
-    voiceSettings.target = target; voiceSettings.enabled = YES; [menu addItem:voiceSettings];
+    NSMenuItem *voice = [[NSMenuItem alloc] initWithTitle:@"开始/结束语音输入（⌃⌥V）"
+                                                   action:@selector(toggleVoiceInput:)
+                                            keyEquivalent:@""];
+    voice.target = target;
+    voice.enabled = YES;
+    [menu addItem:voice];
+    NSMenuItem *voiceSettings = [[NSMenuItem alloc] initWithTitle:@"语音输入设置…"
+                                                           action:@selector(showVoiceSettings:)
+                                                    keyEquivalent:@""];
+    voiceSettings.target = target;
+    voiceSettings.enabled = YES;
+    [menu addItem:voiceSettings];
     return menu;
 }

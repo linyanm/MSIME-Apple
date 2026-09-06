@@ -50,8 +50,8 @@ class CandidateSelectionState
             return std::nullopt;
         }
         const auto &candidates = snapshot.candidates;
-        if (selected_candidate_->index < candidates.size()
-            && candidates[selected_candidate_->index].word == selected_candidate_->word)
+        if (selected_candidate_->index < candidates.size() &&
+            candidates[selected_candidate_->index].word == selected_candidate_->word)
         {
             return selected_candidate_->index;
         }
@@ -87,8 +87,8 @@ class CandidateSelectionState
 
         const auto snapshot = session.snapshot();
         const auto &candidates = snapshot.candidates;
-        if (!selected_candidate_.has_value() || selected_candidate_->index >= candidates.size()
-            || candidates[selected_candidate_->index].word != selected_candidate_->word)
+        if (!selected_candidate_.has_value() || selected_candidate_->index >= candidates.size() ||
+            candidates[selected_candidate_->index].word != selected_candidate_->word)
         {
             return session.candidate_key(character);
         }
