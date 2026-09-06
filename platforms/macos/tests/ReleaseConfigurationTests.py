@@ -263,6 +263,33 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertEqual((PROJECT_ROOT / "version.txt").read_text().strip(), match.group(1))
         self.assertIn("x-release-please-version", project_line)
 
+    def test_punctuation_dispatch_matches_the_pinned_engine_table(self):
+        # The controller forwards a hardcoded set of characters to the engine's punctuation policy.
+        # When the engine's table grew ` $ ^ _ alongside < >, only the latter pair was picked up
+        # here, so with 中文标点 on Shift+4 kept inserting $ instead of ￥ and nothing noticed —
+        # neither repository has a test that compares the two, and the engine bump that introduced
+        # the divergence merged normally. Compare them directly instead.
+        def literals(pattern, text):
+            escapes = {"\\\\": "\\", "\\'": "'", '\\"': '"'}
+            return {escapes.get(match, match) for match in re.findall(pattern, text)}
+
+        policy = (
+            PROJECT_ROOT / "vendor/MetasequoiaImeEngine/core/punctuation_policy.cpp"
+        ).read_text()
+        engine_characters = literals(r"case '(\\.|[^'])':", policy)
+
+        controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
+        # The branch that reaches the engine, not the full-width or candidate-number branches.
+        branch = controller.split("_session->punctuation(", 1)[0].rsplit("else if (", 1)[1]
+        dispatched = literals(r"character == '(\\.|[^'])'", branch)
+
+        self.assertGreater(len(engine_characters), 10, "the engine punctuation table was not parsed")
+        self.assertEqual(
+            dispatched,
+            engine_characters,
+            "the controller's punctuation whitelist and the pinned engine's table disagree",
+        )
+
     def test_release_automation_bumps_tags_and_uploads_installable_assets(self):
         config = json.loads((PROJECT_ROOT / "release-please-config.json").read_text())
         package = config["packages"]["."]
