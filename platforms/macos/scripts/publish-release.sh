@@ -4,6 +4,8 @@ set -euo pipefail
 : "${GH_REPO:?GH_REPO is required}"
 : "${TAG_NAME:?TAG_NAME is required}"
 : "${SIGNING_ENABLED:?SIGNING_ENABLED is required}"
+# push means an automatic per-merge build, anything else means somebody asked for this one. GitHub has no channel concept, so the two states it does have carry the two channels: automatic builds are prereleases, deliberate ones are ordinary releases and the newest of those takes the Latest badge. Before this the two were indistinguishable and the badge simply followed whatever merged last. Kept in step with MSIME-Windows#167.
+: "${RELEASE_TRIGGER:?RELEASE_TRIGGER is required}"
 if [[ ${ASSET_SUFFIX+x} != x ]]; then
     printf '%s\n' "ASSET_SUFFIX is required." >&2
     exit 1
@@ -76,17 +78,35 @@ done
 mode_marker="<!-- metasequoia-release-mode:$release_mode -->"
 opposite_marker="<!-- metasequoia-release-mode:$opposite_mode -->"
 install_guidance_marker="<!-- metasequoia-install-guidance:v3 -->"
+build_channel_marker="<!-- metasequoia-build-channel:v1 -->"
+if [[ "$RELEASE_TRIGGER" == push ]]; then
+    # Braces are required: bash takes the full-width bracket that follows as part of the name otherwise.
+    release_title="${TAG_NAME}（自动构建）"
+    channel=(--prerelease)
+    needs_channel_note=true
+else
+    release_title="$TAG_NAME"
+    channel=(--prerelease=false --latest)
+    needs_channel_note=false
+fi
 current_notes=$(gh release view "$TAG_NAME" --repo "$GH_REPO" --json body --jq '.body // ""')
+if [[ "$needs_channel_note" == true && "$current_notes" == *"$build_channel_marker"* ]]; then
+    needs_channel_note=false
+fi
 if [[ "$current_notes" == *"$opposite_marker"* ]]; then
     printf '%s\n' "Release $TAG_NAME is already locked to $opposite_mode artifacts; refusing to switch it to $release_mode." >&2
     exit 1
 fi
 
-if [[ "$current_notes" != *"$mode_marker"* || "$current_notes" != *"$install_guidance_marker"* ]]; then
+if [[ "$current_notes" != *"$mode_marker"* || "$current_notes" != *"$install_guidance_marker"* || "$needs_channel_note" == true ]]; then
     release_notes=${RUNNER_TEMP:-${TMPDIR:-/tmp}}/metasequoia-release-notes.md
     {
         if [[ -n "$current_notes" ]]; then
             printf '%s\n\n' "$current_notes"
+        fi
+        if [[ "$needs_channel_note" == true ]]; then
+            printf '%s\n' "$build_channel_marker"
+            printf '%s\n\n' '> 本版本由 CI 在合并到 `main` 后自动构建发布，未经人工挑选，标记为 Pre-release。想要经过挑选的版本，请下载页面上带 Latest 徽章的那个。'
         fi
         if [[ "$current_notes" != *"$mode_marker"* ]]; then
             printf '%s\n' "$mode_marker"
@@ -113,4 +133,4 @@ if [[ -f "$appcast" ]]; then
     upload_args+=("$appcast")
 fi
 gh release upload "$TAG_NAME" --repo "$GH_REPO" "${upload_args[@]}" --clobber
-gh release edit "$TAG_NAME" --repo "$GH_REPO" --draft=false
+gh release edit "$TAG_NAME" --repo "$GH_REPO" --draft=false "${channel[@]}" --title "$release_title"

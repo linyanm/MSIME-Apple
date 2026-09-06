@@ -310,4 +310,6 @@ jobs:
           TAG_NAME: ${{ needs.prepare.outputs.tag_name }}
           ASSET_SUFFIX: ${{ steps.signing.outputs.asset_suffix }}
           SIGNING_ENABLED: ${{ steps.signing.outputs.signing_enabled }}
+          # Decides which channel the release is published into: push is an automatic per-merge build, workflow_dispatch is one somebody asked for.
+          RELEASE_TRIGGER: ${{ github.event_name }}
         run: exec "$RUNNER_TEMP/publish-release.sh"
