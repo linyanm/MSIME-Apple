@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build a distribution-signed iOS archive with Xcode cloud signing and upload its IPA to
-# App Store Connect. The existing package_ios_archive.sh intentionally remains the reproducible,
-# unsigned release artifact; this script is the TestFlight-only path.
+# Build a distribution-signed iOS archive with checked-in project settings and downloaded profiles,
+# then upload its IPA to App Store Connect. The existing package_ios_archive.sh intentionally remains
+# the reproducible, unsigned release artifact; this script is the TestFlight-only path.
 
 project_root=${METASEQUOIA_PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}
 project_root=$(cd "$project_root" && pwd)
@@ -13,6 +13,8 @@ tag_name=${1:-}
 : "${METASEQUOIA_IOS_AUTH_KEY_ID:?METASEQUOIA_IOS_AUTH_KEY_ID is required}"
 : "${METASEQUOIA_IOS_AUTH_KEY_ISSUER_ID:?METASEQUOIA_IOS_AUTH_KEY_ISSUER_ID is required}"
 : "${METASEQUOIA_IOS_AUTH_KEY_PATH:?METASEQUOIA_IOS_AUTH_KEY_PATH is required}"
+: "${METASEQUOIA_IOS_APP_PROVISIONING_PROFILE_PATH:?METASEQUOIA_IOS_APP_PROVISIONING_PROFILE_PATH is required}"
+: "${METASEQUOIA_IOS_KEYBOARD_PROVISIONING_PROFILE_PATH:?METASEQUOIA_IOS_KEYBOARD_PROVISIONING_PROFILE_PATH is required}"
 
 if [[ ! "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     printf '%s\n' 'Tag must use the vMAJOR.MINOR.PATCH format.' >&2
@@ -22,6 +24,14 @@ if [[ ! -s "$METASEQUOIA_IOS_AUTH_KEY_PATH" ]]; then
     printf 'App Store Connect API key not found at %s\n' "$METASEQUOIA_IOS_AUTH_KEY_PATH" >&2
     exit 1
 fi
+for profile in \
+    "$METASEQUOIA_IOS_APP_PROVISIONING_PROFILE_PATH" \
+    "$METASEQUOIA_IOS_KEYBOARD_PROVISIONING_PROFILE_PATH"; do
+    if [[ ! -s "$profile" ]]; then
+        printf 'Provisioning profile not found at %s\n' "$profile" >&2
+        exit 1
+    fi
+done
 
 for tool in xcodegen xcodebuild xcrun; do
     if ! command -v "$tool" >/dev/null 2>&1; then
@@ -50,8 +60,18 @@ mkdir -p "$build_root" "$export_path"
 
 xcodegen generate --spec "$spec" --project "$build_root" --project-root "$project_root"
 
-# Keep signing automatic so Xcode can use the App Store Connect profiles for both the host app and
-# keyboard extension. CODE_SIGN_STYLE=Automatic must not be paired with a manual identity.
+# Install the exact distribution profiles selected by the Release configuration. Xcode's cloud
+# signing fallback can select a development profile for an automatic archive, which then cannot be
+# exported to TestFlight. The profiles are injected by the workflow and never committed.
+profiles_dir="$HOME/Library/MobileDevice/Provisioning Profiles"
+mkdir -p "$profiles_dir"
+for profile in \
+    "$METASEQUOIA_IOS_APP_PROVISIONING_PROFILE_PATH" \
+    "$METASEQUOIA_IOS_KEYBOARD_PROVISIONING_PROFILE_PATH"; do
+    uuid=$(security cms -D -i "$profile" | plutil -extract UUID raw -o - -)
+    cp "$profile" "$profiles_dir/$uuid.mobileprovision"
+done
+
 xcodebuild archive \
     -project "$build_root/MetasequoiaImeIOS.xcodeproj" \
     -scheme MetasequoiaImeIOS \
@@ -63,7 +83,8 @@ xcodebuild archive \
     CURRENT_PROJECT_VERSION="$version" \
     CODE_SIGNING_ALLOWED=YES \
     CODE_SIGNING_REQUIRED=YES \
-    CODE_SIGN_STYLE=Automatic \
+    CODE_SIGN_STYLE=Manual \
+    CODE_SIGN_IDENTITY="Apple Distribution" \
     DEVELOPMENT_TEAM="$METASEQUOIA_IOS_TEAM_ID" \
     -allowProvisioningUpdates \
     -authenticationKeyPath "$METASEQUOIA_IOS_AUTH_KEY_PATH" \
@@ -86,7 +107,7 @@ cat > "$export_options" <<EOF
     <key>method</key>
     <string>app-store-connect</string>
     <key>signingStyle</key>
-    <string>automatic</string>
+    <string>manual</string>
     <key>teamID</key>
     <string>$METASEQUOIA_IOS_TEAM_ID</string>
     <key>uploadSymbols</key>
@@ -95,6 +116,8 @@ cat > "$export_options" <<EOF
 </plist>
 EOF
 
+export_log="$build_root/export.log"
+set +e
 xcodebuild -exportArchive \
     -archivePath "$archive_path" \
     -exportPath "$export_path" \
@@ -102,7 +125,22 @@ xcodebuild -exportArchive \
     -allowProvisioningUpdates \
     -authenticationKeyPath "$METASEQUOIA_IOS_AUTH_KEY_PATH" \
     -authenticationKeyID "$METASEQUOIA_IOS_AUTH_KEY_ID" \
-    -authenticationKeyIssuerID "$METASEQUOIA_IOS_AUTH_KEY_ISSUER_ID"
+    -authenticationKeyIssuerID "$METASEQUOIA_IOS_AUTH_KEY_ISSUER_ID" 2>&1 | tee "$export_log"
+export_status=${PIPESTATUS[0]}
+set -e
+if [[ "$export_status" -ne 0 ]]; then
+    if grep -Eq 'Cloud signing permission error|No profiles for ' "$export_log"; then
+        printf '%s\n' 'TestFlight upload skipped: App Store Connect could not provide distribution profiles for the iOS targets.' >&2
+        if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            {
+                echo '### TestFlight upload skipped'
+                echo 'The App Store Connect key could not obtain distribution profiles for the iOS targets. The unsigned iOS artifacts remain available in this release.'
+            } >> "$GITHUB_STEP_SUMMARY"
+        fi
+        exit 0
+    fi
+    exit "$export_status"
+fi
 
 ipa=$(find "$export_path" -maxdepth 1 -type f -name '*.ipa' -print -quit)
 if [[ -z "$ipa" ]]; then

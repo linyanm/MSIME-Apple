@@ -167,13 +167,22 @@ class ProjectConfigurationTests(unittest.TestCase):
         self.assertIn("PRODUCT_BUNDLE_IDENTIFIER: app.msime.ios.keyboard\n", project)
         self.assertIn("deploymentTarget:\n    iOS: \"15.0\"", project)
 
-    def test_testflight_archive_uses_automatic_signing(self):
+    def test_testflight_archive_uses_distribution_profiles(self):
         script = (IOS_ROOT / "scripts/package_ios_testflight.sh").read_text()
 
-        self.assertNotIn('CODE_SIGN_IDENTITY="Apple Distribution"', script)
-        self.assertIn("CODE_SIGN_STYLE=Automatic", script)
+        self.assertIn('CODE_SIGN_IDENTITY="Apple Distribution"', script)
+        self.assertIn("CODE_SIGN_STYLE=Manual", script)
+        self.assertIn("METASEQUOIA_IOS_APP_PROVISIONING_PROFILE_PATH", script)
+        self.assertIn("METASEQUOIA_IOS_KEYBOARD_PROVISIONING_PROFILE_PATH", script)
         self.assertIn('<string>app-store-connect</string>', script)
-        self.assertIn('<string>automatic</string>', script)
+        self.assertIn('<string>manual</string>', script)
+
+    def test_testflight_export_reports_missing_cloud_profiles_without_blocking_the_release(self):
+        script = (IOS_ROOT / "scripts/package_ios_testflight.sh").read_text()
+
+        self.assertIn("Cloud signing permission error|No profiles for ", script)
+        self.assertIn("TestFlight upload skipped", script)
+        self.assertIn("The unsigned iOS artifacts remain available in this release.", script)
 
     def test_keyboard_is_local_and_declares_the_system_extension_contract(self):
         with (IOS_ROOT / "KeyboardExtension/Resources/Info.plist").open("rb") as info_file:
