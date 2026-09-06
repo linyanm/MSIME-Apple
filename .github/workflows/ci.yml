@@ -44,6 +44,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+      # Cheap and runs before the build so a formatting slip fails in seconds rather than after the
+      # full compile. Formatting is architecture independent, so only one leg checks it. Same
+      # pinned formatter version as MSIME-Linux and MSIME-Engine.
+      - name: Check formatting
+        if: ${{ matrix.architecture == 'arm64' }}
+        run: scripts/format.sh --check
       - name: Remove unused runner taps
         run: if brew tap | grep -Fxq aws/tap; then brew untap aws/tap; fi
       - name: Install dependencies
@@ -80,6 +86,51 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :TISInputSourceID' build/MetasequoiaIME.app/Contents/Info.plist)" = "com.houko.inputmethod.MetasequoiaIME"
           test "$(/usr/libexec/PlistBuddy -c 'Print :TISIntendedLanguage' build/MetasequoiaIME.app/Contents/Info.plist)" = "zh-Hans"
           test "$(/usr/libexec/PlistBuddy -c 'Print :ComponentInputModeDict:tsInputModeListKey:com.houko.inputmethod.MetasequoiaIME.Hans:tsInputModeScriptKey' build/MetasequoiaIME.app/Contents/Info.plist)" = "smSimpChinese"
+
+  # MSIME-Linux's ci.yml already reasons this out: "the frontend layer had none -- and that is the
+  # layer that parses untrusted input", written after an audit of a sibling frontend turned up a
+  # batch of races and null dereferences that no Debug build would have caught. Linux acted on it;
+  # this repository had no sanitizer coverage at all, and it is the cheapest of the three to add
+  # because clang is native here and there is no package manager tree to rebuild.
+  #
+  # arm64 only: this catches memory and undefined-behaviour bugs, which are not architecture
+  # specific, and a second sanitized leg would double a 60-plus-minute job for very little.
+  sanitizers:
+    name: Sanitizers
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Remove unused runner taps
+        run: if brew tap | grep -Fxq aws/tap; then brew untap aws/tap; fi
+      - name: Install dependencies
+        run: brew install boost fmt spdlog nlohmann-json
+      - name: Create test dictionary
+        run: |
+          mkdir -p "$RUNNER_TEMP/dictionary"
+          python3 platforms/macos/tests/create_fixture_dictionary.py "$RUNNER_TEMP/dictionary/msime.db"
+      - name: Configure with AddressSanitizer and UndefinedBehaviorSanitizer
+        run: >
+          cmake -S . -B build-sanitizers -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_PREFIX_PATH="$(brew --prefix)"
+          -DMETASEQUOIA_IME_DICTIONARY="$RUNNER_TEMP/dictionary/msime.db"
+          -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+      - name: Build
+        run: cmake --build build-sanitizers --parallel
+      # detect_leaks is off because Apple's runtime ships no LeakSanitizer; the Linux job in the
+      # engine repository is where leak detection happens.
+      - name: Test memory safety and undefined behavior
+        env:
+          ASAN_OPTIONS: detect_leaks=0:halt_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --no-tests=error --test-dir build-sanitizers --output-on-failure --timeout 300
 
   ios:
     name: iOS Simulator
