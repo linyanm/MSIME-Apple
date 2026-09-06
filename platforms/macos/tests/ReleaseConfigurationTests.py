@@ -331,6 +331,9 @@ class ReleaseConfigurationTests(unittest.TestCase):
         # tools expect, and it needs no signing identity to produce.
         self.assertIn("Payload", archive_script)
         self.assertIn("unzip -tqq", archive_script)
+        # The script zips from inside a staged Payload directory, so the workflow's relative dist
+        # argument must be resolved before that directory change.
+        self.assertIn('output_dir="$(pwd)/$output_dir"', archive_script)
         self.assertNotIn("generated", (package["pull-request-header"] + package["pull-request-footer"]).lower())
         self.assertTrue(package["draft"])
         self.assertTrue(package["force-tag-creation"])

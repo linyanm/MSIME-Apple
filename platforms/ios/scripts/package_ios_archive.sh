@@ -16,6 +16,12 @@ project_root=$(cd "$project_root" && pwd)
 
 tag_name=${1:-}
 output_dir=${2:-$project_root/dist}
+# The IPA is created from inside its staged Payload directory below. Resolve caller-supplied
+# relative paths before entering that directory, otherwise `dist/foo.ipa` is looked up under the
+# staging tree instead of the repository checkout.
+if [[ "$output_dir" != /* ]]; then
+    output_dir="$(pwd)/$output_dir"
+fi
 
 if [[ ! "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     printf '%s\n' "Tag must use the vMAJOR.MINOR.PATCH format." >&2
