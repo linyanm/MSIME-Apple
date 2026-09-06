@@ -3,8 +3,8 @@
 [官网](https://msime.app) · [用户文档](https://msime.app/docs/) · [隐私说明](PRIVACY.md) · [English README](README.en.md)
 
 <!-- badges:start -->
-[![CI](https://img.shields.io/github/actions/workflow/status/metasequoiaime/MSIME-Apple/ci.yml?branch=main&label=CI)](https://github.com/metasequoiaime/MSIME-Apple/actions/workflows/ci.yml)
-[![CodeQL](https://img.shields.io/github/actions/workflow/status/metasequoiaime/MSIME-Apple/codeql.yml?branch=main&label=CodeQL)](https://github.com/metasequoiaime/MSIME-Apple/actions/workflows/codeql.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/metasequoiaime/MSIME-Apple/ci.yml?branch=develop&label=CI)](https://github.com/metasequoiaime/MSIME-Apple/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/metasequoiaime/MSIME-Apple/codeql.yml?branch=develop&label=CodeQL)](https://github.com/metasequoiaime/MSIME-Apple/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/metasequoiaime/MSIME-Apple?include_prereleases&label=release)](https://github.com/metasequoiaime/MSIME-Apple/releases)
 [![Downloads](https://img.shields.io/github/downloads/metasequoiaime/MSIME-Apple/total?label=downloads)](https://github.com/metasequoiaime/MSIME-Apple/releases)
 [![License](https://img.shields.io/github/license/metasequoiaime/MSIME-Apple)](LICENSE)
@@ -77,7 +77,7 @@ brew install cmake boost fmt spdlog nlohmann-json
 
 macOS 产品直接链接 Engine 的 `Voice`、`VoiceCapture` 和 `VoiceWhisper` 目标。平台层负责权限、钥匙串、录音提示和 IMK 上屏。iOS 目前只接入公共输入引擎与词库构建器，尚未提供语音入口。
 
-macOS 用的是公共 `voice/` 模块，走 HTTP 一次性上传：录完整段再识别，不能边说边出字。Windows 端在合仓时另外积累了 Doubao provider 与 WebSocket 流式识别，这些能力没有回流到公共模块（见 Engine 的 [合仓说明](https://github.com/metasequoiaime/MSIME-Engine/blob/main/docs/consolidation.md)），所以 macOS 与 Linux 在语音上结构性地落后 Windows 一档。这不是配置问题，配置里也没有可以打开的开关。
+macOS 用的是公共 `voice/` 模块，走 HTTP 一次性上传：录完整段再识别，不能边说边出字。Windows 端在合仓时另外积累了 Doubao provider 与 WebSocket 流式识别，这些能力没有回流到公共模块（见 Engine 的 [合仓说明](https://github.com/metasequoiaime/MSIME-Engine/blob/develop/docs/consolidation.md)），所以 macOS 与 Linux 在语音上结构性地落后 Windows 一档。这不是配置问题，配置里也没有可以打开的开关。
 
 ## 开发测试
 

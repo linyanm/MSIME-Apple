@@ -53,7 +53,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: true", workflow)
         # merge-release-pr.sh dispatches ci.yml and waits on that run with --exit-status, so a pull_request run on the same branch must land in a different concurrency group or it cancels the release.
         self.assertIn("${{ github.event_name }}", workflow.split("concurrency:", 1)[1].split("permissions:", 1)[0])
-        self.assertIn("on:\n  push:\n    branches:\n      - main\n  pull_request:\n", workflow)
+        self.assertIn("on:\n  push:\n    branches:\n      - develop\n      - main\n  pull_request:\n", workflow)
 
     def test_current_repository_links_use_the_canonical_apple_repository(self):
         canonical_repository = "https://github.com/metasequoiaime/MSIME-Apple"
@@ -345,10 +345,15 @@ class ReleaseConfigurationTests(unittest.TestCase):
             "github/codeql-action/analyze",
         }
         used_actions = set()
-        for workflow_path in (PROJECT_ROOT / ".github/workflows").glob("*.yml"):
+        # The guard against a broken glob or parse counts the whole tree rather than each file:
+        # branch-guard.yml is a shell-only check and legitimately uses no action at all.
+        workflow_paths = sorted((PROJECT_ROOT / ".github/workflows").glob("*.yml"))
+        self.assertGreater(len(workflow_paths), 0)
+        parsed_uses = 0
+        for workflow_path in workflow_paths:
             uses_lines = [line.strip().removeprefix("- ") for line in workflow_path.read_text().splitlines()
                           if line.strip().removeprefix("- ").startswith("uses:")]
-            self.assertGreater(len(uses_lines), 0)
+            parsed_uses += len(uses_lines)
             for uses_line in uses_lines:
                 action_reference = uses_line.removeprefix("uses:").strip().split()[0]
                 if action_reference.startswith("./"):
@@ -361,6 +366,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
                 self.assertIn(action, allowed_actions)
                 self.assertRegex(revision, r"^[0-9a-f]{40}$")
                 used_actions.add(action)
+        self.assertGreater(parsed_uses, 0)
         self.assertEqual(used_actions, allowed_actions)
         self.assertIn("steps.release.outputs.release_created", workflow)
         self.assertIn("run: bash platforms/macos/scripts/merge-release-pr.sh", workflow)
