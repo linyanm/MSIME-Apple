@@ -3,7 +3,7 @@
 
 This mirrors MSIME-Linux/scripts/product_lock.py deliberately, so the two can be diffed. The only intended difference is the asset set: the macOS bundle installs msime.db and nothing else, so others.db and english.db are not locked here. Add them here and to CMakeLists.txt together if the bundle ever ships them.
 
-Engine, helpcodes and the mobile builder share one Engine gitlink. Git already makes those immutable and shows every move in a pull request diff, so they are not copied into this lock: doing that would only give the submodule pin a second home to drift from.
+Engine, helpcodes and the mobile builder share one Engine gitlink, and this lock does not copy that commit. Nothing here reads it: the manifest resolves gitlinks directly, and this repository has no release gate that refuses an engine commit nobody merged. MSIME-Windows does record it, because its packaging manifest and release gate both consume it, and `product_lock.py verify-contracts` keeps that copy honest against the gitlink. Either is fine with a checker; a second copy with no reader and no checker is not.
 
 The dictionary the bundle actually *ships* is the one input git does not pin. It is a release asset behind a tag that upstream can retag, and the SHA256SUMS.txt published beside it is exactly as mutable as the data. So product-lock.json holds the tag and the SHA256 of every asset, and the build verifies those committed digests instead.
 
