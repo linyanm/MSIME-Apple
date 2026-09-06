@@ -97,12 +97,17 @@ ctest --test-dir build-test --output-on-failure --timeout 20
 - `MetasequoiaIME-vX.Y.Z-macos-universal-update.zip`
 - `MetasequoiaIME-vX.Y.Z-macos-universal-update.zip.sha256`
 - `appcast.xml`
+- `MetasequoiaIME-vX.Y.Z-ios-unsigned.ipa`
+- `MetasequoiaIME-vX.Y.Z-ios-unsigned.ipa.sha256`
 - `MetasequoiaIME-vX.Y.Z-ios-unsigned.xcarchive.zip`
 - `MetasequoiaIME-vX.Y.Z-ios-unsigned.xcarchive.zip.sha256`
 
 当未配置 Apple 发布凭据时，工作流会发布同样的四份 macOS 产物，但在扩展名前加上 `-unsigned`，并在 GitHub Release 中附加警告。未签名产物仅用于测试，可能需要在 macOS 隐私与安全性设置中显式放行。
 
-iOS 产物是未签名的 `.xcarchive`，**不是可直接安装的 App**。iOS 没有「在隐私与安全性中放行」这种机制，自定义键盘只能通过 App Store 或 TestFlight 安装。发布它是为了重新签名：持有 Apple Developer Program 账号的维护者可以直接从该归档导出 IPA，无需重新构建，导出的就是这个 tag 构建并测试过的产物。仓库目前没有配置任何 Apple 签名凭据，所以 iOS 归档在任何发布模式下都是未签名的，文件名不带 `-unsigned` 之外的后缀区分。
+两份 iOS 产物都是**未签名**的：仓库没有配置任何 Apple 签名凭据，所以它们在任何发布模式下都不带签名，必须先签名才能在真机上运行。也因此文件名不随发布模式变化。
+
+- `.ipa` 是给试用者的。用 Sideloadly、AltStore 这类工具配自己的 Apple ID 重新签名后即可安装，装完在「设置 > 通用 > 键盘 > 键盘」里启用水杉。免费 Apple ID 签出的有效期 7 天，付费 Developer Program 账号 1 年，到期后需要重新签名。
+- `.xcarchive.zip` 是给维护者的。用 Xcode Organizer 打开即可分发到 TestFlight 或 App Store，导出的就是这个 tag 构建并测试过的产物，无需重新构建。
 
 iOS 最终走哪条分发路线**尚未决定**：App Store 的服务条款与 GPLv3 冲突，而 bundle 里的 `msime.db` 含第三方 GPL-3.0 数据，作者无权单方面为其附加例外。三个可选路线与各自代价见 [docs/ios-distribution.md](docs/ios-distribution.md)。在决定之前不要向 App Store 提交，也不要在面向用户的材料里承诺上架。
 
