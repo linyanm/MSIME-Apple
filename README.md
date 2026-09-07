@@ -115,6 +115,8 @@ GitHub 没有自定义频道，只有 Latest / Pre-release / Draft 三种状态�
 
 这两个开关**只在版本号小于 `1.0.0` 时生效**。真发布 1.0.0 之后它们自动失效，退回 release-please 的默认行为（`feat:` 推 y、`!` 推 x），届时要重新决定这一段怎么写。
 
+iOS 的版本号有一处刻意的偏离：发布脚本把 `MARKETING_VERSION` 截断成 **x.y** 再归档，第三位交给 `CURRENT_PROJECT_VERSION`（取 `git rev-list --count HEAD`）承载。TestFlight 按 `CFBundleShortVersionString` 分组并逐组做 Beta App Review，带上 z 就等于每发一版重审一次；截断之后只有 y 变才开新组。macOS 与 Linux 不受影响，产物文件名也照旧使用完整的 tag。
+
 发布 PR 里带的产物：
 
 - `MetasequoiaIME-vX.Y.Z-macos-universal.pkg`

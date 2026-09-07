@@ -717,7 +717,18 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         for name, script in scripts.items():
             self.assertIn('CURRENT_PROJECT_VERSION="$build_number"', script, name)
             self.assertNotIn('CURRENT_PROJECT_VERSION="$version"', script, name)
-            self.assertIn('MARKETING_VERSION="$version"', script, name)
+            # TestFlight reviews each CFBundleShortVersionString on its own, so shipping the patch
+            # digit meant a Beta App Review per release. Both paths must truncate alike, or an
+            # archive uploaded from Organizer opens a second group for the same release.
+            self.assertIn("marketing_version=${version%.*}", script, name)
+            self.assertIn('MARKETING_VERSION="$marketing_version"', script, name)
+            self.assertNotIn('MARKETING_VERSION="$version"', script, name)
+
+        truncation = subprocess.run(
+            ["bash", "-c", 'version="0.48.6"; printf "%s" "${version%.*}"'],
+            capture_output=True, text=True, check=True,
+        )
+        self.assertEqual(truncation.stdout, "0.48")
 
         start = 'if ! git -C "$project_root" rev-parse --git-dir'
         end = 'build_number=$(git -C "$project_root" rev-list --count HEAD)'

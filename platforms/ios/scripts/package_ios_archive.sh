@@ -49,6 +49,13 @@ if [[ "$(git -C "$project_root" rev-parse --is-shallow-repository)" == "true" ]]
 fi
 build_number=$(git -C "$project_root" rev-list --count HEAD)
 
+# TestFlight groups builds by CFBundleShortVersionString and reviews each group on its own, so
+# carrying the patch digit here bought a fresh Beta App Review for every release. iOS ships x.y and
+# lets the build number carry the rest; only a minor bump opens a new group now. This archive has to
+# agree with the signed path, or a maintainer uploading it from Organizer would open a second group
+# for the same release. The release artifacts still take their names from the full tag.
+marketing_version=${version%.*}
+
 spec="$project_root/platforms/ios/project.yml"
 if [[ ! -f "$spec" ]]; then
     printf 'iOS project spec not found at %s\n' "$spec" >&2
@@ -73,8 +80,8 @@ mkdir -p "$build_root" "$output_dir"
 
 xcodegen generate --spec "$spec" --project "$build_root" --project-root "$project_root"
 
-# MARKETING_VERSION is passed on the command line as well as being bumped in project.yml, so the
-# archive carries the release version even when the spec is momentarily behind the tag being built.
+# The version settings are passed on the command line as well as being bumped in project.yml, so the
+# archive follows the tag being built even when the spec is momentarily behind it.
 xcodebuild archive \
     -project "$build_root/MetasequoiaImeIOS.xcodeproj" \
     -scheme MetasequoiaImeIOS \
@@ -82,7 +89,7 @@ xcodebuild archive \
     -destination 'generic/platform=iOS' \
     -archivePath "$archive_path" \
     -derivedDataPath "$build_root/derived" \
-    MARKETING_VERSION="$version" \
+    MARKETING_VERSION="$marketing_version" \
     CURRENT_PROJECT_VERSION="$build_number" \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \

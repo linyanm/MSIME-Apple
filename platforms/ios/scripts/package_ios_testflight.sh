@@ -67,6 +67,12 @@ if [[ "$(git -C "$project_root" rev-parse --is-shallow-repository)" == "true" ]]
 fi
 build_number=$(git -C "$project_root" rev-list --count HEAD)
 
+# TestFlight groups builds by CFBundleShortVersionString and reviews each group on its own, so
+# carrying the patch digit here bought a fresh Beta App Review for every release. iOS ships x.y and
+# lets the build number carry the rest; only a minor bump opens a new group now. The release
+# artifacts still take their names from the full tag.
+marketing_version=${version%.*}
+
 build_root="$project_root/build/ios-testflight"
 archive_path="$build_root/MetasequoiaIME.xcarchive"
 export_path="$build_root/export"
@@ -98,7 +104,7 @@ xcodebuild archive \
     -destination 'generic/platform=iOS' \
     -archivePath "$archive_path" \
     -derivedDataPath "$build_root/derived" \
-    MARKETING_VERSION="$version" \
+    MARKETING_VERSION="$marketing_version" \
     CURRENT_PROJECT_VERSION="$build_number" \
     CODE_SIGNING_ALLOWED=YES \
     CODE_SIGNING_REQUIRED=YES \
