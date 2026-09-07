@@ -60,6 +60,18 @@ mkdir -p "$build_root" "$export_path"
 
 xcodegen generate --spec "$spec" --project "$build_root" --project-root "$project_root"
 
+skip_testflight() {
+    local reason=$1
+    printf 'TestFlight upload skipped: %s\n' "$reason" >&2
+    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+        {
+            echo '### TestFlight upload skipped'
+            echo "$reason"
+            echo 'The unsigned iOS artifacts remain available in this release.'
+        } >> "$GITHUB_STEP_SUMMARY"
+    fi
+}
+
 # Install the exact distribution profiles selected by the Release configuration. Xcode's cloud
 # signing fallback can select a development profile for an automatic archive, which then cannot be
 # exported to TestFlight. The profiles are injected by the workflow and never committed.
@@ -72,6 +84,8 @@ for profile in \
     cp "$profile" "$profiles_dir/$uuid.mobileprovision"
 done
 
+archive_log="$build_root/archive.log"
+set +e
 xcodebuild archive \
     -project "$build_root/MetasequoiaImeIOS.xcodeproj" \
     -scheme MetasequoiaImeIOS \
@@ -89,7 +103,16 @@ xcodebuild archive \
     -allowProvisioningUpdates \
     -authenticationKeyPath "$METASEQUOIA_IOS_AUTH_KEY_PATH" \
     -authenticationKeyID "$METASEQUOIA_IOS_AUTH_KEY_ID" \
-    -authenticationKeyIssuerID "$METASEQUOIA_IOS_AUTH_KEY_ISSUER_ID"
+    -authenticationKeyIssuerID "$METASEQUOIA_IOS_AUTH_KEY_ISSUER_ID" 2>&1 | tee "$archive_log"
+archive_status=${PIPESTATUS[0]}
+set -e
+if [[ "$archive_status" -ne 0 ]]; then
+    if grep -Eiq 'No signing certificate .* found|No profiles for |Cloud signing permission error|Provisioning profile .* doesn.t match|Provisioning profile .* doesn.t include .* entitlement|Provisioning profile .* does not include .* entitlement|requires a provisioning profile|requires a signing certificate' "$archive_log"; then
+        skip_testflight 'The configured iOS distribution certificate or provisioning profiles are unavailable or do not match the project entitlements.'
+        exit 0
+    fi
+    exit "$archive_status"
+fi
 
 application="$archive_path/Products/Applications/MetasequoiaIME.app"
 extension="$application/PlugIns/MetasequoiaKeyboard.appex"
@@ -130,13 +153,7 @@ export_status=${PIPESTATUS[0]}
 set -e
 if [[ "$export_status" -ne 0 ]]; then
     if grep -Eq 'Cloud signing permission error|No profiles for ' "$export_log"; then
-        printf '%s\n' 'TestFlight upload skipped: App Store Connect could not provide distribution profiles for the iOS targets.' >&2
-        if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-            {
-                echo '### TestFlight upload skipped'
-                echo 'The App Store Connect key could not obtain distribution profiles for the iOS targets. The unsigned iOS artifacts remain available in this release.'
-            } >> "$GITHUB_STEP_SUMMARY"
-        fi
+        skip_testflight 'App Store Connect could not provide distribution profiles for the iOS targets.'
         exit 0
     fi
     exit "$export_status"

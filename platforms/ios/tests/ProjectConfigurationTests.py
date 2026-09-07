@@ -184,6 +184,18 @@ class ProjectConfigurationTests(unittest.TestCase):
         self.assertIn("TestFlight upload skipped", script)
         self.assertIn("The unsigned iOS artifacts remain available in this release.", script)
 
+    def test_testflight_archive_reports_signing_configuration_failures_without_blocking_the_release(self):
+        script = (IOS_ROOT / "scripts/package_ios_testflight.sh").read_text()
+
+        self.assertIn('archive_log="$build_root/archive.log"', script)
+        self.assertIn("archive_status=${PIPESTATUS[0]}", script)
+        self.assertIn("No signing certificate .* found", script)
+        self.assertIn("Provisioning profile .* doesn.t match", script)
+        self.assertIn("Provisioning profile .* doesn.t include .* entitlement", script)
+        self.assertIn("Provisioning profile .* does not include .* entitlement", script)
+        self.assertIn("skip_testflight", script)
+        self.assertIn("exit \"$archive_status\"", script)
+
     def test_keyboard_is_local_and_declares_the_system_extension_contract(self):
         with (IOS_ROOT / "KeyboardExtension/Resources/Info.plist").open("rb") as info_file:
             info = plistlib.load(info_file)
