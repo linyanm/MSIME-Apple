@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.48.4](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.48.3...v0.48.4) (2026-09-07)
+
+
+### Bug Fixes
+
+* **ios:** import distribution certificate for TestFlight ([3d15540](https://github.com/metasequoiaime/MSIME-Apple/commit/3d155409b37b927841776a54915069358ec704b6))
+* **ios:** import distribution certificate for TestFlight ([7b60141](https://github.com/metasequoiaime/MSIME-Apple/commit/7b601417e8060a2efddea6fc37a14f1a708a46d3))
+* **release:** keep invalid TestFlight credentials optional ([756f3a4](https://github.com/metasequoiaime/MSIME-Apple/commit/756f3a4ce26f15f89766f2a09dbdc061dfeec66d))
+* **release:** keep missing TestFlight signing non-blocking ([be2934f](https://github.com/metasequoiaime/MSIME-Apple/commit/be2934fb09442e4c8f24d539f89aac6f05e281ba))
+* **release:** parse iOS profile entitlements exactly ([ea42270](https://github.com/metasequoiaime/MSIME-Apple/commit/ea422702542fb119d9451965b28cfb568b208e2f))
+* **release:** parse iOS profile entitlements exactly ([1d42b7c](https://github.com/metasequoiaime/MSIME-Apple/commit/1d42b7c3f7ed40f5ad2df3c78dd23c5eed301a3a))
+* **release:** skip invalid TestFlight credentials ([dbb7f2b](https://github.com/metasequoiaime/MSIME-Apple/commit/dbb7f2bda17189a48cd6aafee114ca2c620bbe65))
+* **release:** skip unavailable TestFlight signing ([fdce66e](https://github.com/metasequoiaime/MSIME-Apple/commit/fdce66e9269b67fd3dd208243f711f1165bbab2c))
+
+## [0.48.3](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.48.2...v0.48.3) (2026-09-06)
+
+
+### Bug Fixes
+
+* **ios:** use distribution profiles for TestFlight ([e79b19d](https://github.com/metasequoiaime/MSIME-Apple/commit/e79b19d4d33bd2a267be66c0879150609a74c826))
+* **ios:** use distribution profiles for TestFlight ([402ddcd](https://github.com/metasequoiaime/MSIME-Apple/commit/402ddcdc24a27a8fd9f746866b65da04de4f872c))
+* **release:** keep missing testflight profiles non-blocking ([9da4854](https://github.com/metasequoiaime/MSIME-Apple/commit/9da485434dbb9a94aee254cc3c78a5b7f222f573))
+* **release:** keep missing TestFlight profiles non-blocking ([1c305ca](https://github.com/metasequoiaime/MSIME-Apple/commit/1c305ca770019e303d14b4eff88e9485725b6849))
+* **release:** merge testflight signing updates ([0c4cfef](https://github.com/metasequoiaime/MSIME-Apple/commit/0c4cfef62da4fdf0fcb56636c774c68e9f381d7b))
+
 ## [0.48.2](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.48.1...v0.48.2) (2026-09-06)
 
 
