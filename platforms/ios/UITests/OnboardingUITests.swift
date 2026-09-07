@@ -24,11 +24,21 @@ final class OnboardingUITests: XCTestCase {
     XCTAssertTrue(outputPicker.buttons["繁体"].exists)
 
     let tryoutField = app.textFields["keyboardTryoutField"]
-    XCTAssertTrue(tryoutField.exists)
-    tryoutField.tap()
-    // Tapping only requests first responder. Typing before the field actually holds keyboard focus fails with "Neither element nor any descendant has keyboard focus", so wait for the focus rather than assuming the transition already landed.
-    let focused = expectation(for: NSPredicate(format: "hasKeyboardFocus == true"), evaluatedWith: tryoutField)
-    wait(for: [focused], timeout: 10)
+    XCTAssertTrue(tryoutField.waitForExistence(timeout: 10))
+    // The first tap can be lost while XCTest is establishing the automation session on a fresh
+    // simulator. Retap a bounded number of times, and only type after the field reports focus;
+    // otherwise typeText fails with "Neither element nor any descendant has keyboard focus".
+    var hasFocus = false
+    for _ in 0..<3 {
+      tryoutField.tap()
+      let focused = expectation(
+        for: NSPredicate(format: "hasKeyboardFocus == true"), evaluatedWith: tryoutField)
+      if XCTWaiter().wait(for: [focused], timeout: 4) == .completed {
+        hasFocus = true
+        break
+      }
+    }
+    XCTAssertTrue(hasFocus, "The tryout field did not receive keyboard focus after tapping")
     tryoutField.typeText("test")
     XCTAssertEqual(tryoutField.value as? String, "test")
 
