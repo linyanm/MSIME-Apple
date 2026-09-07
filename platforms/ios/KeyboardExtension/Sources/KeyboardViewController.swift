@@ -25,7 +25,12 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private var didRepeatBackspace = false
   private var hasComposition = false
   private var isChineseMode = true
-  private var usesShuangpin = false
+  private var inputScheme: ChineseInputScheme = .quanpin
+  private var usesShuangpin: Bool { inputScheme == .shuangpin }
+  private var nineKeyRows: [UIView] = []
+  private let nineKeyContainer = UIStackView()
+  private let spellingScrollView = UIScrollView()
+  private let spellingStack = UIStackView()
   private var usesTraditionalOutput = false
   private var visiblePreedit = ""
   private var visibleCandidates: [String] = []
@@ -62,11 +67,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    usesShuangpin = InputSchemePreference.usesShuangpin
+    inputScheme = InputSchemePreference.scheme
     usesTraditionalOutput = ChineseOutputPreference.usesTraditional
-    if usesShuangpin {
-      _ = session.switch(toShuangpin: true)
-    }
+    _ = applyInputScheme()
     view.backgroundColor = MetasequoiaTheme.keyboardBackground
     installKeyboard()
     updateReturnKey()
@@ -132,11 +135,62 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     ])
 
     root.addArrangedSubview(makeCandidateStrip())
+    preeditButton.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, multiplier: 0.28).isActive = true
     for (index, row) in letterRows.enumerated() {
       let rowView = makeLetterRow(row, includesShift: index == letterRows.count - 1)
       letterRowViews.append(rowView)
       root.addArrangedSubview(rowView)
     }
+    nineKeyContainer.axis = .horizontal
+    nineKeyContainer.spacing = 6
+    nineKeyContainer.addArrangedSubview(makeSpellingStrip())
+    let nineKeyGrid = UIStackView()
+    nineKeyGrid.axis = .vertical
+    nineKeyGrid.spacing = 7
+    nineKeyGrid.distribution = .fillEqually
+    nineKeyContainer.addArrangedSubview(nineKeyGrid)
+    let groups = [["1", "ABC", "DEF"], ["GHI", "JKL", "MNO"], ["PQRS", "TUV", "WXYZ"]]
+    for (rowIndex, lettersInRow) in groups.enumerated() {
+      let row = makeRow()
+      for (column, letters) in lettersInRow.enumerated() {
+        let digit = rowIndex * 3 + column + 1
+        let button = makeKey(
+          title: digit == 1 ? "，。？！" : letters,
+          accessibilityLabel: digit == 1 ? "逗号，长按选择标点" : "\(digit) \(letters)"
+        ) { [weak self] in
+          if digit == 1 { self?.handleSymbol(",") }
+          else { self?.handleCharacter(String(digit)) }
+        }
+        button.accessibilityIdentifier = "nineKey\(digit)"
+        if var configuration = button.configuration {
+          configuration.contentInsets = .zero
+          button.configuration = configuration
+        }
+        button.titleLabel?.adjustsFontSizeToFitWidth = true
+        button.titleLabel?.minimumScaleFactor = 0.7
+        if digit == 1 {
+          button.menu = UIMenu(children: [",", ".", "?", "!", "、"].map { symbol in
+            UIAction(title: symbol) { [weak self] _ in self?.handleSymbol(symbol) }
+          })
+        } else {
+          let number = UILabel()
+          number.text = String(digit)
+          number.font = .systemFont(ofSize: 10)
+          number.textColor = .secondaryLabel
+          number.translatesAutoresizingMaskIntoConstraints = false
+          number.isAccessibilityElement = false
+          button.addSubview(number)
+          NSLayoutConstraint.activate([
+            number.topAnchor.constraint(equalTo: button.topAnchor, constant: 3),
+            number.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -5),
+          ])
+        }
+        row.addArrangedSubview(button)
+      }
+      nineKeyGrid.addArrangedSubview(row)
+      nineKeyRows.append(row)
+    }
+    root.addArrangedSubview(nineKeyContainer)
     for row in symbolRows {
       let rowView = makeSymbolRow(row)
       rowView.isHidden = true
@@ -144,6 +198,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       root.addArrangedSubview(rowView)
     }
     root.addArrangedSubview(makeActionRow())
+    updateKeyboardLayout()
   }
 
   private func makeCandidateStrip() -> UIView {
@@ -153,6 +208,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
     var preeditConfiguration = UIButton.Configuration.plain()
     preeditConfiguration.contentInsets = .zero
+    preeditConfiguration.titleLineBreakMode = .byTruncatingHead
     preeditConfiguration.baseForegroundColor = MetasequoiaTheme.forestUIColor
     preeditConfiguration.titleTextAttributesTransformer =
       UIConfigurationTextAttributesTransformer { attributes in
@@ -161,7 +217,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         return attributes
       }
     preeditButton.configuration = preeditConfiguration
-    preeditButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+    preeditButton.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
     preeditButton.showsMenuAsPrimaryAction = true
     preeditButton.accessibilityIdentifier = "preeditButton"
 
@@ -171,8 +227,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     languageModeButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
 
     updateSchemeButton()
-    schemeButton.addAction(
-      UIAction { [weak self] _ in self?.toggleScheme() }, for: .primaryActionTriggered)
+    schemeButton.showsMenuAsPrimaryAction = true
     schemeButton.widthAnchor.constraint(equalToConstant: 48).isActive = true
 
     candidateStack.axis = .horizontal
@@ -226,6 +281,53 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         equalTo: candidateScrollView.frameLayoutGuide.heightAnchor),
     ])
     return container
+  }
+
+  private func makeSpellingStrip() -> UIView {
+    spellingScrollView.showsVerticalScrollIndicator = false
+    spellingStack.axis = .vertical
+    spellingStack.spacing = 6
+    spellingStack.translatesAutoresizingMaskIntoConstraints = false
+    spellingScrollView.addSubview(spellingStack)
+    let width = spellingScrollView.widthAnchor.constraint(equalToConstant: 58)
+    width.priority = .defaultHigh
+    width.isActive = true
+    NSLayoutConstraint.activate([
+
+      spellingStack.leadingAnchor.constraint(equalTo: spellingScrollView.contentLayoutGuide.leadingAnchor),
+      spellingStack.trailingAnchor.constraint(equalTo: spellingScrollView.contentLayoutGuide.trailingAnchor),
+      spellingStack.topAnchor.constraint(equalTo: spellingScrollView.contentLayoutGuide.topAnchor),
+      spellingStack.bottomAnchor.constraint(equalTo: spellingScrollView.contentLayoutGuide.bottomAnchor),
+      spellingStack.widthAnchor.constraint(equalTo: spellingScrollView.frameLayoutGuide.widthAnchor),
+    ])
+    return spellingScrollView
+  }
+
+  private func updateSpellingStrip() {
+    spellingStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    for (index, spelling) in session.nineKeySpellings().enumerated() {
+      let button = UIButton(type: .system)
+      var configuration = UIButton.Configuration.tinted()
+      configuration.title = spelling
+      configuration.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 2, bottom: 6, trailing: 2)
+      configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+        var attributes = attributes
+        attributes.font = .systemFont(ofSize: 14)
+        return attributes
+      }
+      configuration.baseForegroundColor = MetasequoiaTheme.forestUIColor
+      button.configuration = configuration
+      button.accessibilityLabel = "选择拼音 \(spelling)"
+      button.accessibilityIdentifier = "nineKeySpelling_\(spelling)"
+      button.addAction(UIAction { [weak self] _ in
+        guard let self else { return }
+        self.playInputClick()
+        self.render(self.session.chooseNineKeySpelling(at: UInt(index)))
+      }, for: .primaryActionTriggered)
+      spellingStack.addArrangedSubview(button)
+    }
+    spellingScrollView.setContentOffset(.zero, animated: false)
+    updateKeyboardLayout()
   }
 
   private func makeLetterRow(_ letters: [Character], includesShift: Bool) -> UIStackView {
@@ -309,6 +411,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     layoutToggle.titleLabel?.adjustsFontSizeToFitWidth = true
     layoutToggle.titleLabel?.minimumScaleFactor = 0.7
     layoutToggle.titleLabel?.lineBreakMode = .byClipping
+    layoutToggle.accessibilityIdentifier = "layoutToggleButton"
     layoutToggleButton = layoutToggle
     row.addArrangedSubview(layoutToggle)
 
@@ -363,6 +466,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     playInputClick()
     if isChineseMode {
       synchronizeInputSchemePreference()
+      // A host setting can change while this view is open. Do not start an alphabetic composition
+      // from a stale 26-key tap after switching to nine keys; local utilities still need letters.
+      if inputScheme == .nineKey && !session.isInLocalMode && !("2"..."9").contains(character) {
+        return
+      }
       render(session.handleCharacter(character))
     } else {
       let output = letterCaseState == .lowercase ? character : character.uppercased()
@@ -554,6 +662,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     languageModeButton.accessibilityLabel =
       isChineseMode ? "切换到英文输入" : "切换到中文输入"
     languageModeButton.accessibilityValue = isChineseMode ? "中文输入" : "英文输入"
+    updateKeyboardLayout()
   }
 
   private func updateReturnKey() {
@@ -590,22 +699,28 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     enterButton?.accessibilityLabel = title
   }
 
-  private func toggleScheme() {
+  private func applyInputScheme() -> MetasequoiaInputSnapshot {
+    inputScheme == .nineKey ? session.switchToNineKey()
+      : session.switch(toShuangpin: usesShuangpin)
+  }
+
+  private func selectInputScheme(_ scheme: ChineseInputScheme) {
+    guard scheme != inputScheme else { return }
     playInputClick()
-    usesShuangpin.toggle()
-    let snapshot = session.switch(toShuangpin: usesShuangpin)
-    InputSchemePreference.usesShuangpin = usesShuangpin
+    inputScheme = scheme
+    let snapshot = applyInputScheme()
+    InputSchemePreference.scheme = scheme
+    showsSymbols = false
     updateSchemeButton()
     render(snapshot)
   }
 
   private func synchronizeInputSchemePreference() {
     guard !hasComposition else { return }
-    let sharedValue = InputSchemePreference.usesShuangpin
-    guard sharedValue != usesShuangpin else { return }
-
-    usesShuangpin = sharedValue
-    let snapshot = session.switch(toShuangpin: usesShuangpin)
+    let sharedValue = InputSchemePreference.scheme
+    guard sharedValue != inputScheme else { return }
+    inputScheme = sharedValue
+    let snapshot = applyInputScheme()
     updateSchemeButton()
     render(snapshot)
   }
@@ -705,7 +820,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     updateLetterCaseControls()
 
     var configuration = UIButton.Configuration.plain()
-    configuration.title = usesShuangpin ? "小鹤" : "全拼"
+    configuration.title = inputScheme == .nineKey ? "九键" : (usesShuangpin ? "小鹤" : "全拼")
     configuration.baseForegroundColor = MetasequoiaTheme.forestUIColor
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 3, leading: 4, bottom: 3, trailing: 4)
@@ -714,17 +829,31 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     configuration.background.cornerRadius = 8
     schemeButton.configuration = configuration
     schemeButton.accessibilityIdentifier = "schemeButton"
-    schemeButton.accessibilityLabel = usesShuangpin ? "切换到全拼" : "切换到小鹤双拼"
-    schemeButton.accessibilityValue = usesShuangpin ? "小鹤双拼" : "全拼"
+    schemeButton.accessibilityLabel = "选择输入方案"
+    schemeButton.accessibilityValue = inputScheme.title
+    schemeButton.menu = UIMenu(children: ChineseInputScheme.allCases.map { scheme in
+      UIAction(title: scheme.title, state: scheme == inputScheme ? .on : .off) { [weak self] _ in
+        self?.selectInputScheme(scheme)
+      }
+    })
+    updateKeyboardLayout()
   }
 
   private func toggleLayout() {
     playInputClick()
     showsSymbols.toggle()
-    letterRowViews.forEach { $0.isHidden = showsSymbols }
+    updateKeyboardLayout()
+  }
+
+  private func updateKeyboardLayout() {
+    let nineKey = isChineseMode && inputScheme == .nineKey && !session.isInLocalMode
+    letterRowViews.forEach { $0.isHidden = showsSymbols || nineKey }
+    nineKeyContainer.isHidden = showsSymbols || !nineKey
+    nineKeyRows.forEach { $0.isHidden = showsSymbols || !nineKey }
+    spellingScrollView.isHidden = session.nineKeySpellings().isEmpty
     symbolRowViews.forEach { $0.isHidden = !showsSymbols }
     if var configuration = layoutToggleButton?.configuration {
-      configuration.title = showsSymbols ? "ABC" : "123"
+      configuration.title = showsSymbols ? (nineKey ? "九键" : "ABC") : "123"
       layoutToggleButton?.configuration = configuration
     }
     layoutToggleButton?.accessibilityLabel =
@@ -835,6 +964,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     hasComposition = !snapshot.preedit.isEmpty
     showDiagnostic(snapshot.diagnosticText)
     updateCandidateStrip(preedit: snapshot.preedit, candidates: snapshot.candidates)
+    updateSpellingStrip()
   }
 
   // A diagnostic means the key was handled but something behind it failed, so input keeps working
@@ -938,6 +1068,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   ) -> UIButton {
     var configuration = UIButton.Configuration.plain()
     configuration.title = title
+    configuration.titleLineBreakMode = .byClipping
     configuration.baseForegroundColor = emphasized ? .white : .label
     configuration.background.backgroundColor =
       emphasized

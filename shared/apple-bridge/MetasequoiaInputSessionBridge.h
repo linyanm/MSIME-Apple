@@ -30,6 +30,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (MetasequoiaInputSnapshot *)cancel;
 - (MetasequoiaInputSnapshot *)selectCandidateAtIndex:(NSUInteger)index;
 - (MetasequoiaInputSnapshot *)switchToShuangpin:(BOOL)usesShuangpin;
+- (MetasequoiaInputSnapshot *)switchToNineKey;
+- (MetasequoiaInputSnapshot *)chooseNineKeySpellingAtIndex:(NSUInteger)index;
+- (NSArray<NSString *> *)nineKeySpellings;
 
 /// Opens one of the engine's local input modes by its trigger letter. The engine keys these off a
 /// capital delivered with a shift-only modifier, which this keyboard has no way to produce, so the
@@ -40,6 +43,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// YES while the Unicode local mode is open, when the digits are input for a code point rather than
 /// candidate numbers.
 @property(nonatomic, readonly, getter=isInUnicodeMode) BOOL inUnicodeMode;
+/// Local utilities need alphabetic keys even when nine-key pinyin is selected.
+@property(nonatomic, readonly, getter=isInLocalMode) BOOL inLocalMode;
 
 /// Per-key double-pinyin hints for the scheme the session is actually running, keyed by uppercase
 /// letter. Empty in full pinyin. Derived from the engine's own profile so a frontend never hardcodes

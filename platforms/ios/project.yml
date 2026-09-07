@@ -149,6 +149,29 @@ targets:
       - target: MetasequoiaAppleBridge
       - sdk: libsqlite3.tbd
 
+  MetasequoiaKeyboardTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: platforms/ios/KeyboardTests
+      - path: platforms/ios/KeyboardExtension/Sources
+      - path: platforms/ios/SharedUI
+      - path: platforms/ios/KeyboardExtension/Resources/msime.db
+        buildPhase: resources
+      - path: platforms/ios/KeyboardExtension/Resources/msime.db.sha256
+        buildPhase: resources
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.msime.ios.keyboardtests
+        SWIFT_OBJC_BRIDGING_HEADER: $(PROJECT_DIR)/../../platforms/ios/KeyboardExtension/Sources/MetasequoiaKeyboard-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(inherited)
+          - $(PROJECT_DIR)/../../shared/apple-bridge
+    dependencies:
+      - target: MetasequoiaAppleBridge
+      - sdk: libsqlite3.tbd
+
   MetasequoiaImeIOSUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -172,3 +195,4 @@ schemes:
     test:
       targets:
         - MetasequoiaImeIOSUITests
+        - MetasequoiaKeyboardTests

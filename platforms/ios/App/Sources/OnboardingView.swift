@@ -4,7 +4,7 @@ import UIKit
 struct OnboardingView: View {
   @State private var sampleText = ""
   @FocusState private var tryoutFocused: Bool
-  @State private var usesShuangpin = InputSchemePreference.usesShuangpin
+  @State private var inputScheme = InputSchemePreference.scheme
   @State private var usesTraditionalOutput = ChineseOutputPreference.usesTraditional
 
   private let steps = [
@@ -63,14 +63,15 @@ struct OnboardingView: View {
             }
           }
 
-          Picker("输入方案", selection: $usesShuangpin) {
-            Text("全拼").tag(false)
-            Text("小鹤双拼").tag(true)
+          Picker("输入方案", selection: $inputScheme) {
+            ForEach(ChineseInputScheme.allCases, id: \.self) { scheme in
+              Text(scheme.title).tag(scheme)
+            }
           }
           .pickerStyle(.segmented)
           .accessibilityIdentifier("inputSchemePicker")
-          .onChange(of: usesShuangpin) { newValue in
-            InputSchemePreference.usesShuangpin = newValue
+          .onChange(of: inputScheme) { newValue in
+            InputSchemePreference.scheme = newValue
           }
 
           Divider()
@@ -110,7 +111,7 @@ struct OnboardingView: View {
             .stroke(MetasequoiaTheme.needle.opacity(0.12), lineWidth: 1)
         }
         .onAppear {
-          usesShuangpin = InputSchemePreference.usesShuangpin
+          inputScheme = InputSchemePreference.scheme
           usesTraditionalOutput = ChineseOutputPreference.usesTraditional
         }
 

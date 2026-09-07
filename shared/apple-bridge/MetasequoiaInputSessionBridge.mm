@@ -208,6 +208,22 @@ void ConfigureDataDirectory()
     return [self snapshotFrom:_adapter->switch_to_shuangpin(usesShuangpin)];
 }
 
+- (MetasequoiaInputSnapshot *)switchToNineKey
+{
+    return [self snapshotFrom:_adapter->switch_to_nine_key()];
+}
+- (MetasequoiaInputSnapshot *)chooseNineKeySpellingAtIndex:(NSUInteger)index
+{
+    return [self snapshotFrom:_adapter->choose_nine_key_spelling(index)];
+}
+- (NSArray<NSString *> *)nineKeySpellings
+{
+    NSMutableArray<NSString *> *result = [NSMutableArray array];
+    for (const auto &spelling : _adapter->nine_key_spellings())
+        [result addObject:StringFromUTF8(spelling)];
+    return result;
+}
+
 - (MetasequoiaInputSnapshot *)openLocalMode:(NSString *)trigger
 {
     const char *utf8 = trigger.UTF8String;
@@ -216,6 +232,11 @@ void ConfigureDataDirectory()
         return [self snapshotFrom:_adapter->open_local_mode('\0')];
     }
     return [self snapshotFrom:_adapter->open_local_mode(utf8[0])];
+}
+
+- (BOOL)isInLocalMode
+{
+    return _adapter->in_local_mode();
 }
 
 - (BOOL)isInUnicodeMode

@@ -1,6 +1,34 @@
 import Foundation
 
+enum ChineseInputScheme: String, CaseIterable {
+  case quanpin, nineKey, shuangpin
+
+  var title: String {
+    switch self {
+    case .quanpin: "全拼 26 键"
+    case .nineKey: "全拼 9 键"
+    case .shuangpin: "小鹤双拼"
+    }
+  }
+}
+
 enum InputSchemePreference {
+  private static let schemeKey = "chineseInputScheme"
+  static var scheme: ChineseInputScheme {
+    get {
+      let defaults = UserDefaults(suiteName: appGroupIdentifier) ?? .standard
+      if let value = defaults.string(forKey: schemeKey), let scheme = ChineseInputScheme(rawValue: value) {
+        return scheme
+      }
+      return usesShuangpin ? .shuangpin : .quanpin
+    }
+    set {
+      let defaults = UserDefaults(suiteName: appGroupIdentifier) ?? .standard
+      defaults.set(newValue == .shuangpin, forKey: key)
+      defaults.set(newValue.rawValue, forKey: schemeKey)
+    }
+  }
+
   static let appGroupIdentifier = "group.app.msime.ios"
   private static let key = "inputSchemeUsesShuangpin"
 
@@ -19,6 +47,7 @@ enum InputSchemePreference {
     set {
       let defaults = UserDefaults(suiteName: appGroupIdentifier) ?? .standard
       defaults.set(newValue, forKey: key)
+      defaults.set(newValue ? ChineseInputScheme.shuangpin.rawValue : ChineseInputScheme.quanpin.rawValue, forKey: schemeKey)
     }
   }
 }
