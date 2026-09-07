@@ -8,6 +8,9 @@ options:
 
 settings:
   base:
+    # Only used by local Xcode builds, which never upload. The release scripts override it with the
+    # commit count, because App Store Connect wants this unique and increasing inside one
+    # MARKETING_VERSION and would reject a second upload that reused the value.
     CURRENT_PROJECT_VERSION: 1
     # Bumped by release-please alongside CMakeLists.txt. It used to be pinned at 0.1.0 while the
     # project shipped 0.45.x, so any iOS artifact would have carried a version that matched nothing.

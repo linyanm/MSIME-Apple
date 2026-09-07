@@ -706,6 +706,71 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertIn("render(session.handleCharacter(character))", character_handler)
         self.assertNotIn("uppercased()", character_handler.split("} else {", 1)[0])
 
+    def test_build_number_is_the_commit_count_and_not_the_marketing_version(self):
+        # App Store Connect keys Beta App Review to CFBundleShortVersionString and rejects a repeated
+        # CFBundleVersion inside it. Both used to carry the release version, which allowed exactly one
+        # upload per release: a build that failed review could only be replaced by cutting another.
+        scripts = {
+            name: (IOS_ROOT / "scripts" / name).read_text()
+            for name in ("package_ios_testflight.sh", "package_ios_archive.sh")
+        }
+        for name, script in scripts.items():
+            self.assertIn('CURRENT_PROJECT_VERSION="$build_number"', script, name)
+            self.assertNotIn('CURRENT_PROJECT_VERSION="$version"', script, name)
+            self.assertIn('MARKETING_VERSION="$version"', script, name)
+
+        start = 'if ! git -C "$project_root" rev-parse --git-dir'
+        end = 'build_number=$(git -C "$project_root" rev-list --count HEAD)'
+        fragments = {
+            name: script[script.index(start):script.index(end) + len(end)]
+            for name, script in scripts.items()
+        }
+        self.assertEqual(*fragments.values(), "both release paths must derive the build number alike")
+
+        fragment = next(iter(fragments.values()))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            origin = root / "origin"
+            origin.mkdir()
+            env = {
+                **os.environ,
+                "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+            }
+            subprocess.run(["git", "init", "-q", "-b", "main", str(origin)], check=True)
+            for index in range(3):
+                (origin / "f").write_text(str(index))
+                subprocess.run(["git", "-C", str(origin), "add", "f"], check=True)
+                subprocess.run(
+                    ["git", "-C", str(origin), "commit", "-q", "-m", f"c{index}"], check=True, env=env
+                )
+
+            runner = root / "run.sh"
+            runner.write_text(
+                f'#!/usr/bin/env bash\nset -euo pipefail\nproject_root="$1"\n{fragment}\n'
+                'printf "%s\\n" "$build_number"\n'
+            )
+            runner.chmod(0o755)
+
+            done = subprocess.run(
+                [str(runner), str(origin)], capture_output=True, text=True, check=True
+            )
+            self.assertEqual(done.stdout.strip(), "3")
+
+            # A shallow checkout restarts the count low enough that App Store Connect reads the next
+            # upload as a downgrade, so the scripts have to stop rather than produce that number.
+            shallow = root / "shallow"
+            subprocess.run(
+                ["git", "clone", "-q", "--depth", "1", origin.as_uri(), str(shallow)], check=True
+            )
+            refused = subprocess.run([str(runner), str(shallow)], capture_output=True, text=True)
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn("shallow", refused.stderr)
+
+            outside = subprocess.run([str(runner), str(root)], capture_output=True, text=True)
+            self.assertNotEqual(outside.returncode, 0)
+            self.assertIn("Not a git checkout", outside.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
