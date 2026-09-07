@@ -105,6 +105,18 @@ GitHub 没有自定义频道，只有 Latest / Pre-release / Draft 三种状态�
 
 合并到 `main` 会根据 conventional commit 历史更新 Release Please 的 pull request。合并该发布 PR 会更新 `version.txt`、`CMakeLists.txt` 和 `CHANGELOG.md`，创建对应的 `vX.Y.Z` 标签，构建并测试通用架构的输入法 bundle，然后发布带有以下产物的 GitHub Release：
 
+### 版本号怎么推进
+
+`release-please-config.json` 里的 `bump-patch-for-minor-pre-major` 与 `bump-minor-pre-major` 定义了三条规则：
+
+- **没有 `!`** —— `feat:`、`fix:` 和其余任何类型都只推 **z**。默认行为是 `feat:` 直接推 y，`0.48` 这个 y 就是这样攒出来的。
+- **一个 `!`**（`feat!:`，或正文里的 `BREAKING CHANGE:`）—— 推 **y**。
+- **x** —— 没有自动路径。conventional commits 只定义了单个 `!`，`!!` 不是它的语法，release-please 也不认。要推 x 就在某条 commit 的 footer 里写 `Release-As: 1.0.0`。这是有意留成手动的：从 0.x 迈到 1.0 是一次性的产品决定，不该由谁在 commit 标题上多敲一个感叹号触发。
+
+这两个开关**只在版本号小于 `1.0.0` 时生效**。真发布 1.0.0 之后它们自动失效，退回 release-please 的默认行为（`feat:` 推 y、`!` 推 x），届时要重新决定这一段怎么写。
+
+发布 PR 里带的产物：
+
 - `MetasequoiaIME-vX.Y.Z-macos-universal.pkg`
 - `MetasequoiaIME-vX.Y.Z-macos-universal.pkg.sha256`
 - `MetasequoiaIME-vX.Y.Z-macos-universal.zip`
