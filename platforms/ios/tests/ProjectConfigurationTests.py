@@ -195,6 +195,8 @@ class ProjectConfigurationTests(unittest.TestCase):
         script = (IOS_ROOT / "scripts/package_ios_testflight.sh").read_text()
 
         self.assertIn("METASEQUOIA_IOS_RELEASE_DIR", script)
+        self.assertIn("provisioningProfiles", script)
+        self.assertIn("app.msime.ios.keyboard", script)
         self.assertIn("ios-testflight.xcarchive.zip", script)
         self.assertIn("ios-testflight.ipa", script)
         self.assertIn("Uploaded %s to TestFlight", script)
