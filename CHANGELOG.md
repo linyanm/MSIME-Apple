@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.48.5](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.48.4...v0.48.5) (2026-09-07)
+
+
+### Bug Fixes
+
+* **ios:** pass Xcode 16 altool authentication options ([2e31b28](https://github.com/metasequoiaime/MSIME-Apple/commit/2e31b28b8c5c6927cab76382d67781fe53a71308))
+* **ios:** pass Xcode 16 altool authentication options ([a85b813](https://github.com/metasequoiaime/MSIME-Apple/commit/a85b8132aa7c200c05d2c37875efb572453edccf))
+* map iOS export profiles explicitly ([5101d2c](https://github.com/metasequoiaime/MSIME-Apple/commit/5101d2c0f6307a1b18d85097663c60aa573c1fbc))
+* map iOS export profiles explicitly ([283d10b](https://github.com/metasequoiaime/MSIME-Apple/commit/283d10b1a82174c18eebd7070fac382583760eba))
+* publish signed iOS TestFlight artifacts ([ebee369](https://github.com/metasequoiaime/MSIME-Apple/commit/ebee369302e56d7f25c4665fbf1f104878363b22))
+
 ## [0.48.4](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.48.3...v0.48.4) (2026-09-07)
 
 
