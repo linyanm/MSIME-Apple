@@ -70,6 +70,8 @@ for profile in \
     uuid=$(security cms -D -i "$profile" | plutil -extract UUID raw -o - -)
     cp "$profile" "$profiles_dir/$uuid.mobileprovision"
 done
+host_profile_name=$(security cms -D -i "$METASEQUOIA_IOS_APP_PROVISIONING_PROFILE_PATH" | plutil -extract Name raw -o - -)
+keyboard_profile_name=$(security cms -D -i "$METASEQUOIA_IOS_KEYBOARD_PROVISIONING_PROFILE_PATH" | plutil -extract Name raw -o - -)
 
 archive_log="$build_root/archive.log"
 set +e
@@ -116,6 +118,13 @@ cat > "$export_options" <<EOF
     <string>manual</string>
     <key>teamID</key>
     <string>$METASEQUOIA_IOS_TEAM_ID</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>app.msime.ios</key>
+        <string>$host_profile_name</string>
+        <key>app.msime.ios.keyboard</key>
+        <string>$keyboard_profile_name</string>
+    </dict>
     <key>uploadSymbols</key>
     <true/>
 </dict>
