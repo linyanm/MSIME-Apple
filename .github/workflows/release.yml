@@ -309,7 +309,7 @@ jobs:
             echo 'The iOS host provisioning profile does not match app.msime.ios.' >&2
             exit 1
           fi
-          if ! security cms -D -i "$app_profile_path" | plutil -extract Entitlements.com.apple.security.application-groups.0 raw -o - - | grep -Fxq 'group.app.msime.ios'; then
+          if ! security cms -D -i "$app_profile_path" | plutil -extract Entitlements xml1 -o - - | plutil -convert json -o - - | jq -e -r '."com.apple.security.application-groups"[0] == "group.app.msime.ios"' >/dev/null; then
             echo 'The iOS host provisioning profile must include group.app.msime.ios.' >&2
             exit 1
           fi
