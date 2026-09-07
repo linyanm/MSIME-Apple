@@ -96,6 +96,11 @@ InputSnapshot InputSessionAdapter::open_local_mode(char trigger)
     return MakeSnapshot(impl_->session, impl_->session.character(trigger, true));
 }
 
+bool InputSessionAdapter::in_local_mode() const
+{
+    return impl_->session.snapshot().local_mode != LocalInputMode::None;
+}
+
 bool InputSessionAdapter::in_unicode_mode() const
 {
     return impl_->session.snapshot().local_mode == LocalInputMode::Unicode;

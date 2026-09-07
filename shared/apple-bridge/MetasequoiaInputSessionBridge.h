@@ -43,6 +43,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// YES while the Unicode local mode is open, when the digits are input for a code point rather than
 /// candidate numbers.
 @property(nonatomic, readonly, getter=isInUnicodeMode) BOOL inUnicodeMode;
+/// Local utilities need alphabetic keys even when nine-key pinyin is selected.
+@property(nonatomic, readonly, getter=isInLocalMode) BOOL inLocalMode;
 
 /// Per-key double-pinyin hints for the scheme the session is actually running, keyed by uppercase
 /// letter. Empty in full pinyin. Derived from the engine's own profile so a frontend never hardcodes

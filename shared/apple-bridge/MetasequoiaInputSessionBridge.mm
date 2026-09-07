@@ -234,6 +234,11 @@ void ConfigureDataDirectory()
     return [self snapshotFrom:_adapter->open_local_mode(utf8[0])];
 }
 
+- (BOOL)isInLocalMode
+{
+    return _adapter->in_local_mode();
+}
+
 - (BOOL)isInUnicodeMode
 {
     return _adapter->in_unicode_mode() ? YES : NO;

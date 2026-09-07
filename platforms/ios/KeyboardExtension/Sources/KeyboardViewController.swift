@@ -466,6 +466,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     playInputClick()
     if isChineseMode {
       synchronizeInputSchemePreference()
+      // A host setting can change while this view is open. Do not start an alphabetic composition
+      // from a stale 26-key tap after switching to nine keys; local utilities still need letters.
+      if inputScheme == .nineKey && !session.isInLocalMode && !("2"..."9").contains(character) {
+        return
+      }
       render(session.handleCharacter(character))
     } else {
       let output = letterCaseState == .lowercase ? character : character.uppercased()
@@ -841,7 +846,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   }
 
   private func updateKeyboardLayout() {
-    let nineKey = isChineseMode && inputScheme == .nineKey
+    let nineKey = isChineseMode && inputScheme == .nineKey && !session.isInLocalMode
     letterRowViews.forEach { $0.isHidden = showsSymbols || nineKey }
     nineKeyContainer.isHidden = showsSymbols || !nineKey
     nineKeyRows.forEach { $0.isHidden = showsSymbols || !nineKey }

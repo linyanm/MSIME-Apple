@@ -163,6 +163,10 @@ int RunTest()
         adapter.handle_character('u');
         adapter.handle_character('i');
         Require(adapter.switch_to_nine_key().commit == "水", "Switching to nine keys lost quanpin input.");
+        Require(adapter.open_local_mode('U').handled && adapter.in_local_mode() && adapter.in_unicode_mode(),
+                "Nine-key layout did not expose alphabetic local-mode requirements.");
+        adapter.cancel();
+        Require(!adapter.in_local_mode(), "Closing a local mode did not restore the pinyin layout.");
     }
 
     {
