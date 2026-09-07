@@ -30,6 +30,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (MetasequoiaInputSnapshot *)cancel;
 - (MetasequoiaInputSnapshot *)selectCandidateAtIndex:(NSUInteger)index;
 - (MetasequoiaInputSnapshot *)switchToShuangpin:(BOOL)usesShuangpin;
+- (MetasequoiaInputSnapshot *)switchToNineKey;
+- (MetasequoiaInputSnapshot *)chooseNineKeySpellingAtIndex:(NSUInteger)index;
+- (NSArray<NSString *> *)nineKeySpellings;
 
 /// Opens one of the engine's local input modes by its trigger letter. The engine keys these off a
 /// capital delivered with a shift-only modifier, which this keyboard has no way to produce, so the

@@ -43,6 +43,7 @@ class InputSessionAdapter::Impl
     }
 
     Session session;
+    bool nine_key = false;
 };
 
 namespace
@@ -142,7 +143,7 @@ InputSnapshot InputSessionAdapter::select_candidate(std::size_t index)
 
 InputSnapshot InputSessionAdapter::switch_to_shuangpin(bool uses_shuangpin)
 {
-    if (uses_shuangpin == this->uses_shuangpin())
+    if (uses_shuangpin == this->uses_shuangpin() && !impl_->nine_key)
     {
         return MakeSnapshot(impl_->session, {});
     }
@@ -151,6 +152,25 @@ InputSnapshot InputSessionAdapter::switch_to_shuangpin(bool uses_shuangpin)
     const auto scheme = uses_shuangpin ? SchemeType::Shuangpin : SchemeType::Quanpin;
     impl_ = std::make_unique<Impl>(scheme);
     return snapshot;
+}
+
+InputSnapshot InputSessionAdapter::switch_to_nine_key()
+{
+    if (impl_->nine_key)
+        return MakeSnapshot(impl_->session, {});
+    auto snapshot = MakeSnapshot(impl_->session, impl_->session.finish());
+    impl_ = std::make_unique<Impl>();
+    impl_->session.set_nine_key_enabled(true);
+    impl_->nine_key = true;
+    return snapshot;
+}
+InputSnapshot InputSessionAdapter::choose_nine_key_spelling(std::size_t index)
+{
+    return MakeSnapshot(impl_->session, impl_->session.choose_nine_key_spelling(index));
+}
+std::vector<std::string> InputSessionAdapter::nine_key_spellings() const
+{
+    return impl_->session.snapshot().nine_key_spellings;
 }
 
 bool InputSessionAdapter::uses_shuangpin() const

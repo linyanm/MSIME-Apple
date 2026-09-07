@@ -149,6 +149,24 @@ int RunTest()
 
     {
         metasequoia::apple::InputSessionAdapter adapter;
+        adapter.switch_to_nine_key();
+        for (char digit : std::string("7484"))
+            Require(adapter.handle_character(digit).handled, "Nine-key digit was not handled.");
+        Require(!adapter.nine_key_spellings().empty(), "Nine-key spelling choices were not bridged.");
+        const auto unchanged = adapter.switch_to_nine_key();
+        Require(!unchanged.handled && unchanged.preedit == "7484", "Idempotent nine-key switch cleared input.");
+        const auto switched = adapter.switch_to_shuangpin(false);
+        Require(switched.commit == "水" && switched.preedit.empty(), "Switching to 26 keys lost composition.");
+        Require(!adapter.handle_character('7').handled, "Nine-key digits leaked into ordinary quanpin.");
+        adapter.handle_character('s');
+        adapter.handle_character('h');
+        adapter.handle_character('u');
+        adapter.handle_character('i');
+        Require(adapter.switch_to_nine_key().commit == "水", "Switching to nine keys lost quanpin input.");
+    }
+
+    {
+        metasequoia::apple::InputSessionAdapter adapter;
         // A capital typed as a key is still not a mode trigger. The keyboard has no shift in Chinese
         // mode, and the engine reads A-Z during a composition as helpcode, which no Apple frontend
         // offers, so it has to come back unhandled for the host application to insert.

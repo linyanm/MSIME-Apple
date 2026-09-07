@@ -129,7 +129,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertIn('private static let key = "inputSchemeUsesShuangpin"', shared_preference)
         self.assertIn("UserDefaults(suiteName: appGroupIdentifier)", shared_preference)
         self.assertIn("UserDefaults.standard.object(forKey: key)", shared_preference)
-        self.assertIn("InputSchemePreference.usesShuangpin", controller)
+        self.assertIn("InputSchemePreference.scheme", controller)
         self.assertNotIn("schemePreferenceKey", controller)
 
     def test_english_capitalization_policy(self):
@@ -459,14 +459,14 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
         self.assertIn(
-            "@State private var usesShuangpin = InputSchemePreference.usesShuangpin",
+            "@State private var inputScheme = InputSchemePreference.scheme",
             onboarding,
         )
-        self.assertIn('Picker("输入方案", selection: $usesShuangpin)', onboarding)
-        self.assertIn('Text("全拼").tag(false)', onboarding)
-        self.assertIn('Text("小鹤双拼").tag(true)', onboarding)
+        self.assertIn('Picker("输入方案", selection: $inputScheme)', onboarding)
+        self.assertIn("ChineseInputScheme.allCases", onboarding)
+        self.assertIn("Text(scheme.title).tag(scheme)", onboarding)
         self.assertIn('.accessibilityIdentifier("inputSchemePicker")', onboarding)
-        self.assertIn("InputSchemePreference.usesShuangpin = newValue", onboarding)
+        self.assertIn("InputSchemePreference.scheme = newValue", onboarding)
         self.assertIn("private var hasComposition = false", controller)
         self.assertIn("override func viewWillAppear", controller)
         self.assertIn("synchronizeInputSchemePreference()", controller)
@@ -649,9 +649,9 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         adapter_header = (IOS_ROOT.parents[1] / "shared/apple-bridge/InputSessionAdapter.h").read_text()
 
         self.assertIn("schemeButton", controller)
-        self.assertIn("toggleScheme", controller)
-        self.assertIn("usesShuangpin = InputSchemePreference.usesShuangpin", controller)
-        self.assertIn("InputSchemePreference.usesShuangpin = usesShuangpin", controller)
+        self.assertIn("selectInputScheme", controller)
+        self.assertIn("inputScheme = InputSchemePreference.scheme", controller)
+        self.assertIn("InputSchemePreference.scheme = scheme", controller)
         self.assertIn("session.switch(toShuangpin: usesShuangpin)", controller)
         self.assertIn('usesShuangpin ? "小鹤" : "全拼"', controller)
         self.assertIn('schemeButton.accessibilityIdentifier = "schemeButton"', controller)
