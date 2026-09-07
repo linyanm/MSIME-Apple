@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.48.6](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.48.5...v0.48.6) (2026-09-07)
+
+
+### Bug Fixes
+
+* **ios:** satisfy App Store icon orientation and SDK validation ([9ded8b2](https://github.com/metasequoiaime/MSIME-Apple/commit/9ded8b214a32497ae57badf28f5c7517cf55202e))
+* **ios:** satisfy App Store icon orientation and SDK validation ([091e2d7](https://github.com/metasequoiaime/MSIME-Apple/commit/091e2d74caf425625ddc0e8fa9bca18a90139140))
+
 ## [0.48.5](https://github.com/metasequoiaime/MSIME-Apple/compare/v0.48.4...v0.48.5) (2026-09-07)
 
 
