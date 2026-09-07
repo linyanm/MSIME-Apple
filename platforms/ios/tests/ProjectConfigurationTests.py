@@ -1,5 +1,7 @@
 import os
+import json
 import plistlib
+import struct
 import subprocess
 import tempfile
 import unittest
@@ -10,6 +12,28 @@ IOS_ROOT = Path(__file__).resolve().parents[1]
 
 
 class ProjectConfigurationTests(unittest.TestCase):
+    def test_app_store_icon_and_ipad_orientations(self):
+        resources = IOS_ROOT / "App/Resources"
+        with (resources / "Info.plist").open("rb") as source:
+            info = plistlib.load(source)
+        self.assertEqual(info["CFBundleIconName"], "AppIcon")
+        self.assertEqual(set(info["UISupportedInterfaceOrientations~ipad"]), {
+            "UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
+            "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight",
+        })
+        icons = resources / "Assets.xcassets/AppIcon.appiconset"
+        catalog = json.loads((icons / "Contents.json").read_text())
+        self.assertEqual(len(catalog["images"]), 1)
+        entry = catalog["images"][0]
+        self.assertEqual(entry["size"], "1024x1024")
+        image = (icons / entry["filename"]).read_bytes()
+        self.assertEqual(image[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(struct.unpack(">II", image[16:24]), (1024, 1024))
+        self.assertEqual(image[25], 2, "App Store icon must be RGB without an alpha channel")
+        project = (IOS_ROOT / "project.yml").read_text()
+        self.assertIn("path: platforms/ios/App/Resources/Assets.xcassets", project)
+        self.assertIn("ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon", project)
+
     def test_testflight_upload_passes_xcode16_credentials_and_cleans_up_key(self):
         script = (IOS_ROOT / "scripts/package_ios_testflight.sh").read_text()
         upload = script[script.index('private_keys_dir="$build_root/private_keys"'):]

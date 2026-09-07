@@ -132,6 +132,8 @@ jobs:
     if: ${{ needs.prepare.outputs.should_publish == 'true' }}
     runs-on: macos-15
     timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     permissions:
       contents: write
     steps:
