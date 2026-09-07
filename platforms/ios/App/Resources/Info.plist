@@ -20,6 +20,8 @@
     <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>UILaunchScreen</key>
