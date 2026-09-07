@@ -29,12 +29,32 @@ if [[ ! "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 version=${tag_name#v}
 
-for tool in xcodegen xcodebuild ditto shasum; do
+for tool in git xcodegen xcodebuild ditto shasum; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         printf 'Required tool is missing: %s\n' "$tool" >&2
         exit 1
     fi
 done
+
+# This archive is what a maintainer opens in Xcode Organizer to push to TestFlight, so it needs the
+# same build number rule as the signed path: unique and increasing within one marketing version,
+# rather than a copy of the marketing version that allows only one build per release.
+if ! git -C "$project_root" rev-parse --git-dir >/dev/null 2>&1; then
+    printf 'Not a git checkout, so the build number cannot be derived: %s\n' "$project_root" >&2
+    exit 1
+fi
+if [[ "$(git -C "$project_root" rev-parse --is-shallow-repository)" == "true" ]]; then
+    printf 'Refusing to build from a shallow checkout: the commit count would restart low and App Store Connect would reject the build as a downgrade. Check out with fetch-depth: 0.\n' >&2
+    exit 1
+fi
+build_number=$(git -C "$project_root" rev-list --count HEAD)
+
+# TestFlight groups builds by CFBundleShortVersionString and reviews each group on its own, so
+# carrying the patch digit here bought a fresh Beta App Review for every release. iOS ships x.y and
+# lets the build number carry the rest; only a minor bump opens a new group now. This archive has to
+# agree with the signed path, or a maintainer uploading it from Organizer would open a second group
+# for the same release. The release artifacts still take their names from the full tag.
+marketing_version=${version%.*}
 
 spec="$project_root/platforms/ios/project.yml"
 if [[ ! -f "$spec" ]]; then
@@ -60,8 +80,8 @@ mkdir -p "$build_root" "$output_dir"
 
 xcodegen generate --spec "$spec" --project "$build_root" --project-root "$project_root"
 
-# MARKETING_VERSION is passed on the command line as well as being bumped in project.yml, so the
-# archive carries the release version even when the spec is momentarily behind the tag being built.
+# The version settings are passed on the command line as well as being bumped in project.yml, so the
+# archive follows the tag being built even when the spec is momentarily behind it.
 xcodebuild archive \
     -project "$build_root/MetasequoiaImeIOS.xcodeproj" \
     -scheme MetasequoiaImeIOS \
@@ -69,8 +89,8 @@ xcodebuild archive \
     -destination 'generic/platform=iOS' \
     -archivePath "$archive_path" \
     -derivedDataPath "$build_root/derived" \
-    MARKETING_VERSION="$version" \
-    CURRENT_PROJECT_VERSION="$version" \
+    MARKETING_VERSION="$marketing_version" \
+    CURRENT_PROJECT_VERSION="$build_number" \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGN_IDENTITY="" \

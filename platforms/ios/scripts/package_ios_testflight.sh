@@ -32,7 +32,7 @@ for profile in \
     fi
 done
 
-for tool in xcodegen xcodebuild xcrun; do
+for tool in git xcodegen xcodebuild xcrun; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         printf 'Required tool is missing: %s\n' "$tool" >&2
         exit 1
@@ -51,6 +51,28 @@ if [[ ! -s "$dictionary" ]]; then
 fi
 
 version=${tag_name#v}
+
+# CFBundleVersion has to be unique and strictly increasing within one CFBundleShortVersionString.
+# Deriving it from the marketing version left exactly one possible build per release, so a build that
+# failed Beta App Review could not be replaced without cutting another release -- and every new
+# marketing version starts a fresh TestFlight version train that needs its own review. The commit
+# count is monotonic and reproducible from the checkout alone.
+if ! git -C "$project_root" rev-parse --git-dir >/dev/null 2>&1; then
+    printf 'Not a git checkout, so the build number cannot be derived: %s\n' "$project_root" >&2
+    exit 1
+fi
+if [[ "$(git -C "$project_root" rev-parse --is-shallow-repository)" == "true" ]]; then
+    printf 'Refusing to build from a shallow checkout: the commit count would restart low and App Store Connect would reject the build as a downgrade. Check out with fetch-depth: 0.\n' >&2
+    exit 1
+fi
+build_number=$(git -C "$project_root" rev-list --count HEAD)
+
+# TestFlight groups builds by CFBundleShortVersionString and reviews each group on its own, so
+# carrying the patch digit here bought a fresh Beta App Review for every release. iOS ships x.y and
+# lets the build number carry the rest; only a minor bump opens a new group now. The release
+# artifacts still take their names from the full tag.
+marketing_version=${version%.*}
+
 build_root="$project_root/build/ios-testflight"
 archive_path="$build_root/MetasequoiaIME.xcarchive"
 export_path="$build_root/export"
@@ -82,8 +104,8 @@ xcodebuild archive \
     -destination 'generic/platform=iOS' \
     -archivePath "$archive_path" \
     -derivedDataPath "$build_root/derived" \
-    MARKETING_VERSION="$version" \
-    CURRENT_PROJECT_VERSION="$version" \
+    MARKETING_VERSION="$marketing_version" \
+    CURRENT_PROJECT_VERSION="$build_number" \
     CODE_SIGNING_ALLOWED=YES \
     CODE_SIGNING_REQUIRED=YES \
     CODE_SIGN_STYLE=Manual \
