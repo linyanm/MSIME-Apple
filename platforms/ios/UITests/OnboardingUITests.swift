@@ -187,7 +187,20 @@ final class OnboardingUITests: XCTestCase {
       app.swipeUp()
     }
     XCTAssertTrue(radius.isHittable)
-    radius.adjust(toNormalizedSliderPosition: 0.9)
+    // XCTest's normalized drag is approximate, and Slider.value can be a
+    // percentage on one runtime and a domain value on another. Verify the
+    // actual displayed setting changes, then survives a process restart.
+    let radiusLabel = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "圆角 · ")).firstMatch
+    XCTAssertTrue(radiusLabel.exists)
+    let before = radiusLabel.label
+    let initial = Int(before.replacingOccurrences(of: "圆角 · ", with: "")) ?? 0
+    radius.adjust(toNormalizedSliderPosition: initial < 10 ? 0.9 : 0.1)
+    let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label != %@", before), object: radiusLabel)
+    XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
+    let edited = radiusLabel.label
+    let editedRadius = Int(edited.replacingOccurrences(of: "圆角 · ", with: ""))
+    XCTAssertNotNil(editedRadius)
+    XCTAssertTrue((0...20).contains(editedRadius ?? -1))
     app.terminate()
     app.launch()
     openEditor()
@@ -195,9 +208,7 @@ final class OnboardingUITests: XCTestCase {
       if radius.isHittable { break }
       app.swipeUp()
     }
-    let value = (radius.value as? String ?? "").replacingOccurrences(of: "%", with: "")
-    XCTAssertGreaterThan(Double(value) ?? 0, 16)
-    XCTAssertLessThanOrEqual(Double(value) ?? 100, 20)
+    XCTAssertEqual(radiusLabel.label, edited, "The edited corner radius must survive restarting the app")
     for _ in 0..<5 {
       if app.buttons["applyCustomSkin"].isHittable { break }
       app.swipeDown()
