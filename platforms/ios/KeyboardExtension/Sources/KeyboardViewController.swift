@@ -33,6 +33,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var skinPicker: KeyboardSkinPickerView?
   private var schemePicker: KeyboardSchemePickerView?
   private let moreShortcut = UIButton()
+  private var morePicker: KeyboardMorePickerView?
+  private var moreMenu: UIMenu?
   private let dismissShortcut = UIButton()
   private var letterButtons: [(button: UIButton, lowercase: String, hint: UILabel)] = []
   private var microsoftFinalKey: UIButton?
@@ -462,7 +464,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     shortcutBar.spacing = 0
     shortcutBar.accessibilityIdentifier = "keyboardShortcutBar"
     shortcutBar.translatesAutoresizingMaskIntoConstraints = false
-    let brand = UIView()
+    let brand = moreShortcut
     let icon = UIImageView()
     if let path = Bundle(for: KeyboardViewController.self).path(forResource: "KeyboardBrand", ofType: "png") {
       icon.image = UIImage(contentsOfFile: path)?.preparingThumbnail(of: CGSize(width: 72, height: 72))
@@ -475,13 +477,13 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     brand.addSubview(icon)
     shortcutBar.addArrangedSubview(brand)
     NSLayoutConstraint.activate([
-      brand.widthAnchor.constraint(equalToConstant: 36),
+      brand.widthAnchor.constraint(equalToConstant: 44),
       icon.widthAnchor.constraint(equalToConstant: 24),
       icon.heightAnchor.constraint(equalToConstant: 24),
       icon.centerXAnchor.constraint(equalTo: brand.centerXAnchor),
       icon.centerYAnchor.constraint(equalTo: brand.centerYAnchor),
     ])
-    for button in [languageModeButton, schemeButton, scriptShortcut, skinShortcut, moreShortcut, dismissShortcut] {
+    for button in [languageModeButton, schemeButton, scriptShortcut, skinShortcut, dismissShortcut] {
       shortcutBar.addArrangedSubview(button)
       if button !== languageModeButton {
         button.widthAnchor.constraint(equalTo: languageModeButton.widthAnchor, constant: button === schemeButton ? 6 : 0).isActive = true
@@ -502,7 +504,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       updateShortcutButtons()
     }, for: .primaryActionTriggered)
     skinShortcut.addAction(UIAction { [weak self] _ in self?.showSkinPicker() }, for: .primaryActionTriggered)
-    moreShortcut.showsMenuAsPrimaryAction = true
+    moreShortcut.addAction(UIAction { [weak self] _ in self?.showMorePicker() }, for: .primaryActionTriggered)
     dismissShortcut.addAction(UIAction { [weak self] _ in self?.dismissKeyboard() }, for: .primaryActionTriggered)
     updateShortcutButtons()
   }
@@ -529,15 +531,17 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     scriptShortcut.accessibilityValue = scriptShortcut.isEnabled ? (usesTraditionalOutput ? "繁体" : "简体") : "日语不使用简繁转换"
     configure(skinShortcut, title: nil, symbol: "tshirt", label: "切换皮肤", id: "skinShortcut")
     skinShortcut.accessibilityValue = KeyboardSkinPreference.selected.title
-    configure(moreShortcut, title: nil, symbol: "ellipsis.circle", label: "更多快捷设置", id: "moreShortcut")
-    moreShortcut.menu = UIMenu(children: [
+    configure(moreShortcut, title: nil, symbol: nil, label: "更多快捷设置", id: "moreShortcut")
+    moreMenu = UIMenu(children: [
       UIAction(title: "剪贴板历史", image: UIImage(systemName: "doc.on.clipboard")) { [weak self] _ in
         self?.showClipboardHistory()
       },
       UIAction(title: "AI 润色", image: UIImage(systemName: "sparkles")) { [weak self] _ in
+        self?.closeKeyboardPicker()
         self?.showKeyboardAI()
       },
       UIAction(title: "语音结果", image: UIImage(systemName: "waveform")) { [weak self] _ in
+        self?.closeKeyboardPicker()
         self?.showKeyboardVoice()
       },
       UIMenu(title: "按键反馈", options: .displayInline, children: [
@@ -569,10 +573,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       }),
       UIMenu(title: "本地输入", children: Self.localInputModes.map { mode in
         UIAction(title: mode.title, attributes: supportsLocalTools ? [] : .disabled) { [weak self] _ in
+          self?.closeKeyboardPicker()
           self?.openLocalInputMode(mode.trigger)
         }
       }),
     ])
+    if let moreMenu { morePicker?.update(menu: moreMenu) }
     configure(dismissShortcut, title: nil, symbol: "keyboard.chevron.compact.down", label: "收起键盘", id: "dismissShortcut")
   }
 
@@ -1788,6 +1794,25 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     UIAccessibility.post(notification: .screenChanged, argument: panel)
   }
 
+  private func showMorePicker() {
+    closeKeyboardService()
+    closeKeyboardPicker()
+    updateShortcutButtons()
+    guard let moreMenu else { return }
+    let picker = KeyboardMorePickerView(menu: moreMenu, onClose: { [weak self] in self?.closeKeyboardPicker() })
+    picker.accessibilityViewIsModal = true
+    picker.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(picker)
+    NSLayoutConstraint.activate([
+      picker.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      picker.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      picker.topAnchor.constraint(equalTo: view.topAnchor),
+      picker.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+    morePicker = picker
+    UIAccessibility.post(notification: .screenChanged, argument: picker)
+  }
+
   private func showSchemePicker() {
     closeKeyboardService()
     closeKeyboardPicker()
@@ -1834,6 +1859,11 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   }
 
   private func closeKeyboardPicker() {
+    if let picker = morePicker {
+      picker.removeFromSuperview()
+      morePicker = nil
+      UIAccessibility.post(notification: .screenChanged, argument: moreShortcut)
+    }
     if let picker = schemePicker {
       picker.removeFromSuperview()
       schemePicker = nil

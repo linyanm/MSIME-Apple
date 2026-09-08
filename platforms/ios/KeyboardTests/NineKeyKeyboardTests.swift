@@ -184,6 +184,48 @@ final class NineKeyKeyboardTests: XCTestCase {
     }
   }
 
+  func testBrandOpensMoreCardsAndUpdatesFeedbackState() throws {
+    let previous = KeyboardFeedbackPreference.soundEnabled
+    defer { KeyboardFeedbackPreference.defaults.set(previous, forKey: KeyboardFeedbackPreference.soundKey) }
+    for width in [320.0, 414.0] {
+      KeyboardFeedbackPreference.defaults.set(true, forKey: KeyboardFeedbackPreference.soundKey)
+      let controller = KeyboardViewController()
+      controller.loadViewIfNeeded()
+      controller.view.frame = CGRect(x: 0, y: 0, width: width, height: 260)
+      controller.view.layoutIfNeeded()
+      let toolbar = try XCTUnwrap(descendants(controller.view).first { $0.accessibilityIdentifier == "keyboardShortcutBar" } as? UIStackView)
+      let more = try button("moreShortcut", in: controller)
+      XCTAssertTrue(toolbar.arrangedSubviews.first === more)
+      XCTAssertNil(more.menu)
+      XCTAssertNotNil(descendants(more).first { $0.accessibilityIdentifier == "keyboardBrandIcon" })
+      more.sendActions(for: .primaryActionTriggered)
+      controller.view.layoutIfNeeded()
+      let panel = try XCTUnwrap(descendants(controller.view).first { $0.accessibilityIdentifier == "keyboardMorePicker" })
+      XCTAssertEqual(panel.bounds.height, 260)
+      for title in ["剪贴板历史", "AI 润色", "语音结果", "按键音", "按键振动", "日期时间", "Unicode 码点"] {
+        let card = try button("moreCard-" + title, in: controller)
+        XCTAssertGreaterThan(card.bounds.width, 140)
+        XCTAssertEqual(card.bounds.height, 100)
+      }
+      let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: controller.view.bounds).image { context in
+        controller.view.layer.render(in: context.cgContext)
+      })
+      attachment.name = "More cards \(Int(width))pt"
+      attachment.lifetime = .keepAlways
+      add(attachment)
+      XCTAssertEqual(try button("moreCard-按键音", in: controller).accessibilityValue, "已开启")
+      try button("moreCard-按键音", in: controller).sendActions(for: .primaryActionTriggered)
+      XCTAssertFalse(KeyboardFeedbackPreference.soundEnabled)
+      XCTAssertEqual(try button("moreCard-按键音", in: controller).accessibilityValue, "已关闭")
+      try button("closeMorePicker", in: controller).sendActions(for: .primaryActionTriggered)
+      XCTAssertNil(panel.superview)
+      more.sendActions(for: .primaryActionTriggered)
+      try button("moreCard-AI 润色", in: controller).sendActions(for: .primaryActionTriggered)
+      XCTAssertFalse(descendants(controller.view).contains { $0.accessibilityIdentifier == "keyboardMorePicker" })
+      XCTAssertEqual(controller.view.constraints.first { $0.identifier == "keyboardHeight" }?.constant, 260)
+    }
+  }
+
   func testSchemeCardsSelectAndKeepKeyboardHeight() throws {
     let previous = InputSchemePreference.scheme
     defer { InputSchemePreference.scheme = previous }
