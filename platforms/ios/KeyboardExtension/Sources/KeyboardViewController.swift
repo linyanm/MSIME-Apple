@@ -17,7 +17,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private let exitLocalModeButton = UIButton()
   private var localModeTrigger: String?
   private var standardRowHeights: [(UIView, NSLayoutConstraint)] = []
-  private let candidateScrollView = UIScrollView()
+  private let candidateScrollView = CandidateScrollView()
   private let diagnosticLabel = UILabel()
   private let previousPageButton = UIButton()
   private let nextPageButton = UIButton()
