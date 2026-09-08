@@ -96,7 +96,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertTrue((MACOS_ROOT / "resources" / menu_icon).is_file())
         self.assertIn(menu_icon, (PROJECT_ROOT / "CMakeLists.txt").read_text())
         menu_icon_svg = (MACOS_ROOT / "resources" / "MetasequoiaIMEMenuIcon.svg").read_text()
-        self.assertIn('<rect width="32" height="36" fill="#fff" />', menu_icon_svg)
+        self.assertNotIn("<rect", menu_icon_svg)
 
         icon_path = MACOS_ROOT / "resources" / menu_icon
         dpi_output = subprocess.check_output(
@@ -110,7 +110,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
             ["sips", "-g", "hasAlpha", str(icon_path)],
             text=True,
         )
-        self.assertRegex(alpha_output, r"hasAlpha:\s*no")
+        self.assertRegex(alpha_output, r"hasAlpha:\s*yes")
 
     def test_input_controller_survives_the_engine_helpcode_semantics(self):
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
@@ -618,8 +618,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
         commit_composition = input_controller.split("- (void)commitComposition:(id)sender", 1)[1].split(
             "- (void)deactivateServer:(id)sender", 1
         )[0]
-        self.assertIn("commitLeadingCandidate", commit_composition)
-        self.assertNotIn("Command::CommitRaw", commit_composition)
+        self.assertIn("Command::CommitRaw", commit_composition)
+        self.assertNotIn("commitLeadingCandidate", commit_composition)
         self.assertIn("在没有活动组词时于下一次按键前生效", readme)
 
         release_installer = (MACOS_ROOT / "scripts/install-release.sh").read_text()

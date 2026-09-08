@@ -231,6 +231,13 @@ static void RunTests()
             Require([controller.testClient.committed isEqualToString:@"水林"] && !panel.visible,
                     "Host passthrough discarded the unselected suffix.");
             [controller prepareTestPanel:panel];
+            Require(![[controller testCandidateAtIndex:0] isEqualToString:@"nihao"],
+                    "The fixture candidate collided with the typed input.");
+            [controller commitComposition:controller.testClient];
+            Require([controller.testClient.committed isEqualToString:@"nihao"] && !panel.visible &&
+                        !controller.testHasComposition,
+                    "Committing the composition inserted a candidate instead of the typed letters.");
+            [controller prepareTestPanel:panel];
             const NSUInteger pageSize = size.unsignedIntegerValue;
             Require([controller testCandidateCount] > pageSize, "The fixture needs multiple pages.");
             Require(panel.data.count == pageSize,

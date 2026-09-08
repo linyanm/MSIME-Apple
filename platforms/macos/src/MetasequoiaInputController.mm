@@ -642,12 +642,11 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     {
         return;
     }
-    // Every automatic commit runs through here: losing focus, pressing a modifier, typing a key the
-    // session does not take, resetting learned data. finish_composition defaults to the engine's
-    // own first candidate for the leading segment, which threw away a candidate the user had
-    // arrowed onto — type shi, press Down to highlight 时, click into another application, and 是
-    // was committed. The rest of the composition still finishes from the engine's first candidate,
-    // which is what the default argument means and what this path already did.
+    // Every automatic commit runs through here: pressing a modifier, typing a key the session does
+    // not take, resetting learned data. finish_composition defaults to the engine's own first
+    // candidate for the leading segment, which threw away a candidate the user had arrowed onto.
+    // The rest of the composition still finishes from the engine's first candidate, which is what
+    // the default argument means and what this path already did.
     const metasequoia::LocalInputMode localMode = _sessionSnapshot.local_mode;
     const auto result = _session->finish(_candidateSelection.live_selected_index(_sessionSnapshot).value_or(0));
     if (result.handled)
@@ -909,7 +908,17 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 
 - (void)commitComposition:(id)sender
 {
-    [self commitLeadingCandidate:sender];
+    [self cancelVoiceInput];
+    if (_session == nullptr || _sessionSnapshot.preedit.empty())
+    {
+        return;
+    }
+    const metasequoia::LocalInputMode localMode = _sessionSnapshot.local_mode;
+    const auto result = _session->command(metasequoia::Command::CommitRaw);
+    if (result.handled)
+    {
+        [self applyResult:result localMode:localMode client:sender];
+    }
 }
 
 - (void)prepareForDeactivation:(id)sender

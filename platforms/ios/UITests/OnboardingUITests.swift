@@ -2,6 +2,18 @@ import XCTest
 
 final class OnboardingUITests: XCTestCase {
   @MainActor
+  func testAccountEntryExplainsExplicitDataSharing() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-hasCompletedOnboarding", "YES"]
+    app.launch()
+    let account = app.buttons["accountSettingsLink"]
+    XCTAssertTrue(account.waitForExistence(timeout: 5))
+    account.tap()
+    XCTAssertTrue(app.navigationBars["账号"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["登录本身不会上传输入内容、个人词库或系统剪贴板。"].exists)
+  }
+
+  @MainActor
   func testKeyboardAICompactLargeTextKeepsControlsReachable() {
     let app = XCUIApplication()
     app.launchArguments = ["-keyboardAIPreview", "-keyboardCompactPreview", "-keyboardLargeType", "-keyboardLongPreview"]
