@@ -57,6 +57,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var nineKeyHeight: NSLayoutConstraint!
   private var nineKeySymbolsButton: UIButton!
   private let punctuationStack = UIStackView()
+  private var symbolDeleteWidth: NSLayoutConstraint?
   private var standardActionWidths: [NSLayoutConstraint] = []
   private var nineKeyActionWidths: [NSLayoutConstraint] = []
   private let nineKeyContainer = UIStackView()
@@ -630,6 +631,19 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       letterButtons.append((button: button, lowercase: text, hint: attachHintLabel(to: button)))
       row.addArrangedSubview(button)
     }
+    if includesShift {
+      let delete = makeDeleteKey()
+      delete.accessibilityIdentifier = "letterDeleteKey"
+      row.addArrangedSubview(delete)
+      row.distribution = .fill
+      // Keep Shift and Delete easy to hit; distribute the seven letters evenly between them.
+      let shift = row.arrangedSubviews[0]
+      let keys = Array(row.arrangedSubviews.dropFirst().dropLast())
+      NSLayoutConstraint.activate([
+        shift.widthAnchor.constraint(equalToConstant: 44),
+        delete.widthAnchor.constraint(equalTo: shift.widthAnchor),
+      ] + keys.dropFirst().map { $0.widthAnchor.constraint(equalTo: keys[0].widthAnchor) })
+    }
     if letters == letterRows[1] {
       let key = makeKey(title: ";", accessibilityLabel: "微软双拼 ing") { [weak self] in self?.handleCharacter(";") }
       key.accessibilityIdentifier = "microsoftFinalKey"
@@ -719,6 +733,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     row.addArrangedSubview(globe)
 
     let delete = makeDeleteKey()
+    delete.accessibilityIdentifier = "symbolDeleteKey"
     actionDeleteButton = delete
     row.addArrangedSubview(delete)
 
@@ -750,11 +765,11 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     row.addArrangedSubview(enter)
 
     standardActionWidths = [
-      layoutToggle.widthAnchor.constraint(equalTo: delete.widthAnchor, multiplier: 1.1),
-      space.widthAnchor.constraint(greaterThanOrEqualTo: delete.widthAnchor, multiplier: 1.8),
-      enter.widthAnchor.constraint(equalTo: delete.widthAnchor, multiplier: 1.35),
-      delete.widthAnchor.constraint(equalToConstant: 44),
+      layoutToggle.widthAnchor.constraint(equalToConstant: 48.4),
+      space.widthAnchor.constraint(greaterThanOrEqualToConstant: 79.2),
+      enter.widthAnchor.constraint(equalToConstant: 59.4),
     ]
+    symbolDeleteWidth = delete.widthAnchor.constraint(equalToConstant: 44)
     nineKeyActionWidths = [
       nineKeySymbolsButton.widthAnchor.constraint(equalTo: nineKeyContainer.widthAnchor, multiplier: 0.14),
       layoutToggle.widthAnchor.constraint(equalTo: nineKeySymbolsButton.widthAnchor),
@@ -1348,6 +1363,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         actionRow.insertArrangedSubview(actionGlobeButton, at: globeIndex)
       }
       NSLayoutConstraint.deactivate(standardActionWidths + nineKeyActionWidths)
+      symbolDeleteWidth?.isActive = false
       globeWidthConstraint?.isActive = false
       actionGlobeButton.isHidden = !needsInputModeSwitchKey
       if needsInputModeSwitchKey {
@@ -1355,7 +1371,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         globeWidthConstraint?.isActive = true
       }
       nineKeySymbolsButton.isHidden = !usesNineKeyLayout
-      actionDeleteButton.isHidden = usesNineKeyLayout
+      actionDeleteButton.isHidden = !showsSymbols
+      symbolDeleteWidth?.isActive = showsSymbols
       NSLayoutConstraint.activate(usesNineKeyLayout ? nineKeyActionWidths : standardActionWidths)
     }
     symbolRowViews.forEach { $0.isHidden = !showsSymbols }
