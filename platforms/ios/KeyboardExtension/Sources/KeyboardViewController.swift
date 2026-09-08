@@ -29,6 +29,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var candidateContent: UIStackView?
   private let scriptShortcut = UIButton()
   private let skinShortcut = UIButton()
+  private var clipboardPanel: KeyboardClipboardView?
   private var skinPicker: KeyboardSkinPickerView?
   private let moreShortcut = UIButton()
   private let dismissShortcut = UIButton()
@@ -529,6 +530,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     skinShortcut.accessibilityValue = KeyboardSkinPreference.selected.title
     configure(moreShortcut, title: nil, symbol: "ellipsis.circle", label: "更多快捷设置", id: "moreShortcut")
     moreShortcut.menu = UIMenu(children: [
+      UIAction(title: "剪贴板历史", image: UIImage(systemName: "doc.on.clipboard")) { [weak self] _ in
+        self?.showClipboardHistory()
+      },
       UIAction(title: "AI 润色", image: UIImage(systemName: "sparkles")) { [weak self] _ in
         self?.showKeyboardAI()
       },
@@ -1766,6 +1770,28 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     updateShadows(view)
   }
 
+  private func showClipboardHistory() {
+    closeKeyboardService()
+    closeSkinPicker()
+    let panel = KeyboardClipboardView(hasFullAccess: hasFullAccess, onInsert: { [weak self] text in
+      guard let self else { return }
+      render(session.finishComposition())
+      insertOwnText(text)
+      closeSkinPicker()
+    }, onClose: { [weak self] in self?.closeSkinPicker() })
+    panel.accessibilityViewIsModal = true
+    panel.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(panel)
+    NSLayoutConstraint.activate([
+      panel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      panel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      panel.topAnchor.constraint(equalTo: view.topAnchor),
+      panel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+    clipboardPanel = panel
+    UIAccessibility.post(notification: .screenChanged, argument: panel)
+  }
+
   private func showSkinPicker() {
     guard skinPicker == nil else { return }
     let picker = KeyboardSkinPickerView(selected: KeyboardSkinPreference.selected, onSelect: { [weak self] skin in
@@ -1789,6 +1815,11 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   }
 
   private func closeSkinPicker() {
+    if let panel = clipboardPanel {
+      panel.removeFromSuperview()
+      clipboardPanel = nil
+      UIAccessibility.post(notification: .screenChanged, argument: moreShortcut)
+    }
     guard let picker = skinPicker else { return }
     picker.removeFromSuperview()
     skinPicker = nil
