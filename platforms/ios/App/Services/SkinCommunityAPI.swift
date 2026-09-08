@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 struct CommunitySkin: Codable, Identifiable, Sendable {
   let id: String
@@ -15,118 +14,35 @@ struct CommunitySkin: Codable, Identifiable, Sendable {
 }
 struct CommunityPage: Decodable, Sendable { let skins: [CommunitySkin]; let has_more: Bool }
 struct CommunityChallenge: Decodable, Sendable { let challenge_id: String; let nonce: String }
-struct CommunityUser: Codable, Sendable {
-  let id: String
-  let display_name: String
-  var created_at: String? = nil
-}
-struct CommunityIdentity: Decodable, Sendable { let provider: String }
-struct CommunityProfile: Decodable, Sendable {
-  let user: CommunityUser
-  let identities: [CommunityIdentity]
-}
-struct CommunityTokens: Codable, Sendable {
-  var saved_at: Date?
-  var expires_in: Int?
-  let access_token: String
-  let refresh_token: String
-  var user: CommunityUser
-}
+typealias CommunityUser = BackendAccountClient.User
+typealias CommunityProfile = BackendAccountClient.Profile
 struct CommunityFailure: LocalizedError {
   let message: String
   var errorDescription: String? { message }
 }
 
-enum CommunityCredentials {
-  private static var query: [String: Any] { [kSecClass as String: kSecClassGenericPassword,
-    kSecAttrService as String: "app.msime.ios.community", kSecAttrAccount as String: "api.msime.app"] }
-  static func load() throws -> CommunityTokens? {
-    var query = query
-    query[kSecReturnData as String] = true
-    var value: CFTypeRef?
-    let status = SecItemCopyMatching(query as CFDictionary, &value)
-    if status == errSecItemNotFound { return nil }
-    guard status == errSecSuccess, let data = value as? Data else { throw CommunityFailure(message: "请解锁设备后读取登录状态。") }
-    return try JSONDecoder().decode(CommunityTokens.self, from: data)
-  }
-  static func save(_ tokens: CommunityTokens?) throws {
-    guard let tokens else {
-      let status = SecItemDelete(query as CFDictionary)
-      guard status == errSecSuccess || status == errSecItemNotFound else { throw CommunityFailure(message: "无法清除登录状态。") }
-      return
-    }
-    let values: [String: Any] = [kSecValueData as String: try JSONEncoder().encode(tokens)]
-    var status = SecItemUpdate(query as CFDictionary, values as CFDictionary)
-    if status == errSecItemNotFound {
-      var item = query.merging(values) { _, new in new }
-      item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
-      status = SecItemAdd(item as CFDictionary, nil)
-    }
-    guard status == errSecSuccess else { throw CommunityFailure(message: "无法安全保存登录状态。") }
-  }
-}
-
 actor SkinCommunityAPI {
   static let shared = SkinCommunityAPI()
-  private let base = URL(string: "https://api.msime.app")!
-  private let session: URLSession
-  private let readCredentials: @Sendable () throws -> CommunityTokens?
-  private let writeCredentials: @Sendable (CommunityTokens?) throws -> Void
-  init(configuration: URLSessionConfiguration = .ephemeral,
-       readCredentials: @escaping @Sendable () throws -> CommunityTokens? = { try CommunityCredentials.load() },
-       writeCredentials: @escaping @Sendable (CommunityTokens?) throws -> Void = { try CommunityCredentials.save($0) }) {
-    session = URLSession(configuration: configuration, delegate: NoRedirects(), delegateQueue: nil)
-    self.readCredentials = readCredentials
-    self.writeCredentials = writeCredentials
+  private let client: BackendAccountClient
+  private let account: BackendAccountSession
+  init(client: BackendAccountClient = BackendAccountClient(), account: BackendAccountSession = .shared) {
+    self.client = client; self.account = account
   }
-  private var refreshTask: Task<CommunityTokens, Error>?
-  private var generation = 0
-
-  func currentUser() throws -> CommunityUser? { try readCredentials()?.user }
-  func signedIn() throws -> Bool { try readCredentials() != nil }
-  private func transport(_ path: String, method: String, body: Data?, token: String?) async throws -> (Data, Int) {
-    guard let url = URL(string: path, relativeTo: base) else { throw CommunityFailure(message: "请求地址无效。") }
-    var request = URLRequest(url: url)
-    request.httpMethod = method
-    request.httpBody = body
-    request.timeoutInterval = 25
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    if let token { request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization") }
-    let (data, response) = try await session.data(for: request)
-    guard let response = response as? HTTPURLResponse, data.count <= 1_000_000 else { throw CommunityFailure(message: "社区响应格式无效。") }
-    return (data, response.statusCode)
-  }
+  func currentUser() async throws -> CommunityUser? { try await account.user() }
+  func signedIn() async throws -> Bool { try await account.user() != nil }
   private func request<T: Decodable>(_ path: String, method: String = "GET", body: Data? = nil, authenticated: Bool = false) async throws -> T {
-    var tokens = (path == "/v1/auth/challenges" || path == "/v1/auth/login") ? nil : try readCredentials()
-    if authenticated && tokens == nil { throw CommunityFailure(message: "请先使用 Apple 登录。") }
-    if let previous = tokens, Date().timeIntervalSince(previous.saved_at ?? .distantPast) >= Double(max(0, (previous.expires_in ?? 900) - 60)) {
-      tokens = try await refresh(previous)
-    }
-    var (data, status) = try await transport(path, method: method, body: body, token: tokens?.access_token)
-    if status == 401, let tokens {
-      let fresh = try await refresh(tokens)
-      (data, status) = try await transport(path, method: method, body: body, token: fresh.access_token)
-    }
-    guard (200..<300).contains(status) else { throw Self.failure(data, status: status) }
-    return try JSONDecoder().decode(T.self, from: status == 204 ? Data("{}".utf8) : data)
-  }
-  private func refresh(_ previous: CommunityTokens) async throws -> CommunityTokens {
-    if let current = try readCredentials(), current.access_token != previous.access_token { return current }
-    if let refreshTask { return try await refreshTask.value }
-    let currentGeneration = generation
-    let task = Task { () throws -> CommunityTokens in
-      let body = try JSONSerialization.data(withJSONObject: ["refresh_token": previous.refresh_token])
-      let (data, status) = try await self.transport("/v1/auth/refresh", method: "POST", body: body, token: nil)
-      guard status == 200 else { throw Self.failure(data, status: status) }
-      return try JSONDecoder().decode(CommunityTokens.self, from: data)
-    }
-    refreshTask = task
-    defer { refreshTask = nil }
-    var result = try await task.value
-    result.saved_at = Date()
-    guard currentGeneration == generation else { throw CancellationError() }
-    try writeCredentials(result)
-    return result
+    var token: String?
+    if try await account.user() != nil { token = try await account.accessToken() }
+    if authenticated && token == nil { throw CommunityFailure(message: "请先使用 Apple 登录。") }
+    let data: Data
+    do {
+      do { data = try await client.request(method, path, token: token, body: body) }
+      catch let error as BackendAccountClient.Failure where error.status == 401 && token != nil {
+        let fresh = try await account.accessToken(retrying: token)
+        data = try await client.request(method, path, token: fresh, body: body)
+      }
+    } catch let error as BackendAccountClient.Failure { throw Self.failure(Data(), status: error.status) }
+    return try JSONDecoder().decode(T.self, from: data.isEmpty ? Data("{}".utf8) : data)
   }
   private static func failure(_ data: Data, status: Int) -> CommunityFailure {
     let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -149,22 +65,17 @@ actor SkinCommunityAPI {
     return CommunityFailure(message: message)
   }
   func challenge() async throws -> CommunityChallenge {
-    try await request("/v1/auth/challenges", method: "POST", body: JSONSerialization.data(withJSONObject: ["provider": "apple", "purpose": "login"]))
+    let value = try await client.challenge(provider: "apple")
+    guard let nonce = value.nonce else { throw CommunityFailure(message: "Apple 登录暂不可用，请稍后重试。") }
+    return CommunityChallenge(challenge_id: value.challenge_id, nonce: nonce)
   }
   func login(challenge: String, identityToken: String) async throws {
-    var result: CommunityTokens = try await request("/v1/auth/login", method: "POST", body: JSONSerialization.data(withJSONObject: ["challenge_id": challenge, "credential": identityToken]))
-    result.saved_at = Date()
-    generation += 1
-    try writeCredentials(result)
+    try await account.signIn(challenge: challenge, credential: identityToken)
   }
   func profile() async throws -> CommunityProfile {
-    let expectedGeneration = generation
-    let profile: CommunityProfile = try await request("/v1/users/me", authenticated: true)
-    guard expectedGeneration == generation, var tokens = try readCredentials(), tokens.user.id == profile.user.id else {
-      throw CancellationError()
-    }
-    tokens.user = profile.user
-    try writeCredentials(tokens)
+    let token = try await account.accessToken()
+    let profile = try await client.profile(token: token)
+    try await account.updateUser(profile.user, matching: token)
     return profile
   }
   func updateProfile(name: String) async throws -> CommunityProfile {
@@ -173,18 +84,20 @@ actor SkinCommunityAPI {
           !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
       throw CommunityFailure(message: "昵称需为 1–64 个字符，不能包含换行或控制字符。")
     }
-    let expectedGeneration = generation
-    let _: [String: Bool] = try await request("/v1/users/me", method: "PATCH",
-      body: JSONSerialization.data(withJSONObject: ["display_name": name]), authenticated: true)
-    guard expectedGeneration == generation else { throw CancellationError() }
-    return try await profile()
+    let token = try await account.accessToken()
+    try await client.rename(name, token: token)
+    let profile = try await client.profile(token: token)
+    try await account.updateUser(profile.user, matching: token)
+    return profile
   }
-  func logout(deleteAccount: Bool = false) async throws {
-    let _: [String: Bool] = try await request(deleteAccount ? "/v1/users/me" : "/v1/auth/logout", method: deleteAccount ? "DELETE" : "POST", body: deleteAccount ? nil : JSONSerialization.data(withJSONObject: ["all": false]), authenticated: true)
-    generation += 1
-    try writeCredentials(nil)
+  func logout(deleteAccount: Bool = false, all: Bool = false) async throws {
+    if deleteAccount {
+      let token = try await account.accessToken()
+      try await client.deleteAccount(token: token)
+      try await account.forget()
+    } else { try await account.logout(all: all) }
   }
-  func clearExpiredLogin() throws { generation += 1; try writeCredentials(nil) }
+  func clearExpiredLogin() async throws { try await account.forget() }
   func list(offset: Int = 0, search: String = "") async throws -> CommunityPage {
     var parts = URLComponents()
     parts.path = "/v1/community/skins"

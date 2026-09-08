@@ -49,6 +49,19 @@ final class BackendAccountSessionTests: XCTestCase {
     XCTAssertEqual(count, 1)
     XCTAssertEqual(try storage.load()?.tokens.access_token, a)
   }
+  func testProfileCacheUpdatePreservesSessionAndRejectsLateResult() async throws {
+    let original = BackendSavedSession(tokens: RefreshAPI.tokens(), expiresAt: Date().addingTimeInterval(600))
+    let storage = MemorySessions(original)
+    let session = BackendAccountSession(api: RefreshAPI(), storage: storage)
+    let renamed = BackendAccountClient.User(id: "synthetic-user", display_name: "新昵称", created_at: "2026-09-08")
+    try await session.updateUser(renamed, matching: original.tokens.access_token)
+    XCTAssertEqual(try storage.load()?.tokens.user, renamed)
+    XCTAssertEqual(try storage.load()?.expiresAt, original.expiresAt)
+    try await session.forget()
+    do { try await session.updateUser(renamed, matching: original.tokens.access_token); XCTFail("late profile resurrected logout") }
+    catch is CancellationError { }
+    XCTAssertNil(try storage.load())
+  }
   func testLogoutGenerationRejectsLateRefresh() async throws {
     let storage = MemorySessions(.init(tokens: RefreshAPI.tokens(), expiresAt: .distantPast))
     let api = RefreshAPI()

@@ -84,6 +84,7 @@ struct AppleAccountSection: View {
   @State private var message: String?
   @State private var challenge: CommunityChallenge?
   @State private var confirmDeleteAccount = false
+  @State private var confirmLogoutAll = false
   private let api = SkinCommunityAPI.shared
 
   private var displayName: String {
@@ -115,6 +116,7 @@ struct AppleAccountSection: View {
         }.accessibilityIdentifier("editAccountProfile")
         Menu("账号") {
           Button("退出登录") { run { try await api.logout(); signedIn = false; await prepareLogin() } }
+          Button("退出所有设备") { confirmLogoutAll = true }
           Button("重新登录") { run { try await api.clearExpiredLogin(); signedIn = false; await prepareLogin() } }
           Button("注销账号", role: .destructive) { confirmDeleteAccount = true }
         }
@@ -141,7 +143,7 @@ struct AppleAccountSection: View {
               if (error as? ASAuthorizationError)?.code != .canceled { message = error.localizedDescription }
               Task { await prepareLogin() }
             }
-          }.signInWithAppleButtonStyle(.black).frame(height: 44).disabled(busy)
+          }.accessibilityIdentifier("backendAppleSignIn").signInWithAppleButtonStyle(.black).frame(height: 44).disabled(busy)
         } else {
           Button("准备 Apple 登录") { Task { await prepareLogin() } }.disabled(busy)
         }
@@ -164,6 +166,9 @@ struct AppleAccountSection: View {
     .alert("账号与登录", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
       Button("好", role: .cancel) {}
     } message: { Text(message ?? "") }
+    .confirmationDialog("退出所有设备后，所有设备都需要重新登录。", isPresented: $confirmLogoutAll, titleVisibility: .visible) {
+      Button("退出所有设备") { run { try await api.logout(all: true); signedIn = false; await prepareLogin() } }
+    }
     .confirmationDialog("注销账号将删除已发布皮肤、评分及其他云端账号数据，无法撤销。", isPresented: $confirmDeleteAccount, titleVisibility: .visible) {
       Button("注销账号", role: .destructive) { run { try await api.logout(deleteAccount: true); signedIn = false; await prepareLogin() } }
     }
@@ -174,7 +179,17 @@ struct AppleAccountSection: View {
   }
   private func run(_ action: @escaping @MainActor () async throws -> Void) {
     guard !busy else { return }; busy = true
-    Task { defer { busy = false }; do { try await action() } catch { message = error.localizedDescription } }
+    Task {
+      defer { busy = false }
+      do { try await action() }
+      catch {
+        message = error.localizedDescription
+        if let state = try? await api.signedIn() {
+          signedIn = state
+          if !state { await prepareLogin() }
+        }
+      }
+    }
   }
 }
 

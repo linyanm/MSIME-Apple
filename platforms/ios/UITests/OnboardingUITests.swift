@@ -9,8 +9,8 @@ final class OnboardingUITests: XCTestCase {
     let account = app.buttons["accountSettingsLink"]
     XCTAssertTrue(account.waitForExistence(timeout: 5))
     account.tap()
-    XCTAssertTrue(app.navigationBars["账号"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.staticTexts["登录本身不会上传输入内容、个人词库或系统剪贴板。"].exists)
+    XCTAssertTrue(app.navigationBars["我的"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["accountLocalDesigns"].exists)
   }
 
   @MainActor
