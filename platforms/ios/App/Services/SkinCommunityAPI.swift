@@ -17,6 +17,8 @@ struct CommunityPage: Decodable, Sendable { let skins: [CommunitySkin]; let has_
 struct CommunityChallenge: Decodable, Sendable { let challenge_id: String; let nonce: String }
 struct CommunityUser: Codable, Sendable { let id: String; let display_name: String }
 struct CommunityTokens: Codable, Sendable {
+  var saved_at: Date?
+  var expires_in: Int?
   let access_token: String
   let refresh_token: String
   let user: CommunityUser
@@ -85,8 +87,11 @@ actor SkinCommunityAPI {
     return (data, response.statusCode)
   }
   private func request<T: Decodable>(_ path: String, method: String = "GET", body: Data? = nil, authenticated: Bool = false) async throws -> T {
-    let tokens = (path == "/v1/auth/challenges" || path == "/v1/auth/login") ? nil : try readCredentials()
+    var tokens = (path == "/v1/auth/challenges" || path == "/v1/auth/login") ? nil : try readCredentials()
     if authenticated && tokens == nil { throw CommunityFailure(message: "请先使用 Apple 登录。") }
+    if let previous = tokens, Date().timeIntervalSince(previous.saved_at ?? .distantPast) >= Double(max(0, (previous.expires_in ?? 900) - 60)) {
+      tokens = try await refresh(previous)
+    }
     var (data, status) = try await transport(path, method: method, body: body, token: tokens?.access_token)
     if status == 401, let tokens {
       let fresh = try await refresh(tokens)
@@ -107,7 +112,8 @@ actor SkinCommunityAPI {
     }
     refreshTask = task
     defer { refreshTask = nil }
-    let result = try await task.value
+    var result = try await task.value
+    result.saved_at = Date()
     guard currentGeneration == generation else { throw CancellationError() }
     try writeCredentials(result)
     return result
@@ -136,7 +142,8 @@ actor SkinCommunityAPI {
     try await request("/v1/auth/challenges", method: "POST", body: JSONSerialization.data(withJSONObject: ["provider": "apple", "purpose": "login"]))
   }
   func login(challenge: String, identityToken: String) async throws {
-    let result: CommunityTokens = try await request("/v1/auth/login", method: "POST", body: JSONSerialization.data(withJSONObject: ["challenge_id": challenge, "credential": identityToken]))
+    var result: CommunityTokens = try await request("/v1/auth/login", method: "POST", body: JSONSerialization.data(withJSONObject: ["challenge_id": challenge, "credential": identityToken]))
+    result.saved_at = Date()
     generation += 1
     try writeCredentials(result)
   }
