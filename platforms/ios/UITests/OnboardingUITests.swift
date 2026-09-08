@@ -177,6 +177,7 @@ final class OnboardingUITests: XCTestCase {
     func openEditor() {
       app.buttons["skinSettingsLink"].tap()
       app.buttons["customSkinEditorLink"].tap()
+      app.segmentedControls["customSkinSections"].buttons["键帽"].tap()
     }
     app.launch()
     openEditor()
@@ -207,6 +208,7 @@ final class OnboardingUITests: XCTestCase {
     attachment.lifetime = .keepAlways
     add(attachment)
     XCTAssertTrue(app.buttons["applyCustomSkin"].label.contains("正在使用"))
+    app.segmentedControls["customSkinSections"].buttons["设计"].tap()
     // Exercise explicit reset after checking persistence, using simulator-only settings.
     for _ in 0..<5 {
       if app.buttons["重置我的皮肤"].isHittable { break }
@@ -214,11 +216,65 @@ final class OnboardingUITests: XCTestCase {
     }
     app.buttons["重置我的皮肤"].tap()
     app.buttons["重置"].tap()
+    app.segmentedControls["customSkinSections"].buttons["键帽"].tap()
     for _ in 0..<5 {
       if radius.isHittable { break }
       app.swipeDown()
     }
     XCTAssertEqual(radius.value as? String, "8")
+  }
+
+  @MainActor
+  func testCustomSkinTemplatesLibraryAndUndo() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-hasCompletedOnboarding", "YES"]
+    app.launch()
+    app.buttons["skinSettingsLink"].tap()
+    app.buttons["customSkinEditorLink"].tap()
+    let sections = app.segmentedControls["customSkinSections"]
+    app.buttons["skinTemplate_紫夜星光"].tap()
+    XCTAssertTrue(app.buttons["undoSkinDesign"].isEnabled)
+    app.buttons["saveCustomSkin"].tap()
+    let name = "夜色测试-" + String(UUID().uuidString.prefix(4))
+    let field = app.textFields["customSkinName"]
+    field.tap()
+    if let current = field.value as? String { field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count)) }
+    field.typeText(name)
+    app.buttons["confirmSaveCustomSkin"].tap()
+    XCTAssertTrue(app.buttons["savedSkin_" + name].waitForExistence(timeout: 5))
+    sections.buttons["设计"].tap()
+    app.buttons["skinTemplate_水杉留白"].tap()
+    app.buttons["undoSkinDesign"].tap()
+    sections.buttons["背景"].tap()
+    XCTAssertEqual(app.switches["customSkinGradient"].value as? String, "1")
+    XCTAssertTrue(app.buttons["customSkinPhoto"].exists)
+    let image = XCTAttachment(screenshot: app.screenshot())
+    image.name = "Skin studio gradient and fixed preview"
+    image.lifetime = .keepAlways
+    add(image)
+    app.terminate()
+    app.launch()
+    app.buttons["skinSettingsLink"].tap()
+    app.buttons["customSkinEditorLink"].tap()
+    app.segmentedControls["customSkinSections"].buttons["我的"].tap()
+    XCTAssertTrue(app.buttons["savedSkin_" + name].exists)
+    app.segmentedControls["customSkinSections"].buttons["设计"].tap()
+    app.buttons["skinTemplate_水杉留白"].tap()
+    app.segmentedControls["customSkinSections"].buttons["我的"].tap()
+    app.buttons["管理" + name].tap()
+    app.buttons["用当前设计更新"].tap()
+    app.buttons["更新已保存的皮肤"].tap()
+    app.segmentedControls["customSkinSections"].buttons["设计"].tap()
+    app.buttons["skinTemplate_紫夜星光"].tap()
+    app.segmentedControls["customSkinSections"].buttons["我的"].tap()
+    app.buttons["savedSkin_" + name].tap()
+    app.segmentedControls["customSkinSections"].buttons["背景"].tap()
+    XCTAssertEqual(app.switches["customSkinGradient"].value as? String, "0")
+    app.segmentedControls["customSkinSections"].buttons["我的"].tap()
+    app.buttons["管理" + name].tap()
+    app.buttons["删除"].tap()
+    app.buttons["删除"].tap()
+    XCTAssertFalse(app.buttons["savedSkin_" + name].exists)
   }
 
   @MainActor
