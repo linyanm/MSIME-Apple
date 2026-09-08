@@ -101,8 +101,7 @@ struct AppleAccountSection: View {
   private let api = SkinCommunityAPI.shared
 
   private var displayName: String {
-    guard let name = user?.display_name, !name.isEmpty else { return "尚未设置昵称" }
-    return name
+    user?.preferredDisplayName ?? "水杉用户"
   }
 
   var body: some View {
@@ -122,7 +121,7 @@ struct AppleAccountSection: View {
           HStack {
             Label("个人资料", systemImage: "person.text.rectangle")
             Spacer()
-            Text(user?.display_name.isEmpty == false ? "查看与编辑" : "设置昵称")
+            Text("查看与编辑")
               .font(.subheadline).foregroundStyle(.secondary)
             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
           }
@@ -257,10 +256,18 @@ struct AccountProfileEditor: View {
         }
         if let profile {
           Section("账号信息") {
-            VStack(alignment: .leading, spacing: 6) {
-              Text("账号 ID")
-              Text(profile.user.id).font(.footnote.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
-            }
+            Button {
+              UIPasteboard.general.string = profile.user.id
+              message = "完整账号 ID 已复制。"
+            } label: {
+              HStack {
+                Text("账号 ID").foregroundStyle(.primary)
+                Spacer()
+                Text("#" + profile.user.id.prefix(6).uppercased()).font(.subheadline.monospaced())
+                Image(systemName: "doc.on.doc").font(.subheadline)
+              }
+            }.accessibilityLabel("复制完整账号 ID")
+              .accessibilityIdentifier("copyAccountID")
             HStack {
               Text("登录方式")
               Spacer()
@@ -289,7 +296,7 @@ struct AccountProfileEditor: View {
                 dismiss()
               } catch { message = error.localizedDescription }
             }
-          }.disabled(busy || profile == nil || !validName || normalizedName == profile?.user.display_name)
+          }.disabled(busy || profile == nil || !validName || normalizedName == profile?.user.preferredDisplayName)
             .accessibilityIdentifier("saveAccountProfile")
         }
       }
@@ -305,7 +312,7 @@ struct AccountProfileEditor: View {
       defer { busy = false }
       do {
         let result = try await SkinCommunityAPI.shared.profile()
-        profile = result; name = result.user.display_name
+        profile = result; name = result.user.preferredDisplayName
         onSaved(result.user)
       } catch { message = error.localizedDescription }
     }
