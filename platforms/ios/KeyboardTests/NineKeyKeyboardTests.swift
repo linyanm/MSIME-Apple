@@ -399,7 +399,17 @@ final class NineKeyKeyboardTests: XCTestCase {
               add(attachment)
             }
           }
+          XCTAssertEqual(try button("symbolDeleteKey", in: controller).isHidden, !symbols)
           if !symbols && scheme != .nineKey {
+            let delete = try button("letterDeleteKey", in: controller)
+            let shift = try button("shiftButton", in: controller)
+            let m = try XCTUnwrap(descendants(controller.view).first { $0.accessibilityLabel == "字母 M" } as? UIButton)
+            XCTAssertEqual(delete.superview, m.superview)
+            XCTAssertGreaterThan(delete.frame.minX, m.frame.maxX)
+            XCTAssertEqual(delete.bounds.width, 44, accuracy: 0.5)
+            XCTAssertEqual(shift.bounds.width, 44, accuracy: 0.5)
+            XCTAssertEqual(delete.bounds.height, reference, accuracy: 0.5)
+            XCTAssertLessThanOrEqual(delete.convert(delete.bounds, to: controller.view).maxX, width - 4.5)
             for label in ["Q", "A", "Z", "P", "L", "M"] {
               let key = try XCTUnwrap(descendants(controller.view).first { $0.accessibilityLabel == "字母 \(label)" } as? UIButton)
               XCTAssertEqual(key.bounds.height, reference, accuracy: 0.5)
