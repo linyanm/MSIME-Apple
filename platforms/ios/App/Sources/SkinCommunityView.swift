@@ -1,64 +1,29 @@
 import SwiftUI
-import AuthenticationServices
 
 struct SkinCommunityView: View {
+  var onlyMine = false
+  private var visibleSkins: [CommunitySkin] { onlyMine ? skins.filter(\.owned) : skins }
   @State private var skins: [CommunitySkin] = []
   @State private var more = false
   @State private var busy = false
   @State private var signedIn = false
   @State private var message: String?
-  @State private var challenge: CommunityChallenge?
   @State private var search = ""
   @State private var showPublish = false
-  @State private var confirmDeleteAccount = false
   private let api = SkinCommunityAPI.shared
 
   var body: some View {
     List {
-      Section {
-        if signedIn {
+      AppleAccountSection(signedIn: $signedIn)
+      if signedIn {
+        Section {
           Button { showPublish = true } label: { Label("发布我的设计", systemImage: "square.and.arrow.up") }
             .accessibilityIdentifier("publishCommunitySkin")
-          Menu("账号") {
-            Button("退出登录") { run { try await api.logout(); signedIn = false; await prepareLogin() } }
-            Button("重新登录") { run { try await api.clearExpiredLogin(); signedIn = false; await prepareLogin() } }
-            Button("注销账号", role: .destructive) { confirmDeleteAccount = true }
-          }
-        } else {
-          if let challenge {
-            SignInWithAppleButton(.signIn) { request in
-              request.nonce = challenge.nonce
-              request.state = challenge.challenge_id
-            } onCompletion: { result in
-              switch result {
-              case .success(let authorization):
-                guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                      credential.state == challenge.challenge_id,
-                      let data = credential.identityToken, let token = String(data: data, encoding: .utf8) else {
-                  message = "Apple 登录未返回有效凭据，请重试。"; Task { await prepareLogin() }; return
-                }
-                run {
-                  do { try await api.login(challenge: challenge.challenge_id, identityToken: token) }
-                  catch { await prepareLogin(); throw error }
-                  signedIn = true
-                  try await load()
-                }
-              case .failure(let error):
-                if (error as? ASAuthorizationError)?.code != .canceled { message = error.localizedDescription }
-                Task { await prepareLogin() }
-              }
-            }.signInWithAppleButtonStyle(.black).frame(height: 44).disabled(busy)
-          } else {
-            Button("准备 Apple 登录") { Task { await prepareLogin() } }.disabled(busy)
-          }
-          Text("浏览无需登录。登录后可发布、下载和评分。").font(.caption).foregroundStyle(.secondary)
-          Button("清除失效登录状态") { run { try await api.clearExpiredLogin(); signedIn = false; await prepareLogin() } }
-            .font(.caption)
         }
       }
       Section {
-        if skins.isEmpty && !busy { Text("暂时没有皮肤，发布你的第一款设计吧。").foregroundStyle(.secondary) }
-        ForEach(skins) { skin in
+        if visibleSkins.isEmpty && !busy { Text(onlyMine ? (more ? "当前页没有你的作品，继续加载查看更多。" : "还没有已发布的作品，分享你的第一款设计吧。") : "暂时没有皮肤，发布你的第一款设计吧。").foregroundStyle(.secondary) }
+        ForEach(visibleSkins) { skin in
           NavigationLink {
             CommunitySkinDetail(initial: skin)
           } label: {
@@ -72,28 +37,21 @@ struct SkinCommunityView: View {
           }
         }
         if more { Button("加载更多") { run { try await load(append: true) } }.disabled(busy) }
-      } header: { Text("社区皮肤") }
+      } header: { Text(onlyMine ? "我的作品" : "社区皮肤") }
       if busy { ProgressView().frame(maxWidth: .infinity) }
     }
-    .navigationTitle("皮肤社区")
+    .navigationTitle(onlyMine ? "已发布作品" : "皮肤社区")
     .searchable(text: $search, prompt: "搜索皮肤名称")
     .onSubmit(of: .search) { run { try await load() } }
     .refreshable { do { try await load() } catch { message = error.localizedDescription } }
-    .task {
-      do { signedIn = try await api.signedIn(); try await load() } catch { message = error.localizedDescription }
-      if !signedIn { await prepareLogin() }
+    .task { run { try await load() } }
+    .onChange(of: signedIn) { _ in
+      Task { do { try await load() } catch { message = error.localizedDescription } }
     }
     .sheet(isPresented: $showPublish) { CommunityPublishView { run { try await load() } } }
     .alert("皮肤社区", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
       Button("好", role: .cancel) {}
     } message: { Text(message ?? "") }
-    .confirmationDialog("注销账号将删除已发布皮肤、评分及其他云端账号数据，无法撤销。", isPresented: $confirmDeleteAccount, titleVisibility: .visible) {
-      Button("注销账号", role: .destructive) { run { try await api.logout(deleteAccount: true); signedIn = false; try await load(); await prepareLogin() } }
-    }
-  }
-  @MainActor private func prepareLogin() async {
-    challenge = nil
-    do { challenge = try await api.challenge() } catch { message = error.localizedDescription }
   }
   @MainActor private func load(append: Bool = false) async throws {
     let page = try await api.list(offset: append ? skins.count : 0, search: search)

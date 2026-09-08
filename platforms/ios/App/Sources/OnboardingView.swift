@@ -19,9 +19,9 @@ struct SettingsView: View {
           }
         }
 
-        Section("账号与同步") {
+        Section {
           NavigationLink(destination: AccountSettingsView()) {
-            Label("水杉账号", systemImage: "person.crop.circle")
+            Label("我的 · 账号与作品", systemImage: "person.crop.circle")
           }.accessibilityIdentifier("accountSettingsLink")
         }
 

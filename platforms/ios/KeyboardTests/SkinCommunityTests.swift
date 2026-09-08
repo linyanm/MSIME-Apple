@@ -61,6 +61,8 @@ final class SkinCommunityTests: XCTestCase {
     try await api.login(challenge: "fixture", identityToken: "synthetic")
     let signedIn = try await api.signedIn()
     XCTAssertTrue(signedIn)
+    let profile = try await api.currentUser()
+    XCTAssertEqual(profile?.display_name, "测试")
     try await withThrowingTaskGroup(of: Void.self) { group in
       for _ in 0..<8 { group.addTask { _ = try await api.list() } }
       try await group.waitForAll()
@@ -69,6 +71,8 @@ final class SkinCommunityTests: XCTestCase {
     try await api.logout()
     let signedOut = try await api.signedIn()
     XCTAssertFalse(signedOut)
+    let profileAfterLogout = try await api.currentUser()
+    XCTAssertNil(profileAfterLogout)
   }
   @MainActor func testCommunityPreviewDoesNotChangeActiveDesign() throws {
     let previous = CustomKeyboardSkinStore.current

@@ -1,243 +1,164 @@
-import AuthenticationServices
 import SwiftUI
-
-@MainActor
-final class AccountSettingsModel: ObservableObject {
-  @Published var user: BackendAccountClient.User?
-  @Published var providers: [String: Bool] = [:]
-  @Published var challenge: BackendAccountClient.Challenge?
-  @Published var busy = false
-  @Published var message: String?
-  let client = BackendAccountClient()
-  let session = BackendAccountSession.shared
-
-  func load() async {
-    await perform {
-      self.providers = try await self.client.providers()
-      self.user = try await self.session.user()
-      if self.user != nil {
-        do {
-          let token = try await self.session.accessToken()
-          self.user = try await self.client.profile(token: token).user
-        } catch let failure as BackendAccountClient.Failure where failure.status == 401 {
-          try await self.session.forget(); self.user = nil
-        }
-      }
-      if self.user == nil && self.providers["apple"] == true {
-        self.challenge = try await self.client.challenge(provider: "apple")
-      }
-    }
-  }
-  func signIn(_ authorization: ASAuthorization, challenge: BackendAccountClient.Challenge) async {
-    await perform {
-      guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-            credential.state == challenge.challenge_id,
-            let bytes = credential.identityToken, let token = String(data: bytes, encoding: .utf8)
-      else { throw BackendAccountClient.Failure(status: 401) }
-      try await self.session.signIn(challenge: challenge.challenge_id, credential: token)
-      self.user = try await self.session.user(); self.challenge = nil
-    }
-  }
-  func requestCode(provider: String, target: String) async -> BackendAccountClient.Challenge? {
-    var response: BackendAccountClient.Challenge?
-    await perform {
-      guard self.providers[provider] == true else { throw BackendAccountClient.Failure(status: 503) }
-      response = try await self.client.challenge(provider: provider, target: target)
-    }
-    return response
-  }
-  func signInWithCode(challenge: String, code: String) async {
-    await perform {
-      try await self.session.signIn(challenge: challenge, credential: code)
-      self.user = try await self.session.user(); self.challenge = nil
-    }
-  }
-  func rename(_ name: String) async {
-    await perform {
-      let token = try await self.session.accessToken()
-      try await self.client.rename(name, token: token)
-      self.user = try await self.client.profile(token: token).user
-    }
-  }
-  func logout(all: Bool = false) async {
-    await perform {
-      defer { self.user = nil; self.challenge = nil }
-      try await self.session.logout(all: all)
-    }
-    let logoutMessage = message
-    await load()
-    if let logoutMessage { message = logoutMessage }
-  }
-  func deleteAccount() async {
-    await perform {
-      let token = try await self.session.accessToken()
-      try await self.client.deleteAccount(token: token)
-      try await self.session.forget(); self.user = nil; self.challenge = nil
-    }
-    if user == nil { await load() }
-  }
-  private func perform(_ operation: () async throws -> Void) async {
-    guard !busy else { return }
-    busy = true; message = nil
-    defer { busy = false }
-    do { try await operation() }
-    catch is CancellationError { }
-    catch let error as BackendAccountClient.Failure { message = error.localizedDescription }
-    catch { message = "连接未完成，请检查网络后重试。" }
-  }
-}
+import AuthenticationServices
 
 struct AccountSettingsView: View {
-  @StateObject private var model = AccountSettingsModel()
-  @State private var appleChallenge: BackendAccountClient.Challenge?
-  @State private var name = ""
-  @State private var codeChannel: CodeLoginChannel?
-  @State private var confirmDelete = false
-  @State private var confirmLogoutAll = false
+  @State private var signedIn = false
+  @State private var designs = CustomSkinLibrary.designs
+  @State private var showPublish = false
 
   var body: some View {
     Form {
-      if let user = model.user {
-        Section("我的账号") {
-          Text(user.display_name.isEmpty ? "水杉用户" : user.display_name)
-          TextField("昵称", text: $name)
-            .onAppear { name = user.display_name }
-            .accessibilityIdentifier("accountDisplayName")
-          Button("保存昵称") { Task { await model.rename(name) } }
-            .disabled(name.count > 64 || name == user.display_name)
-          Button("退出登录") { Task { await model.logout() } }
-          Button("退出所有设备") { confirmLogoutAll = true }
-        }
-        Section("云端数据") {
-          NavigationLink(destination: CloudClipboardView(session: model.session, client: model.client)) {
-            Label("云剪贴板", systemImage: "doc.on.clipboard")
-          }
-        }
-        Section {
-          Button("注销账号", role: .destructive) { confirmDelete = true }
-        } footer: {
-          Text("注销会删除云端账号及关联的词库、设置和剪贴板数据，需要最近十分钟内登录。")
-        }
-      } else {
-        Section {
-          if model.providers["apple"] == true {
-            SignInWithAppleButton(.signIn) { request in
-              appleChallenge = model.challenge
-              request.nonce = model.challenge?.nonce
-              request.state = model.challenge?.challenge_id
-            } onCompletion: { result in
-              guard let challenge = appleChallenge else { return }
-              appleChallenge = nil
-              switch result {
-              case .success(let authorization): Task { await model.signIn(authorization, challenge: challenge) }
-              case .failure(let error):
-                if (error as? ASAuthorizationError)?.code != .canceled {
-                  model.message = "Apple 登录未完成，请重试。"
-                }
-                Task { await model.load() }
+      AppleAccountSection(signedIn: $signedIn)
+
+      Section("我的创作") {
+        NavigationLink(destination: CustomSkinEditorView()) {
+          HStack(spacing: 12) {
+            accountIcon("paintbrush.pointed.fill", color: .purple)
+            VStack(alignment: .leading, spacing: 4) {
+              Text("我的设计").foregroundStyle(.primary)
+              Text("保存在本机的 \(designs.count) 款皮肤").font(.caption).foregroundStyle(.secondary)
+            }
+          }.padding(.vertical, 4)
+        }.accessibilityIdentifier("accountLocalDesigns")
+        if signedIn {
+          NavigationLink(destination: SkinCommunityView(onlyMine: true)) {
+            HStack(spacing: 12) {
+              accountIcon("square.stack.3d.up.fill", color: .orange)
+              VStack(alignment: .leading, spacing: 4) {
+                Text("已发布作品").foregroundStyle(.primary)
+                Text("查看下载、评分和管理作品").font(.caption).foregroundStyle(.secondary)
               }
-            }
-            .frame(height: 46)
-            .disabled(model.challenge?.nonce == nil)
-            .accessibilityIdentifier("backendAppleSignIn")
+            }.padding(.vertical, 4)
+          }.accessibilityIdentifier("accountPublishedSkins")
+          Button { showPublish = true } label: {
+            Label("发布新作品", systemImage: "square.and.arrow.up")
           }
-          ForEach(CodeLoginChannel.allCases) { channel in
-            if model.providers[channel.rawValue] == true {
-              Button(channel.title) { model.message = nil; codeChannel = channel }
-                .accessibilityIdentifier("backendCodeLogin_\(channel.rawValue)")
-            }
-          }
-          Button("刷新登录方式") { Task { await model.load() } }
-        } header: {
-          Text("登录水杉账号")
-        } footer: {
-          Text("登录本身不会上传输入内容、个人词库或系统剪贴板。")
         }
       }
-      if model.busy { ProgressView("正在处理…") }
-      if let message = model.message { Text(message).foregroundStyle(.secondary) }
+
+      Section("发现与记录") {
+        NavigationLink(destination: SkinCommunityView()) {
+          HStack(spacing: 12) {
+            accountIcon("person.3.fill", color: MetasequoiaTheme.forest)
+            VStack(alignment: .leading, spacing: 4) {
+              Text("皮肤社区").foregroundStyle(.primary)
+              Text("发现设计，下载使用，为喜欢的作品评分").font(.caption).foregroundStyle(.secondary)
+            }
+          }.padding(.vertical, 4)
+        }
+        NavigationLink(destination: TypingStatisticsView()) {
+          HStack(spacing: 12) {
+            accountIcon("chart.bar.xaxis", color: .blue)
+            VStack(alignment: .leading, spacing: 4) {
+              Text("我的打字统计").foregroundStyle(.primary)
+              Text("查看输入趋势和语言分布").font(.caption).foregroundStyle(.secondary)
+            }
+          }.padding(.vertical, 4)
+        }
+      }
+      Section {
+        Label("本地数据与云端作品", systemImage: "lock.shield")
+          .font(.subheadline)
+        Text("皮肤设计和打字统计保存在本机。只有你主动发布的作品会分享至社区；Apple 登录不会自动上传本地设计或输入记录。")
+          .font(.caption).foregroundStyle(.secondary)
+      }
     }
-    .disabled(model.busy)
-    .navigationTitle("账号")
-    .task { await model.load() }
-    .sheet(item: $codeChannel) { channel in CodeLoginView(model: model, channel: channel) }
-    .alert("注销水杉账号？", isPresented: $confirmDelete) {
-      Button("取消", role: .cancel) { }
-      Button("永久注销", role: .destructive) { Task { await model.deleteAccount() } }
-    } message: { Text("此操作无法撤销。云端账号及关联数据将被删除。") }
-    .alert("退出所有设备？", isPresented: $confirmLogoutAll) {
-      Button("取消", role: .cancel) { }
-      Button("退出所有设备", role: .destructive) { Task { await model.logout(all: true) } }
-    } message: { Text("所有设备都需要重新登录。") }
+    .navigationTitle("我的")
+    .task { designs = CustomSkinLibrary.designs }
+    .sheet(isPresented: $showPublish) { CommunityPublishView {} }
+  }
+
+  private func accountIcon(_ symbol: String, color: Color) -> some View {
+    Image(systemName: symbol).font(.system(size: 19, weight: .semibold))
+      .foregroundStyle(color).frame(width: 42, height: 42)
+      .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
   }
 }
 
-enum CodeLoginChannel: String, CaseIterable, Identifiable {
-  case email, phone
-  var id: String { rawValue }
-  var title: String { self == .email ? "邮箱登录" : "手机号登录" }
-}
+struct AppleAccountSection: View {
+  @Binding var signedIn: Bool
+  @State private var user: CommunityUser?
+  @State private var needsRecovery = false
+  @State private var busy = false
+  @State private var message: String?
+  @State private var challenge: CommunityChallenge?
+  @State private var confirmDeleteAccount = false
+  private let api = SkinCommunityAPI.shared
 
-private struct CodeLoginView: View {
-  @ObservedObject var model: AccountSettingsModel
-  let channel: CodeLoginChannel
-  @Environment(\.dismiss) private var dismiss
-  @State private var target = ""
-  @State private var code = ""
-  @State private var challenge: BackendAccountClient.Challenge?
-  @State private var expiresAt = Date.distantPast
-  @State private var resendAt = Date.distantPast
-  @State private var pending: Task<Void, Never>?
+  private var displayName: String {
+    guard let name = user?.display_name, !name.isEmpty else { return "水杉用户" }
+    return name
+  }
 
   var body: some View {
-    NavigationView {
-      Form {
-        Section {
-          TextField(channel == .email ? "邮箱地址" : "手机号（含国家区号，如 +86）", text: $target)
-            .keyboardType(channel == .email ? .emailAddress : .phonePad)
-            .textContentType(channel == .email ? .emailAddress : .telephoneNumber)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .accessibilityIdentifier("backendCodeTarget")
-            .onChange(of: target) { _ in challenge = nil; code = "" }
-          TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            let seconds = max(0, Int(ceil(resendAt.timeIntervalSince(timeline.date))))
-            Button(seconds == 0 ? "获取验证码" : "\(seconds) 秒后可重新发送") {
-              pending = Task {
-                let response = await model.requestCode(provider: channel.rawValue,
-                  target: target.trimmingCharacters(in: .whitespacesAndNewlines))
-                guard !Task.isCancelled, let response else { return }
-                challenge = response; code = ""
-                expiresAt = Date().addingTimeInterval(TimeInterval(response.expires_in))
-                resendAt = Date().addingTimeInterval(60)
-              }
-            }
-            .disabled(seconds > 0 || target.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-          }
-          if let challenge {
-            TextField("6 位验证码", text: $code)
-              .keyboardType(.numberPad)
-              .textContentType(.oneTimeCode)
-              .accessibilityIdentifier("backendVerificationCode")
-            TimelineView(.periodic(from: .now, by: 1)) { timeline in
-              let expired = expiresAt <= timeline.date
-              Button(expired ? "验证码已过期，请重新获取" : "登录") {
-                pending = Task { await model.signInWithCode(challenge: challenge.challenge_id, code: code) }
-              }
-              .disabled(expired || code.utf8.count != 6 || !code.utf8.allSatisfy { (48...57).contains($0) })
-            }
-          }
-        } footer: {
-          Text("验证码只用于本次登录，请勿向他人透露。")
+    Section {
+      HStack(spacing: 14) {
+        Image(systemName: signedIn ? "person.crop.circle.fill" : "person.crop.circle")
+          .font(.system(size: 48)).foregroundStyle(MetasequoiaTheme.forest)
+        VStack(alignment: .leading, spacing: 5) {
+          Text(signedIn ? displayName : "欢迎来到水杉")
+            .font(.title3.bold())
+          Text(signedIn ? "Apple 账号已登录" : "登录，分享你的键盘设计")
+            .font(.subheadline).foregroundStyle(.secondary)
         }
-        if model.busy { ProgressView("正在处理…") }
-        if let message = model.message { Text(message).foregroundStyle(.secondary) }
+      }.padding(.vertical, 10)
+      if signedIn {
+        Menu("账号") {
+          Button("退出登录") { run { try await api.logout(); signedIn = false; await prepareLogin() } }
+          Button("重新登录") { run { try await api.clearExpiredLogin(); signedIn = false; await prepareLogin() } }
+          Button("注销账号", role: .destructive) { confirmDeleteAccount = true }
+        }
+      } else {
+        if let challenge {
+          SignInWithAppleButton(.signIn) { request in
+            request.nonce = challenge.nonce
+            request.state = challenge.challenge_id
+          } onCompletion: { result in
+            switch result {
+            case .success(let authorization):
+              guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                    credential.state == challenge.challenge_id,
+                    let data = credential.identityToken, let token = String(data: data, encoding: .utf8) else {
+                message = "Apple 登录未返回有效凭据，请重试。"; Task { await prepareLogin() }; return
+              }
+              run {
+                do { try await api.login(challenge: challenge.challenge_id, identityToken: token) }
+                catch { await prepareLogin(); throw error }
+                user = try await api.currentUser()
+                signedIn = true
+              }
+            case .failure(let error):
+              if (error as? ASAuthorizationError)?.code != .canceled { message = error.localizedDescription }
+              Task { await prepareLogin() }
+            }
+          }.signInWithAppleButtonStyle(.black).frame(height: 44).disabled(busy)
+        } else {
+          Button("准备 Apple 登录") { Task { await prepareLogin() } }.disabled(busy)
+        }
+        Text("登录后可在皮肤社区发布、下载和评分。日常输入无需登录。").font(.caption).foregroundStyle(.secondary)
+        if needsRecovery {
+          Button("清除失效登录状态") { run { try await api.clearExpiredLogin(); signedIn = false; needsRecovery = false; await prepareLogin() } }
+            .font(.caption)
+        }
       }
-      .disabled(model.busy)
-      .navigationTitle(channel.title)
-      .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { pending?.cancel(); dismiss() } } }
     }
-    .onChange(of: model.user?.id) { userID in if userID != nil { dismiss() } }
-    .onDisappear { pending?.cancel() }
+    .task {
+      do { user = try await api.currentUser(); signedIn = user != nil } catch { needsRecovery = true; message = error.localizedDescription }
+      if !signedIn { await prepareLogin() }
+    }
+    .alert("账号与登录", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
+      Button("好", role: .cancel) {}
+    } message: { Text(message ?? "") }
+    .confirmationDialog("注销账号将删除已发布皮肤、评分及其他云端账号数据，无法撤销。", isPresented: $confirmDeleteAccount, titleVisibility: .visible) {
+      Button("注销账号", role: .destructive) { run { try await api.logout(deleteAccount: true); signedIn = false; await prepareLogin() } }
+    }
+  }
+  @MainActor private func prepareLogin() async {
+    challenge = nil
+    do { challenge = try await api.challenge() } catch { message = error.localizedDescription }
+  }
+  private func run(_ action: @escaping @MainActor () async throws -> Void) {
+    guard !busy else { return }; busy = true
+    Task { defer { busy = false }; do { try await action() } catch { message = error.localizedDescription } }
   }
 }

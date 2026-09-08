@@ -73,6 +73,7 @@ actor SkinCommunityAPI {
   private var refreshTask: Task<CommunityTokens, Error>?
   private var generation = 0
 
+  func currentUser() throws -> CommunityUser? { try readCredentials()?.user }
   func signedIn() throws -> Bool { try readCredentials() != nil }
   private func transport(_ path: String, method: String, body: Data?, token: String?) async throws -> (Data, Int) {
     guard let url = URL(string: path, relativeTo: base) else { throw CommunityFailure(message: "请求地址无效。") }
