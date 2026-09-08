@@ -351,14 +351,14 @@ final class OnboardingUITests: XCTestCase {
     welcome.name = "Welcome onboarding"
     welcome.lifetime = .keepAlways
     add(welcome)
-    app.buttons["nextOnboardingButton"].tap()
-    XCTAssertTrue(app.buttons["openKeyboardSettingsButton"].exists)
-    app.buttons["nextOnboardingButton"].tap()
+    app.buttons["nextOnboardingButton"].coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+    XCTAssertTrue(app.buttons["openKeyboardSettingsButton"].waitForExistence(timeout: 5))
+    app.buttons["nextOnboardingButton"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
     app.buttons["welcomeScheme_nineKey"].tap()
     XCTAssertEqual(app.buttons["welcomeScheme_nineKey"].value as? String, "已选择")
-    app.buttons["nextOnboardingButton"].tap()
+    app.buttons["nextOnboardingButton"].coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
     XCTAssertTrue(app.buttons["welcomeTryoutLink"].exists)
-    app.buttons["finishOnboardingButton"].tap()
+    app.buttons["finishOnboardingButton"].coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
     XCTAssertTrue(app.tabBars.buttons["键盘"].waitForExistence(timeout: 5))
     app.terminate()
     app.launchArguments = []
@@ -1106,6 +1106,27 @@ final class OnboardingUITests: XCTestCase {
     app.buttons["aboutSettingsLink"].tap()
     XCTAssertTrue(app.staticTexts["aboutAppVersion"].exists)
     XCTAssertTrue(app.navigationBars["关于水杉"].exists)
+  }
+
+  @MainActor
+  func testHandwritingCanBeEnabledSelectedAndDisabled() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-hasCompletedOnboarding", "YES"]
+    app.launch()
+    app.buttons["inputSettingsLink"].tap()
+    let enabled = app.switches["enabledInputScheme_handwriting"]
+    for _ in 0..<8 { if enabled.isHittable { break }; app.swipeUp() }
+    XCTAssertTrue(enabled.isHittable)
+    if enabled.value as? String == "0" { enabled.tap() }
+    let scheme = app.buttons["inputScheme_handwriting"]
+    scheme.tap()
+    XCTAssertEqual(scheme.value as? String, "已选择")
+    app.terminate(); app.launch()
+    XCTAssertTrue(app.staticTexts["手写输入"].waitForExistence(timeout: 5))
+    app.buttons["inputSettingsLink"].tap()
+    for _ in 0..<8 { if enabled.isHittable { break }; app.swipeUp() }
+    enabled.tap()
+    XCTAssertFalse(scheme.isEnabled)
   }
 
   @MainActor
