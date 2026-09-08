@@ -148,6 +148,11 @@ actor BackendAccountSession {
     let value = BackendSavedSession(tokens: tokens, expiresAt: current.expiresAt)
     try storage.save(value); saved = value
   }
+  func credentials() async throws -> (userID: String, token: String) {
+    let token = try await accessToken()
+    guard let saved, saved.tokens.access_token == token else { throw CancellationError() }
+    return (saved.tokens.user.id, token)
+  }
   func forget() throws {
     generation += 1
     refreshing?.cancel(); refreshing = nil
