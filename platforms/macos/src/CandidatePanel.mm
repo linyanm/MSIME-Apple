@@ -71,7 +71,7 @@
         const NSSize size = [title sizeWithAttributes:titleAttributes];
         const CGFloat maxWidth = MAX(0.0, self.bounds.size.width - textLeft - 8.0);
         [title drawInRect:NSMakeRect(textLeft, (self.bounds.size.height - size.height) / 2, maxWidth, size.height)
-           withAttributes:titleAttributes];
+            withAttributes:titleAttributes];
         return;
     }
     NSString *number = [title substringToIndex:split.location];
@@ -290,12 +290,11 @@
     _chrome.needsDisplay = YES;
     if (decorationHeight > 0.0 && _decorationImage != nil)
     {
-        const CGFloat decorationWidth = _skin.decorationWidthDip > 0.0
-                                            ? _skin.decorationWidthDip
-                                            : MIN(size.width, _decorationImage.size.width);
+        const CGFloat decorationWidth =
+            _skin.decorationWidthDip > 0.0 ? _skin.decorationWidthDip : MIN(size.width, _decorationImage.size.width);
         _decorationView.image = _decorationImage;
-        _decorationView.frame = NSMakeRect(size.width - decorationWidth, size.height - decorationHeight,
-                                           decorationWidth, decorationHeight);
+        _decorationView.frame =
+            NSMakeRect(size.width - decorationWidth, size.height - decorationHeight, decorationWidth, decorationHeight);
         [_chrome addSubview:_decorationView];
     }
     CGFloat x = inset;

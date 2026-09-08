@@ -222,7 +222,7 @@ void DrawPreviewCandidates(NSRect rect, const metasequoia::mac::ResolvedSkin &sk
         NSSize footerSize = [footer sizeWithAttributes:footerAttributes];
         [footer drawAtPoint:NSMakePoint(NSMaxX(chrome) - footerSize.width - 12.0,
                                         NSMaxY(chrome) - footerSize.height - 8.0)
-              withAttributes:footerAttributes];
+             withAttributes:footerAttributes];
     }
     [NSGraphicsContext restoreGraphicsState];
 }

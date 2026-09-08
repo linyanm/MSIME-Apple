@@ -316,9 +316,8 @@ NSString *BuiltinDescription(const std::string &id)
         const BOOL selected = [_skinIds[index] isEqualToString:active];
         _switches[index].state = selected ? NSControlStateValueOn : NSControlStateValueOff;
         _themeButtons[index].title = [_previews[index] forcedThemeButtonTitle];
-        _titles[index].stringValue =
-            [NSString stringWithFormat:@"%@（%@）", _skinNames[index],
-                                       [_previews[index] previewUsesDark] ? @"Dark" : @"Light"];
+        _titles[index].stringValue = [NSString
+            stringWithFormat:@"%@（%@）", _skinNames[index], [_previews[index] previewUsesDark] ? @"Dark" : @"Light"];
         _previews[index].needsDisplay = YES;
     }
 }
