@@ -614,8 +614,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
         commit_composition = input_controller.split("- (void)commitComposition:(id)sender", 1)[1].split(
             "- (void)deactivateServer:(id)sender", 1
         )[0]
-        self.assertIn("commitLeadingCandidate", commit_composition)
-        self.assertNotIn("Command::CommitRaw", commit_composition)
+        self.assertIn("Command::CommitRaw", commit_composition)
+        self.assertNotIn("commitLeadingCandidate", commit_composition)
         self.assertIn("在没有活动组词时于下一次按键前生效", readme)
 
         release_installer = (MACOS_ROOT / "scripts/install-release.sh").read_text()
