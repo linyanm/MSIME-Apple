@@ -8,6 +8,15 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   }
 
   private let skinBackdrop = KeyboardSkinBackgroundView()
+  private var keyboardRoot: UIStackView?
+  private var nineGrid: UIStackView?
+  private var nineControls: UIStackView?
+  private var nineSidebarWidth: NSLayoutConstraint?
+  private var fullSymbolsWidth: NSLayoutConstraint?
+  private var bottomLanguageWidth: NSLayoutConstraint?
+  private var bottomLanguageButton: UIButton?
+  private var appliedLayout: KeyboardLayoutPreset?
+
   private var keyboardHeightConstraint: NSLayoutConstraint?
   private let session = MetasequoiaInputSessionBridge()
   private lazy var snapshotWorker: DictionarySnapshotWorker = {
@@ -17,6 +26,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     return worker
   }()
   private var servicePanel: UIViewController?
+  private var replyPanel: UIHostingController<ReplyKeyboardView>?
+  private let replyModel = ReplyKeyboardModel()
   private var personalDictionaryTimer: Timer?
   private var synchronizingPersonalDictionary = false
   private let preeditButton = UIButton()
@@ -135,6 +146,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     usesTraditionalOutput = ChineseOutputPreference.usesTraditional
     _ = applyInputScheme()
     _ = session.setLearningEnabled(DictionaryLearningPreference.enabled)
+    _ = session.setFuzzyPinyinRules(FuzzyPinyinPreference.activeRules)
     view.backgroundColor = MetasequoiaTheme.keyboardBackground
     skinBackdrop.translatesAutoresizingMaskIntoConstraints = false
     view.insertSubview(skinBackdrop, at: 0)
@@ -157,6 +169,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     updateCandidateStrip(preedit: "", candidates: [])
     applyKeyboardSkin()
     synchronizeInputContext()
+    synchronizeReplyKeyboard()
   }
 
   override func viewDidAppear(_ animated: Bool) {
@@ -188,16 +201,20 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     synchronizeInputSchemePreference()
     synchronizeChineseOutputPreference()
     _ = session.setLearningEnabled(DictionaryLearningPreference.enabled)
+    _ = session.setFuzzyPinyinRules(FuzzyPinyinPreference.activeRules)
     applyKeyboardSkin()
+    synchronizeReplyKeyboard()
   }
 
   override func selectionWillChange(_ textInput: UITextInput?) {
     super.selectionWillChange(textInput)
+    replyModel.invalidateContext()
     closeKeyboardService()
   }
 
   override func textWillChange(_ textInput: UITextInput?) {
     super.textWillChange(textInput)
+    replyModel.invalidateContext()
     closeKeyboardService()
     // Our own edit coming back to us: the composition it produced is still the live one.
     if pendingOwnEdits > 0 {
@@ -215,10 +232,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     synchronizeInputContext()
     updateReturnKey()
     updateAutomaticCapitalization()
+    synchronizeReplyKeyboard()
   }
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
+    replyModel.setText("")
     snapshotWorker.stop()
     closeKeyboardService()
     personalDictionaryTimer?.invalidate()
@@ -239,6 +258,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
   private func installKeyboard() {
     let root = UIStackView()
+    keyboardRoot = root
     root.axis = .vertical
     root.spacing = 7
     root.translatesAutoresizingMaskIntoConstraints = false
@@ -303,8 +323,10 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       ])
     }
     nineKeyContainer.addArrangedSubview(sidebar)
-    sidebar.widthAnchor.constraint(equalTo: nineKeyContainer.widthAnchor, multiplier: 0.14).isActive = true
+    nineSidebarWidth = sidebar.widthAnchor.constraint(equalTo: nineKeyContainer.widthAnchor, multiplier: 0.14)
+    nineSidebarWidth?.isActive = true
     let nineKeyGrid = UIStackView()
+    nineGrid = nineKeyGrid
     nineKeyGrid.axis = .vertical
     nineKeyGrid.spacing = 7
     nineKeyGrid.distribution = .fillEqually
@@ -354,6 +376,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       nineKeyRows.append(row)
     }
     let controls = UIStackView()
+    nineControls = controls
     controls.axis = .vertical
     controls.spacing = 7
     controls.distribution = .fillEqually
@@ -514,6 +537,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     ])
     scriptShortcut.addAction(UIAction { [weak self] _ in
       guard let self else { return }
+      if inputScheme == .thoughtfulReply { showKeyboardAI(); return }
+      if KeyboardLayoutPreference.selected == .doubao { showKeyboardVoice(); return }
       usesTraditionalOutput.toggle()
       ChineseOutputPreference.usesTraditional = usesTraditionalOutput
       renderCandidateStrip()
@@ -545,6 +570,17 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       label: usesTraditionalOutput ? "切换到简体" : "切换到繁体", id: "scriptShortcut")
     scriptShortcut.isEnabled = !(isChineseMode && inputScheme == .japanese)
     scriptShortcut.accessibilityValue = scriptShortcut.isEnabled ? (usesTraditionalOutput ? "繁体" : "简体") : "日语不使用简繁转换"
+    if KeyboardLayoutPreference.selected == .doubao {
+      configure(scriptShortcut, title: nil, symbol: "waveform", label: "语音结果", id: "layoutVoiceShortcut")
+      scriptShortcut.isEnabled = true
+      scriptShortcut.accessibilityValue = nil
+    }
+    if inputScheme == .thoughtfulReply {
+      configure(scriptShortcut, title: nil, symbol: "bubble.left.and.text.bubble.right",
+        label: "生成高情商回复", id: "replyShortcut")
+      scriptShortcut.isEnabled = true
+      scriptShortcut.accessibilityValue = nil
+    }
     configure(skinShortcut, title: nil, symbol: "tshirt", label: "切换皮肤", id: "skinShortcut")
     skinShortcut.accessibilityValue = KeyboardSkinPreference.selected.title
     configure(moreShortcut, title: nil, symbol: nil, label: "更多快捷设置", id: "moreShortcut")
@@ -595,7 +631,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       }),
     ])
     if let moreMenu { morePicker?.update(menu: moreMenu) }
-    configure(dismissShortcut, title: nil, symbol: "keyboard.chevron.compact.down", label: "收起键盘", id: "dismissShortcut")
+    configure(dismissShortcut, title: nil, symbol: "chevron.down", label: "收起键盘", id: "dismissShortcut")
   }
 
   private func makeSpellingStrip() -> UIView {
@@ -770,6 +806,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       guard let self else { return }
       handleSymbol(quickPunctuationSymbols[0])
     }
+    punctuation.configuration?.contentInsets = .zero
     punctuation.accessibilityIdentifier = "quickPunctuationKey"
     punctuation.accessibilityHint = "轻点输入，长按选择常用标点"
     quickPunctuationButton = punctuation
@@ -793,6 +830,19 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     space.addGestureRecognizer(pan)
     spaceButton = space
     row.addArrangedSubview(space)
+    let language = makeKey(title: "中/英", accessibilityLabel: "切换中英文") { [weak self] in self?.toggleInputMode() }
+    language.configuration?.contentInsets = .zero
+    language.configuration?.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+      var attributes = attributes
+      attributes.font = .systemFont(ofSize: 13, weight: .medium)
+      return attributes
+    }
+    language.accessibilityIdentifier = "bottomLanguageKey"
+    language.isHidden = true
+    bottomLanguageButton = language
+    bottomLanguageWidth = language.widthAnchor.constraint(equalToConstant: 34)
+    fullSymbolsWidth = nineKeySymbolsButton.widthAnchor.constraint(equalToConstant: 34)
+    row.addArrangedSubview(language)
 
     let enter = makeKey(title: "换行", accessibilityLabel: "换行", emphasized: true) { [weak self] in
       self?.handleReturn()
@@ -1109,12 +1159,16 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     case .ziranma, .microsoft, .shoudao: session.switch(toShuangpinProfile: inputScheme.rawValue)
     case .wubi: session.switchToWubi()
     case .japanese: session.switchToJapanese()
-    case .quanpin, .shuangpin: session.switch(toShuangpin: usesShuangpin)
+    case .quanpin, .shuangpin, .thoughtfulReply: session.switch(toShuangpin: usesShuangpin)
     }
   }
 
   private func selectInputScheme(_ scheme: ChineseInputScheme) {
-    guard InputSchemePreference.enabledSchemes.contains(scheme), scheme != inputScheme else { return }
+    guard InputSchemePreference.enabledSchemes.contains(scheme) else { return }
+    if scheme == inputScheme {
+      if scheme == .thoughtfulReply { synchronizeReplyKeyboard() }
+      return
+    }
     playInputClick()
     let source = typingSource
     inputScheme = scheme
@@ -1124,9 +1178,80 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     updateSchemeButton()
     updateLanguageModeButton()
     render(snapshot, source: source)
+    updateShortcutButtons()
+    synchronizeReplyKeyboard()
+  }
+
+  private func synchronizeReplyKeyboard() {
+    guard inputScheme == .thoughtfulReply, isChineseMode else {
+      replyModel.resetResults()
+      if let panel = replyPanel {
+        panel.willMove(toParent: nil); panel.view.removeFromSuperview(); panel.removeFromParent()
+        replyPanel = nil
+      }
+      return
+    }
+    guard replyPanel == nil else { return }
+    let panel = UIHostingController(rootView: ReplyKeyboardView(model: replyModel,
+      paste: { [weak self] in
+        guard let self else { return }
+        guard hasFullAccess else { replyModel.status = "粘贴与 AI 需要允许完全访问"; return }
+        replyModel.setText(UIPasteboard.general.string ?? "")
+      }, generate: { [weak self] style in self?.generateReply(style: style) },
+      schemes: { [weak self] in self?.showSchemePicker() },
+      skins: { [weak self] in self?.showSkinPicker() },
+      dismiss: { [weak self] in self?.dismissKeyboard() }))
+    replyPanel = panel
+    addChild(panel)
+    panel.view.accessibilityIdentifier = "replyKeyboard"
+    panel.view.accessibilityViewIsModal = true
+    panel.view.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(panel.view)
+    NSLayoutConstraint.activate([
+      panel.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      panel.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      panel.view.topAnchor.constraint(equalTo: view.topAnchor),
+      panel.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+    ])
+    panel.didMove(toParent: self)
+  }
+
+  private func generateReply(style: String) {
+    guard hasFullAccess else { replyModel.status = "请在系统键盘设置中允许完全访问"; return }
+    guard let configuration = KeyboardAIService.configuration() else {
+      replyModel.status = "请在水杉 App → AI 设置中保存键盘 AI 配置"; return
+    }
+    guard !hasComposition, let document = KeyboardHostContext.documentIdentifier(for: textDocumentProxy) else {
+      replyModel.status = "请先完成输入，再选择回复方式"; return
+    }
+    let context = KeyboardDocumentContext(document: document,
+      before: textDocumentProxy.documentContextBeforeInput, selected: textDocumentProxy.selectedText,
+      after: textDocumentProxy.documentContextAfterInput)
+    let matches: () -> Bool = { [weak self] in
+      guard let self, hasFullAccess, inputScheme == .thoughtfulReply,
+            KeyboardAIService.configuration() == configuration else { return false }
+      return context.matches(document: KeyboardHostContext.documentIdentifier(for: textDocumentProxy),
+        before: textDocumentProxy.documentContextBeforeInput, selected: textDocumentProxy.selectedText,
+        after: textDocumentProxy.documentContextAfterInput)
+    }
+    playInputClick()
+    replyModel.generate(style: style, request: { text, prompt in
+      guard matches() else { throw ServiceFailure(message: "输入位置已变化，请重试") }
+      var requestConfiguration = configuration
+      requestConfiguration.prompt = prompt
+      let result = try await CustomServiceClient.request(kind: .ai, configuration: requestConfiguration,
+        text: text, token: KeyboardAIService.token(for: configuration))
+      guard matches() else { throw ServiceFailure(message: "输入位置已变化，请重试") }
+      return result
+    }, insert: { [weak self] result in
+      guard let self, matches() else { return false }
+      insertOwnText(result, source: .reply)
+      return true
+    })
   }
 
   private func showKeyboardAI() {
+    if inputScheme == .thoughtfulReply { synchronizeReplyKeyboard(); return }
     guard hasFullAccess else { showDiagnostic("AI 需要开启键盘的“允许完全访问”。"); return }
     guard let configuration = KeyboardAIService.configuration() else {
       showDiagnostic("请在水杉 App 的 AI 设置中启用键盘 AI 并保存配置。"); return
@@ -1233,6 +1358,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     updateSchemeButton()
     updateLanguageModeButton()
     render(snapshot, source: source)
+    synchronizeReplyKeyboard()
   }
 
   // The output script may change in the host app while the keyboard is loaded, so it is re-read on
@@ -1342,16 +1468,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     updateLetterCaseControls()
 
     var configuration = UIButton.Configuration.plain()
-    switch inputScheme {
-    case .nineKey: configuration.title = "九键"
-    case .shuangpin: configuration.title = "小鹤"
-    case .quanpin: configuration.title = "全拼"
-    case .ziranma: configuration.title = "自然"
-    case .microsoft: configuration.title = "微软"
-    case .shoudao: configuration.title = "SD"
-    case .wubi: configuration.title = "五笔"
-    case .japanese: configuration.title = "日语"
-    }
+    configuration.image = UIImage(systemName: "keyboard")
     configuration.baseForegroundColor = KeyboardSkinPreference.selected.accent
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 3, leading: 4, bottom: 3, trailing: 4)
@@ -1383,7 +1500,48 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     return ["，", "。", "？", "！", "、", "；", "："]
   }
 
+  private func updateLetterRowInsets() {
+    guard letterRowViews.count > 1, let row = letterRowViews[1] as? UIStackView else { return }
+    let inset = KeyboardLayoutPreference.selected.centeredLetters && inputScheme != .microsoft
+      ? max(0, view.bounds.width - 10) * 0.05 : 0
+    let margins = UIEdgeInsets(top: 0, left: inset, bottom: 0, right: inset)
+    if row.layoutMargins != margins {
+      row.isLayoutMarginsRelativeArrangement = true
+      row.layoutMargins = margins
+    }
+  }
+
+  private func applyLayoutPreferences() {
+    guard actionRow != nil else { return }
+    let layout = KeyboardLayoutPreference.selected
+    updateLetterRowInsets()
+    guard appliedLayout != layout else { return }
+    appliedLayout = layout
+    keyboardRoot?.spacing = layout.rowSpacing
+    nineGrid?.spacing = layout.rowSpacing
+    nineControls?.spacing = layout.rowSpacing
+    nineKeyHeight.constant = layout.rowSpacing * 2
+    for row in letterRowViews + symbolRowViews + nineKeyRows {
+      (row as? UIStackView)?.spacing = layout.keySpacing
+    }
+    actionRow.spacing = layout.keySpacing
+    nineKeyContainer.spacing = layout.keySpacing
+    if let old = nineSidebarWidth, let sidebar = old.firstItem as? UIView {
+      old.isActive = false
+      nineSidebarWidth = sidebar.widthAnchor.constraint(equalTo: nineKeyContainer.widthAnchor, multiplier: layout.sidebarRatio)
+      nineSidebarWidth?.isActive = true
+    }
+    nineKeyActionWidths[0].isActive = false
+    nineKeyActionWidths[0] = nineKeySymbolsButton.widthAnchor.constraint(equalTo: nineKeyContainer.widthAnchor, multiplier: layout.sidebarRatio)
+    standardActionWidths[0].constant = layout == .msime ? 48.4 : 40
+    standardActionWidths[1].constant = layout == .msime ? 79.2 : 44
+    standardActionWidths[2].constant = layout == .msime ? 59.4 : 48
+    quickPunctuationWidth?.constant = layout == .msime ? 44 : 28
+    updateShortcutButtons()
+  }
+
   private func updateKeyboardLayout() {
+    applyLayoutPreferences()
     standardRowHeights.forEach { $0.1.isActive = false }
     microsoftFinalKey?.isHidden = !(isChineseMode && inputScheme == .microsoft && !session.isInLocalMode)
     let nineKey = isChineseMode && inputScheme == .nineKey && !session.isInLocalMode
@@ -1411,7 +1569,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         globeWidthConstraint = actionGlobeButton.widthAnchor.constraint(equalToConstant: 44)
         globeWidthConstraint?.isActive = true
       }
-      nineKeySymbolsButton.isHidden = !usesNineKeyLayout
+      let layout = KeyboardLayoutPreference.selected
+      nineKeySymbolsButton.isHidden = !(usesNineKeyLayout || (layout.showsFullKeyboardSymbols && !showsSymbols))
+      fullSymbolsWidth?.isActive = !nineKeySymbolsButton.isHidden && !usesNineKeyLayout
+      bottomLanguageButton?.isHidden = !layout.showsBottomLanguage
+      bottomLanguageWidth?.isActive = layout.showsBottomLanguage
+      bottomLanguageButton?.accessibilityValue = languageModeButton.accessibilityValue
       quickPunctuationButton.isHidden = usesNineKeyLayout || showsSymbols
       quickPunctuationWidth?.isActive = !quickPunctuationButton.isHidden
       let punctuation = quickPunctuationSymbols
@@ -1564,6 +1727,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     if localModeTrigger == "R" { return .japanese }
     if localModeTrigger != nil { return .local }
     if !isChineseMode { return .english }
+    if inputScheme == .thoughtfulReply { return .quanpin }
     return TypingSource(rawValue: inputScheme.rawValue) ?? .unknown
   }
 
@@ -1590,7 +1754,10 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       insertOwnText(source == .japanese ? commitText : chineseOutput(commitText), source: source)
     }
     hasComposition = !snapshot.preedit.isEmpty
-    if !hasComposition { _ = session.setLearningEnabled(DictionaryLearningPreference.enabled) }
+    if !hasComposition {
+      _ = session.setLearningEnabled(DictionaryLearningPreference.enabled)
+      _ = session.setFuzzyPinyinRules(FuzzyPinyinPreference.activeRules)
+    }
     showDiagnostic(snapshot.diagnosticText)
     updateCandidateStrip(preedit: snapshot.preedit, candidates: snapshot.candidates)
     updateSpellingStrip()
@@ -1770,6 +1937,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    updateLetterRowInsets()
     if let globe = actionGlobeButton, globe.isHidden != !needsInputModeSwitchKey {
       updateKeyboardLayout()
     }
@@ -1897,6 +2065,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   }
 
   private func applyKeyboardSkin() {
+    replyModel.objectWillChange.send()
     let skin = KeyboardSkinPreference.selected
     view.backgroundColor = skin.background
     skinBackdrop.skin = skin

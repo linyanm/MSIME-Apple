@@ -37,6 +37,8 @@ void TestRuntimeGenerationUpgrade(const std::filesystem::path &root)
     sqlite3 *database = nullptr;
     Require(sqlite3_open((resources / "msime.db").c_str(), &database) == SQLITE_OK, "Cannot create upgrade fixture.");
     Require(sqlite3_exec(database,
+                         "CREATE TABLE tbl_1_f(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_1_f VALUES('fu','f','福',100);"
                          "CREATE TABLE tbl_2_b(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
                          "INSERT INTO tbl_2_b VALUES('bu''hao','bh','不好',200);"
                          "INSERT INTO tbl_2_b VALUES('bu''hao','bh','补好',100);",
@@ -148,6 +150,23 @@ void TestRuntimeGenerationUpgrade(const std::filesystem::path &root)
             snapshot = adapter.handle_character(c);
         Require(snapshot.candidates.size() >= 2 && snapshot.candidates.at(1) == "补好",
                 "Empty snapshot activation retained an old tombstone.");
+        adapter.cancel();
+        adapter.switch_to_shuangpin(false);
+        Require(adapter.set_fuzzy_pinyin_rules(static_cast<std::uint32_t>(metasequoia::FuzzyPinyinRule::F_H)),
+                "Cannot enable fuzzy generation fixture.");
+        const auto typeFuzzy = [&] {
+            InputSnapshot fuzzySnapshot;
+            for (char c : std::string("hu"))
+                fuzzySnapshot = adapter.handle_character(c);
+            return fuzzySnapshot;
+        };
+        const auto fuzzyBefore = typeFuzzy();
+        Require(!fuzzyBefore.candidates.empty() && fuzzyBefore.candidates.at(0) == "福",
+                "Fuzzy generation fixture did not match.");
+        adapter.cancel();
+        Require(adapter.activate_dictionary_generation(restored, [] {}), "Cannot reactivate fuzzy generation.");
+        Require(typeFuzzy().candidates == fuzzyBefore.candidates, "Generation activation lost fuzzy pinyin rules.");
+        adapter.cancel();
     }
     // A replay failure must leave prepared generations usable and never publish a ready marker.
     const auto journal = user / "msime_user.db";

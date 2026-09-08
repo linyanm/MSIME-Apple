@@ -105,8 +105,8 @@ struct BackendAccountClient: Sendable {
   // Used by the explicit user-data screens as well as account operations. No redirects,
   // cookies, cached private data, arbitrary origins, or server error text are exposed.
   func request(_ method: String, _ path: String, token: String? = nil,
-               body: Data? = nil) async throws -> Data {
-    let request = try makeRequest(method, path, token: token, body: body)
+               body: Data? = nil, timeout: TimeInterval = 30) async throws -> Data {
+    let request = try makeRequest(method, path, token: token, body: body, timeout: timeout)
     let (bytes, response) = try await session.bytes(for: request)
     guard let response = response as? HTTPURLResponse else { throw Failure(status: 0) }
     guard (200..<300).contains(response.statusCode) else { throw Failure(status: response.statusCode) }
@@ -119,7 +119,7 @@ struct BackendAccountClient: Sendable {
     try Task.checkCancellation()
     return data
   }
-  private func makeRequest(_ method: String, _ path: String, token: String?, body: Data?) throws -> URLRequest {
+  private func makeRequest(_ method: String, _ path: String, token: String?, body: Data?, timeout: TimeInterval = 30) throws -> URLRequest {
     guard path.hasPrefix("/v1/"), !path.contains("\\"),
           let url = URL(string: path, relativeTo: origin)?.absoluteURL,
           url.scheme == "https", url.host == origin.host, url.port == nil,
@@ -129,7 +129,7 @@ struct BackendAccountClient: Sendable {
     else { throw Failure(status: 0) }
     var request = URLRequest(url: url)
     request.httpMethod = method
-    request.timeoutInterval = 30
+    request.timeoutInterval = timeout
     request.httpBody = body
     request.setValue("MSIME/Apple", forHTTPHeaderField: "User-Agent")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -209,8 +209,8 @@ struct BackendAccountClient: Sendable {
   }
 
   func json<T: Decodable>(_ method: String, _ path: String, token: String? = nil,
-                                  body: Data? = nil) async throws -> T {
-    let data = try await request(method, path, token: token, body: body)
+                                  body: Data? = nil, timeout: TimeInterval = 30) async throws -> T {
+    let data = try await request(method, path, token: token, body: body, timeout: timeout)
     do { return try JSONDecoder().decode(T.self, from: data) }
     catch { throw Failure(status: 0) }
   }

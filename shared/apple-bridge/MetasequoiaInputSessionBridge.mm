@@ -415,6 +415,11 @@ metasequoia::apple::DictionaryInstallation ConfigureDataDirectory(bool refresh =
     return [self snapshotFrom:_adapter->select_candidate(static_cast<std::size_t>(index))];
 }
 
+- (BOOL)setFuzzyPinyinRules:(uint32_t)rules
+{
+    return _adapter->set_fuzzy_pinyin_rules(rules);
+}
+
 - (BOOL)setLearningEnabled:(BOOL)enabled
 {
     _requestedLearning = enabled;

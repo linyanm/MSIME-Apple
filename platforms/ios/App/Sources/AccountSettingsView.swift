@@ -13,7 +13,7 @@ struct AccountSettingsView: View {
       Section("我的创作") {
         NavigationLink(destination: CustomSkinEditorView()) {
           HStack(spacing: 12) {
-            accountIcon("paintbrush.pointed.fill", color: .purple)
+            accountIcon("paintbrush.pointed.fill", color: MetasequoiaTheme.accent)
             VStack(alignment: .leading, spacing: 4) {
               Text("我的设计").foregroundStyle(.primary)
               Text("保存在本机的 \(designs.count) 款皮肤").font(.caption).foregroundStyle(.secondary)
@@ -23,7 +23,7 @@ struct AccountSettingsView: View {
         if signedIn {
           NavigationLink(destination: SkinCommunityView(onlyMine: true)) {
             HStack(spacing: 12) {
-              accountIcon("square.stack.3d.up.fill", color: .orange)
+              accountIcon("square.stack.3d.up.fill", color: MetasequoiaTheme.accent)
               VStack(alignment: .leading, spacing: 4) {
                 Text("已发布作品").foregroundStyle(.primary)
                 Text("查看下载、评分和管理作品").font(.caption).foregroundStyle(.secondary)
@@ -33,6 +33,13 @@ struct AccountSettingsView: View {
           Button { showPublish = true } label: {
             Label("发布新作品", systemImage: "square.and.arrow.up")
           }
+        }
+      }
+
+      Section("社区收藏与发布") {
+        ForEach(CommunityResourceKind.allCases) { kind in
+          NavigationLink(destination: CommunityResourcesView(kind: kind, initialScope: "saved")) { Label("收藏的\(kind.title)", systemImage: "bookmark") }
+          NavigationLink(destination: CommunityResourcesView(kind: kind, initialScope: "mine")) { Label("我发布的\(kind.title)", systemImage: kind.icon) }
         }
       }
 
@@ -50,25 +57,19 @@ struct AccountSettingsView: View {
         }
       }
 
-      Section("发现与记录") {
-        NavigationLink(destination: SkinCommunityView()) {
-          HStack(spacing: 12) {
-            accountIcon("person.3.fill", color: MetasequoiaTheme.forest)
-            VStack(alignment: .leading, spacing: 4) {
-              Text("皮肤社区").foregroundStyle(.primary)
-              Text("发现设计，下载使用，为喜欢的作品评分").font(.caption).foregroundStyle(.secondary)
-            }
-          }.padding(.vertical, 4)
+        Section("了解水杉") {
+          NavigationLink(destination: DesktopDownloadView()) {
+            Label("电脑版下载", systemImage: "desktopcomputer")
+          }.accessibilityIdentifier("desktopDownloadLink")
+          NavigationLink(destination: AboutView()) {
+            Label("关于水杉", systemImage: "info.circle")
+          }.accessibilityIdentifier("aboutSettingsLink")
         }
-        NavigationLink(destination: TypingStatisticsView()) {
-          HStack(spacing: 12) {
-            accountIcon("chart.bar.xaxis", color: .blue)
-            VStack(alignment: .leading, spacing: 4) {
-              Text("我的打字统计").foregroundStyle(.primary)
-              Text("查看输入趋势和语言分布").font(.caption).foregroundStyle(.secondary)
-            }
-          }.padding(.vertical, 4)
-        }
+
+      Section {
+        NavigationLink(destination: WelcomeFlowView()) {
+          Label("重新查看新手引导", systemImage: "sparkles.rectangle.stack")
+        }.accessibilityIdentifier("replayOnboardingLink")
       }
       Section {
         Label("本地数据与云端作品", systemImage: "lock.shield")

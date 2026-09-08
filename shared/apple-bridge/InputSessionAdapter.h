@@ -2,6 +2,7 @@
 
 #include <metasequoia/personal_dictionary.h>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -66,6 +67,7 @@ class InputSessionAdapter
     // Returns false during composition; the platform retries after its current snapshot is idle.
     bool set_learning_enabled(bool enabled);
     bool learning_enabled() const;
+    bool set_fuzzy_pinyin_rules(std::uint32_t rules);
     RuntimePaths runtime_paths() const;
     bool idle() const;
     PersonalDictionaryEditResult edit_personal_word(const std::optional<PersonalDictionaryEntry> &previous,
@@ -92,5 +94,6 @@ class InputSessionAdapter
     class Impl;
     std::unique_ptr<Impl> impl_;
     bool learning_enabled_ = false;
+    std::uint32_t fuzzy_pinyin_rules_ = 0;
 };
 } // namespace metasequoia::apple

@@ -1,34 +1,16 @@
 import SwiftUI
 import UIKit
 
-struct SettingsView: View {
+struct KeyboardSettingsView: View {
   var body: some View {
-    NavigationView {
-      Form {
-        Section {
-          HStack(spacing: 14) {
-            Image(systemName: "leaf.fill")
-              .font(.system(size: 28))
-              .foregroundStyle(MetasequoiaTheme.forest)
-              .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
-              Text("水杉输入法").font(.headline)
-              Text("让输入更自然").font(.subheadline).foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 8)
-          }
-        }
-
-        Section {
-          NavigationLink(destination: AccountSettingsView()) {
-            Label("我的 · 账号与作品", systemImage: "person.crop.circle")
-          }.accessibilityIdentifier("accountSettingsLink")
-        }
-
+    Form {
         Section("键盘与服务") {
           NavigationLink(destination: InputSettingsView()) {
             Label("输入设置", systemImage: "slider.horizontal.3")
           }.accessibilityIdentifier("inputSettingsLink")
+          NavigationLink(destination: KeyboardLayoutSettingsView()) {
+            Label("键盘布局", systemImage: "rectangle.3.group")
+          }.accessibilityIdentifier("keyboardLayoutLink")
           NavigationLink(destination: SkinSettingsView()) {
             Label("皮肤", systemImage: "paintpalette")
           }.accessibilityIdentifier("skinSettingsLink")
@@ -43,18 +25,7 @@ struct SettingsView: View {
           }.accessibilityIdentifier("voiceSettingsLink")
         }
 
-        Section("使用键盘") {
-          NavigationLink(destination: TypingStatisticsView()) {
-            Label("打字统计", systemImage: "chart.bar.xaxis")
-          }.accessibilityIdentifier("typingStatisticsLink")
-          NavigationLink(destination: KeyboardTryoutView()) {
-            Label("试用键盘", systemImage: "keyboard")
-          }
-          .accessibilityIdentifier("keyboardTryoutLink")
-          NavigationLink(destination: OnboardingView()) {
-            Label("启用指南", systemImage: "list.number")
-          }
-          .accessibilityIdentifier("keyboardGuideLink")
+        Section("系统") {
           Button {
             guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
             UIApplication.shared.open(url)
@@ -63,22 +34,8 @@ struct SettingsView: View {
           }
           .accessibilityIdentifier("openKeyboardSettingsButton")
         }
-
-        Section("了解水杉") {
-          NavigationLink(destination: DesktopDownloadView()) {
-            Label("电脑版下载", systemImage: "desktopcomputer")
-          }.accessibilityIdentifier("desktopDownloadLink")
-          NavigationLink(destination: AboutView()) {
-            Label("关于水杉", systemImage: "info.circle")
-          }.accessibilityIdentifier("aboutSettingsLink")
-        }
-      }
-      .navigationTitle("设置")
-    }
-    .navigationViewStyle(.stack)
-    .tint(MetasequoiaTheme.forest)
+    }.navigationTitle("键盘设置").navigationBarTitleDisplayMode(.inline)
   }
-
 }
 
 struct InputSettingsView: View {
@@ -134,6 +91,14 @@ struct InputSettingsView: View {
           Text("输入方案")
         } footer: {
           Text("开启的方案会显示在键盘快捷切换中，至少保留一种。点击名称设为当前方案。左右滑动空格可移动光标；滑动前会先完成当前输入。")
+        }
+
+        Section("高情商回复") {
+          Text("复制对方的话，切换到高情商回复键盘，点“粘贴”后选择九宫格里的回复风格。支持帮你回、帮润色和换一句，点选回复插入聊天输入框。")
+            .font(.footnote).foregroundStyle(.secondary)
+          NavigationLink(destination: ServiceSettingsView(kind: .ai)) {
+            Label("配置键盘 AI", systemImage: "sparkles")
+          }
         }
 
         Section {
@@ -207,33 +172,6 @@ struct InputSettingsView: View {
   }
 }
 
-struct KeyboardTryoutView: View {
-  @State private var sampleText = ""
-  @FocusState private var tryoutFocused: Bool
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 18) {
-      Text("长按键盘上的地球键，切换到水杉输入法。")
-        .foregroundStyle(.secondary)
-      TextField("在这里试试水杉键盘", text: $sampleText)
-        .focused($tryoutFocused)
-        .padding(16)
-        .background(.background, in: RoundedRectangle(cornerRadius: 14))
-        .accessibilityIdentifier("keyboardTryoutField")
-      if tryoutFocused {
-        Button("收起键盘") { tryoutFocused = false }
-          .accessibilityIdentifier("dismissKeyboardButton")
-      }
-      Spacer()
-    }
-    .padding(22)
-    .background(MetasequoiaTheme.mist.ignoresSafeArea())
-    .navigationTitle("试用键盘")
-    .navigationBarTitleDisplayMode(.inline)
-    .onDisappear { tryoutFocused = false }
-  }
-}
-
 struct OnboardingView: View {
   var onFinish: (() -> Void)? = nil
 
@@ -287,7 +225,7 @@ struct OnboardingView: View {
       .padding(.horizontal, 22)
       .padding(.vertical, 30)
     }
-    .background(MetasequoiaTheme.mist.ignoresSafeArea())
+    .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
     .tint(MetasequoiaTheme.forest)
     .navigationTitle("启用指南")
     .navigationBarTitleDisplayMode(.inline)
@@ -308,7 +246,7 @@ struct OnboardingView: View {
       VStack(alignment: .leading, spacing: 5) {
         Text("水杉输入法")
           .font(.system(.largeTitle, design: .rounded).weight(.bold))
-          .foregroundStyle(MetasequoiaTheme.ink)
+          .foregroundStyle(.primary)
         Text("添加键盘，开始使用水杉输入法")
           .font(.subheadline.weight(.medium))
           .foregroundStyle(MetasequoiaTheme.needle)
@@ -335,7 +273,7 @@ struct OnboardingView: View {
       VStack(alignment: .leading, spacing: 5) {
         Text(title)
           .font(.headline)
-          .foregroundStyle(MetasequoiaTheme.ink)
+          .foregroundStyle(.primary)
         Text(detail)
           .font(.subheadline)
           .foregroundStyle(.secondary)
