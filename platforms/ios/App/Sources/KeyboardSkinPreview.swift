@@ -42,7 +42,11 @@ struct KeyboardSkinPreview: View {
         VStack(spacing: 7) {
           row(Array("qwertyuiop").map(String.init))
           row(Array("asdfghjkl").map(String.init))
-          row(Array("zxcvbnm").map(String.init))
+          HStack(spacing: 5) {
+            key("⇧").frame(width: 38)
+            row(Array("zxcvbnm").map(String.init))
+            key("⌫").frame(width: 38)
+          }
         }.frame(height: 137)
       }
       HStack(spacing: 6) {
@@ -50,7 +54,7 @@ struct KeyboardSkinPreview: View {
         key("123").frame(width: 38)
         Image(systemName: "globe").frame(width: 34, height: 40)
           .background(keySurface())
-        if !nineKey { key("⌫").frame(width: 38) }
+        if !nineKey { key("，").frame(width: 38) }
         key("空格")
         key("换行", emphasized: true).frame(width: 52)
       }.frame(height: 40)

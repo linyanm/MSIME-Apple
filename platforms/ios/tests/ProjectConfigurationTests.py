@@ -605,7 +605,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
         self.assertIn(
-            "space.widthAnchor.constraint(greaterThanOrEqualTo: delete.widthAnchor, multiplier: 1.8)",
+            "space.widthAnchor.constraint(greaterThanOrEqualToConstant: 79.2)",
             controller,
         )
         self.assertIn(
@@ -613,9 +613,13 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
             controller,
         )
         self.assertIn(
-            "enter.widthAnchor.constraint(equalTo: delete.widthAnchor, multiplier: 1.35)",
+            "enter.widthAnchor.constraint(equalToConstant: 59.4)",
             controller,
         )
+        # Alphabetic Delete lives in the letter row; hiding symbol Delete must not
+        # collapse Space/Return or leave a required width on a hidden stack item.
+        self.assertIn("symbolDeleteWidth?.isActive = showsSymbols", controller)
+        self.assertNotIn("equalTo: delete.widthAnchor", controller)
         self.assertNotIn("layoutToggle.widthAnchor.constraint(equalToConstant: 56)", controller)
         self.assertNotIn("space.widthAnchor.constraint(greaterThanOrEqualToConstant: 110)", controller)
         self.assertNotIn("enter.widthAnchor.constraint(equalToConstant: 72)", controller)

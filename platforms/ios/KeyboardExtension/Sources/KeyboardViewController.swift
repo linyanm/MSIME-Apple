@@ -17,7 +17,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private let exitLocalModeButton = UIButton()
   private var localModeTrigger: String?
   private var standardRowHeights: [(UIView, NSLayoutConstraint)] = []
-  private let candidateScrollView = UIScrollView()
+  private let candidateScrollView = CandidateScrollView()
   private let diagnosticLabel = UILabel()
   private let previousPageButton = UIButton()
   private let nextPageButton = UIButton()
@@ -29,6 +29,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var candidateContent: UIStackView?
   private let scriptShortcut = UIButton()
   private let skinShortcut = UIButton()
+  private var clipboardPanel: KeyboardClipboardView?
   private var skinPicker: KeyboardSkinPickerView?
   private let moreShortcut = UIButton()
   private let dismissShortcut = UIButton()
@@ -57,6 +58,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var nineKeyHeight: NSLayoutConstraint!
   private var nineKeySymbolsButton: UIButton!
   private let punctuationStack = UIStackView()
+  private var quickPunctuationButton: UIButton!
+  private var quickPunctuationWidth: NSLayoutConstraint?
+  private var symbolDeleteWidth: NSLayoutConstraint?
   private var standardActionWidths: [NSLayoutConstraint] = []
   private var nineKeyActionWidths: [NSLayoutConstraint] = []
   private let nineKeyContainer = UIStackView()
@@ -454,13 +458,13 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private func installShortcutBar(in container: UIView) {
     shortcutBar.axis = .horizontal
     shortcutBar.distribution = .fill
-    shortcutBar.spacing = 1
+    shortcutBar.spacing = 0
     shortcutBar.accessibilityIdentifier = "keyboardShortcutBar"
     shortcutBar.translatesAutoresizingMaskIntoConstraints = false
     let brand = UIView()
     let icon = UIImageView()
     if let path = Bundle(for: KeyboardViewController.self).path(forResource: "KeyboardBrand", ofType: "png") {
-      icon.image = UIImage(contentsOfFile: path)?.preparingThumbnail(of: CGSize(width: 66, height: 66))
+      icon.image = UIImage(contentsOfFile: path)?.preparingThumbnail(of: CGSize(width: 72, height: 72))
     }
     icon.accessibilityIdentifier = "keyboardBrandIcon"
     icon.contentMode = .scaleAspectFit
@@ -470,22 +474,22 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     brand.addSubview(icon)
     shortcutBar.addArrangedSubview(brand)
     NSLayoutConstraint.activate([
-      brand.widthAnchor.constraint(equalToConstant: 22),
-      icon.widthAnchor.constraint(equalToConstant: 22),
-      icon.heightAnchor.constraint(equalToConstant: 22),
+      brand.widthAnchor.constraint(equalToConstant: 36),
+      icon.widthAnchor.constraint(equalToConstant: 24),
+      icon.heightAnchor.constraint(equalToConstant: 24),
       icon.centerXAnchor.constraint(equalTo: brand.centerXAnchor),
       icon.centerYAnchor.constraint(equalTo: brand.centerYAnchor),
     ])
     for button in [languageModeButton, schemeButton, scriptShortcut, skinShortcut, moreShortcut, dismissShortcut] {
       shortcutBar.addArrangedSubview(button)
       if button !== languageModeButton {
-        button.widthAnchor.constraint(equalTo: languageModeButton.widthAnchor).isActive = true
+        button.widthAnchor.constraint(equalTo: languageModeButton.widthAnchor, constant: button === schemeButton ? 6 : 0).isActive = true
       }
     }
     container.addSubview(shortcutBar)
     NSLayoutConstraint.activate([
-      shortcutBar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 4),
-      shortcutBar.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -4),
+      shortcutBar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 2),
+      shortcutBar.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -2),
       shortcutBar.topAnchor.constraint(equalTo: container.topAnchor),
       shortcutBar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
@@ -526,6 +530,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     skinShortcut.accessibilityValue = KeyboardSkinPreference.selected.title
     configure(moreShortcut, title: nil, symbol: "ellipsis.circle", label: "更多快捷设置", id: "moreShortcut")
     moreShortcut.menu = UIMenu(children: [
+      UIAction(title: "剪贴板历史", image: UIImage(systemName: "doc.on.clipboard")) { [weak self] _ in
+        self?.showClipboardHistory()
+      },
       UIAction(title: "AI 润色", image: UIImage(systemName: "sparkles")) { [weak self] _ in
         self?.showKeyboardAI()
       },
@@ -630,6 +637,19 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       letterButtons.append((button: button, lowercase: text, hint: attachHintLabel(to: button)))
       row.addArrangedSubview(button)
     }
+    if includesShift {
+      let delete = makeDeleteKey()
+      delete.accessibilityIdentifier = "letterDeleteKey"
+      row.addArrangedSubview(delete)
+      row.distribution = .fill
+      // Keep Shift and Delete easy to hit; distribute the seven letters evenly between them.
+      let shift = row.arrangedSubviews[0]
+      let keys = Array(row.arrangedSubviews.dropFirst().dropLast())
+      NSLayoutConstraint.activate([
+        shift.widthAnchor.constraint(equalToConstant: 44),
+        delete.widthAnchor.constraint(equalTo: shift.widthAnchor),
+      ] + keys.dropFirst().map { $0.widthAnchor.constraint(equalTo: keys[0].widthAnchor) })
+    }
     if letters == letterRows[1] {
       let key = makeKey(title: ";", accessibilityLabel: "微软双拼 ing") { [weak self] in self?.handleCharacter(";") }
       key.accessibilityIdentifier = "microsoftFinalKey"
@@ -719,8 +739,19 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     row.addArrangedSubview(globe)
 
     let delete = makeDeleteKey()
+    delete.accessibilityIdentifier = "symbolDeleteKey"
     actionDeleteButton = delete
     row.addArrangedSubview(delete)
+
+    let punctuation = makeKey(title: ",", accessibilityLabel: "常用标点") { [weak self] in
+      guard let self else { return }
+      handleSymbol(quickPunctuationSymbols[0])
+    }
+    punctuation.accessibilityIdentifier = "quickPunctuationKey"
+    punctuation.accessibilityHint = "轻点输入，长按选择常用标点"
+    quickPunctuationButton = punctuation
+    quickPunctuationWidth = punctuation.widthAnchor.constraint(equalToConstant: 44)
+    row.addArrangedSubview(punctuation)
 
     let space = makeKey(title: "空格", accessibilityLabel: "空格") { [weak self] in
       self?.handleSpace()
@@ -750,11 +781,11 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     row.addArrangedSubview(enter)
 
     standardActionWidths = [
-      layoutToggle.widthAnchor.constraint(equalTo: delete.widthAnchor, multiplier: 1.1),
-      space.widthAnchor.constraint(greaterThanOrEqualTo: delete.widthAnchor, multiplier: 1.8),
-      enter.widthAnchor.constraint(equalTo: delete.widthAnchor, multiplier: 1.35),
-      delete.widthAnchor.constraint(equalToConstant: 44),
+      layoutToggle.widthAnchor.constraint(equalToConstant: 48.4),
+      space.widthAnchor.constraint(greaterThanOrEqualToConstant: 79.2),
+      enter.widthAnchor.constraint(equalToConstant: 59.4),
     ]
+    symbolDeleteWidth = delete.widthAnchor.constraint(equalToConstant: 44)
     nineKeyActionWidths = [
       nineKeySymbolsButton.widthAnchor.constraint(equalTo: nineKeyContainer.widthAnchor, multiplier: 0.14),
       layoutToggle.widthAnchor.constraint(equalTo: nineKeySymbolsButton.widthAnchor),
@@ -1212,6 +1243,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
     playInputClick()
     candidatePageStart = target
+    candidateScrollView.setContentOffset(.zero, animated: false)
     renderCandidateStrip()
   }
 
@@ -1303,6 +1335,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     configuration.background.strokeColor = KeyboardSkinPreference.selected.accent.withAlphaComponent(0.35)
     configuration.background.strokeWidth = 1
     configuration.background.cornerRadius = 8
+    configuration.background.backgroundInsets = NSDirectionalEdgeInsets(top: 3, leading: 2, bottom: 3, trailing: 2)
+    configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+      var attributes = attributes
+      attributes.font = .systemFont(ofSize: 16, weight: .medium)
+      return attributes
+    }
     schemeButton.configuration = configuration
     schemeButton.accessibilityIdentifier = "schemeButton"
     schemeButton.accessibilityLabel = "选择输入方案"
@@ -1321,6 +1359,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     updateKeyboardLayout()
   }
 
+  private var quickPunctuationSymbols: [String] {
+    guard isChineseMode, !session.isInLocalMode else { return [",", ".", "?", "!", ":", ";", "@"] }
+    if inputScheme == .japanese { return ["、", "。", "？", "！", "「", "」", "・"] }
+    return ["，", "。", "？", "！", "、", "；", "："]
+  }
+
   private func updateKeyboardLayout() {
     standardRowHeights.forEach { $0.1.isActive = false }
     microsoftFinalKey?.isHidden = !(isChineseMode && inputScheme == .microsoft && !session.isInLocalMode)
@@ -1334,13 +1378,15 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     if actionRow != nil {
       let usesNineKeyLayout = nineKey && !showsSymbols
       nineKeyHeight.isActive = usesNineKeyLayout
-      let globeIndex = usesNineKeyLayout ? 4 : 2
+      let globeIndex = usesNineKeyLayout ? 5 : 2
       if actionRow.arrangedSubviews.firstIndex(of: actionGlobeButton) != globeIndex {
         actionRow.removeArrangedSubview(actionGlobeButton)
         actionGlobeButton.removeFromSuperview()
         actionRow.insertArrangedSubview(actionGlobeButton, at: globeIndex)
       }
       NSLayoutConstraint.deactivate(standardActionWidths + nineKeyActionWidths)
+      symbolDeleteWidth?.isActive = false
+      quickPunctuationWidth?.isActive = false
       globeWidthConstraint?.isActive = false
       actionGlobeButton.isHidden = !needsInputModeSwitchKey
       if needsInputModeSwitchKey {
@@ -1348,7 +1394,16 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         globeWidthConstraint?.isActive = true
       }
       nineKeySymbolsButton.isHidden = !usesNineKeyLayout
-      actionDeleteButton.isHidden = usesNineKeyLayout
+      quickPunctuationButton.isHidden = usesNineKeyLayout || showsSymbols
+      quickPunctuationWidth?.isActive = !quickPunctuationButton.isHidden
+      let punctuation = quickPunctuationSymbols
+      quickPunctuationButton.configuration?.title = punctuation[0]
+      quickPunctuationButton.accessibilityValue = punctuation[0]
+      quickPunctuationButton.menu = UIMenu(children: punctuation.map { symbol in
+        UIAction(title: symbol) { [weak self] _ in self?.handleSymbol(symbol) }
+      })
+      actionDeleteButton.isHidden = !showsSymbols
+      symbolDeleteWidth?.isActive = showsSymbols
       NSLayoutConstraint.activate(usesNineKeyLayout ? nineKeyActionWidths : standardActionWidths)
     }
     symbolRowViews.forEach { $0.isHidden = !showsSymbols }
@@ -1550,6 +1605,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     // Any new candidate list is a different composition or a different set of matches, so the page
     // it was showing no longer describes anything.
     candidatePageStart = 0
+    // A horizontal offset belongs to the previous matches, just like the page index.
+    // Cancel deceleration as well so it cannot hide the new leading candidate.
+    candidateScrollView.setContentOffset(.zero, animated: false)
     renderCandidateStrip()
   }
 
@@ -1712,6 +1770,28 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     updateShadows(view)
   }
 
+  private func showClipboardHistory() {
+    closeKeyboardService()
+    closeSkinPicker()
+    let panel = KeyboardClipboardView(hasFullAccess: hasFullAccess, onInsert: { [weak self] text in
+      guard let self else { return }
+      render(session.finishComposition())
+      insertOwnText(text)
+      closeSkinPicker()
+    }, onClose: { [weak self] in self?.closeSkinPicker() })
+    panel.accessibilityViewIsModal = true
+    panel.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(panel)
+    NSLayoutConstraint.activate([
+      panel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      panel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      panel.topAnchor.constraint(equalTo: view.topAnchor),
+      panel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+    clipboardPanel = panel
+    UIAccessibility.post(notification: .screenChanged, argument: panel)
+  }
+
   private func showSkinPicker() {
     guard skinPicker == nil else { return }
     let picker = KeyboardSkinPickerView(selected: KeyboardSkinPreference.selected, onSelect: { [weak self] skin in
@@ -1735,6 +1815,11 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   }
 
   private func closeSkinPicker() {
+    if let panel = clipboardPanel {
+      panel.removeFromSuperview()
+      clipboardPanel = nil
+      UIAccessibility.post(notification: .screenChanged, argument: moreShortcut)
+    }
     guard let picker = skinPicker else { return }
     picker.removeFromSuperview()
     skinPicker = nil

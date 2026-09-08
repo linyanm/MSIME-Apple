@@ -16,6 +16,41 @@ final class KeyboardSkinPickerView: UIView {
     let rows = UIStackView()
     rows.axis = .vertical
     rows.spacing = 10
+    let saved = CustomSkinLibrary.designs
+    if !saved.isEmpty {
+      let label = UILabel()
+      label.text = "我的设计"
+      label.font = .systemFont(ofSize: 13, weight: .semibold)
+      label.textColor = .secondaryLabel
+      rows.addArrangedSubview(label)
+      for index in stride(from: 0, to: saved.count, by: 2) {
+        let row = UIStackView()
+        row.spacing = 10; row.distribution = .fillEqually
+        for item in saved[index..<min(index + 2, saved.count)] {
+          let card = KeyboardKeyButton()
+          var config = UIButton.Configuration.filled()
+          config.title = item.name
+          config.subtitle = "A  S  D    ↵"
+          config.titleLineBreakMode = .byTruncatingTail
+          config.baseForegroundColor = CustomKeyboardSkin.color(item.design.keyForeground)
+          config.baseBackgroundColor = CustomKeyboardSkin.color(item.design.keyBackground)
+          config.background.cornerRadius = item.design.cornerRadius
+          config.background.strokeWidth = max(1, item.design.borderWidth)
+          config.background.strokeColor = CustomKeyboardSkin.color(item.design.customBorderColor ?? item.design.accent)
+          card.configuration = config
+          card.heightAnchor.constraint(equalToConstant: 72).isActive = true
+          card.accessibilityIdentifier = "savedSkinCard-" + item.id.uuidString
+          card.accessibilityLabel = item.name
+          let active = selected == .custom && item.design == CustomKeyboardSkinStore.current
+          card.accessibilityValue = active ? "已选中" : ""
+          if active { card.accessibilityTraits.insert(.selected) }
+          card.addAction(UIAction { _ in CustomKeyboardSkinStore.save(item.design); onSelect(.custom) }, for: .primaryActionTriggered)
+          row.addArrangedSubview(card)
+        }
+        if row.arrangedSubviews.count == 1 { row.addArrangedSubview(UIView()) }
+        rows.addArrangedSubview(row)
+      }
+    }
     for index in stride(from: 0, to: KeyboardSkin.allCases.count, by: 2) {
       let row = UIStackView()
       row.spacing = 10

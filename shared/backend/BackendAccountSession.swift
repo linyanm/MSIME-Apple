@@ -29,10 +29,34 @@ struct BackendKeychain: BackendSessionStorage {
     query[kSecMatchLimit as String] = kSecMatchLimitOne
     var result: CFTypeRef?
     let status = SecItemCopyMatching(query as CFDictionary, &result)
-    if status == errSecItemNotFound { return nil }
+    if status == errSecItemNotFound { return try migrateCommunitySession() }
     guard status == errSecSuccess, let data = result as? Data else { throw BackendAccountClient.Failure(status: 0) }
     do { return try JSONDecoder().decode(BackendSavedSession.self, from: data) }
     catch { throw BackendAccountClient.Failure(status: 0) }
+  }
+  private func migrateCommunitySession() throws -> BackendSavedSession? {
+    let legacy: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: "app.msime.ios.community", kSecAttrAccount as String: "api.msime.app"]
+    var lookup = legacy
+    lookup[kSecReturnData as String] = true
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(lookup as CFDictionary, &result)
+    if status == errSecItemNotFound { return nil }
+    guard status == errSecSuccess, let data = result as? Data else { throw BackendAccountClient.Failure(status: 0) }
+    struct Legacy: Decodable {
+      struct User: Decodable { let id: String; let display_name: String; let created_at: String? }
+      let access_token: String; let refresh_token: String; let user: User
+      let saved_at: Date?; let expires_in: Int?
+    }
+    let old = try JSONDecoder().decode(Legacy.self, from: data)
+    let seconds = old.expires_in ?? 900
+    let tokens = BackendAccountClient.Tokens(access_token: old.access_token, refresh_token: old.refresh_token,
+      token_type: "Bearer", expires_in: seconds,
+      user: .init(id: old.user.id, display_name: old.user.display_name, created_at: old.user.created_at ?? ""))
+    let value = BackendSavedSession(tokens: tokens, expiresAt: (old.saved_at ?? .distantPast).addingTimeInterval(TimeInterval(seconds)))
+    try save(value)
+    SecItemDelete(legacy as CFDictionary)
+    return value
   }
   func save(_ session: BackendSavedSession) throws {
     let data = try JSONEncoder().encode(session)
@@ -43,8 +67,15 @@ struct BackendKeychain: BackendSessionStorage {
       status = SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
     }
     guard status == errSecSuccess else { throw BackendAccountClient.Failure(status: 0) }
+    try clearLegacy()
+  }
+  private func clearLegacy() throws {
+    let status = SecItemDelete([kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: "app.msime.ios.community", kSecAttrAccount as String: "api.msime.app"] as CFDictionary)
+    guard status == errSecSuccess || status == errSecItemNotFound else { throw BackendAccountClient.Failure(status: 0) }
   }
   func clear() throws {
+    try clearLegacy()
     let status = SecItemDelete(query as CFDictionary)
     guard status == errSecSuccess || status == errSecItemNotFound else { throw BackendAccountClient.Failure(status: 0) }
   }
@@ -84,10 +115,10 @@ actor BackendAccountSession {
     try storage.save(value)
     saved = value; loaded = true
   }
-  func accessToken() async throws -> String {
+  func accessToken(retrying rejectedToken: String? = nil) async throws -> String {
     try load()
     guard let current = saved else { throw BackendAccountClient.Failure(status: 401) }
-    if current.expiresAt.timeIntervalSinceNow > 30 { return current.tokens.access_token }
+    if current.expiresAt.timeIntervalSinceNow > 30 && rejectedToken != current.tokens.access_token { return current.tokens.access_token }
     if let refreshing { return try await refreshing.value }
     let version = generation
     let task = Task<String, Error> {
@@ -105,6 +136,17 @@ actor BackendAccountSession {
       }
       throw error
     }
+  }
+  func updateUser(_ user: BackendAccountClient.User, matching token: String) throws {
+    try load()
+    guard let current = saved, current.tokens.access_token == token, current.tokens.user.id == user.id else {
+      throw CancellationError()
+    }
+    let old = current.tokens
+    let tokens = BackendAccountClient.Tokens(access_token: old.access_token, refresh_token: old.refresh_token,
+      token_type: old.token_type, expires_in: old.expires_in, user: user)
+    let value = BackendSavedSession(tokens: tokens, expiresAt: current.expiresAt)
+    try storage.save(value); saved = value
   }
   func forget() throws {
     generation += 1

@@ -43,6 +43,7 @@ final class NineKeyKeyboardTests: XCTestCase {
         XCTAssertEqual(q.bounds.height, try button("returnKey", in: controller).bounds.height, accuracy: 0.5)
         XCTAssertGreaterThanOrEqual(q.bounds.height, 44)
         if type != .asciiCapable { XCTAssertEqual(q.configuration?.title, "q") }
+        XCTAssertEqual(try button("quickPunctuationKey", in: controller).configuration?.title, ",")
         q.sendActions(for: .primaryActionTriggered)
         XCTAssertEqual(try button("preeditButton", in: controller).configuration?.title, "英文输入")
         try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
@@ -279,6 +280,11 @@ final class NineKeyKeyboardTests: XCTestCase {
       XCTAssertFalse(toolbar.isHidden)
       let brand = try XCTUnwrap(descendants(toolbar).first { $0.accessibilityIdentifier == "keyboardBrandIcon" } as? UIImageView)
       XCTAssertNotNil(brand.image)
+      XCTAssertEqual(brand.bounds.width, 24, accuracy: 0.1)
+      XCTAssertEqual(brand.bounds.height, 24, accuracy: 0.1)
+      let brandSlot = try XCTUnwrap(brand.superview)
+      XCTAssertGreaterThanOrEqual(brand.frame.minX, 6)
+      XCTAssertGreaterThanOrEqual(brandSlot.bounds.width - brand.frame.maxX, 6)
       XCTAssertLessThan(brand.convert(brand.bounds, to: toolbar).maxX,
                         try button("languageModeButton", in: controller).convert(try button("languageModeButton", in: controller).bounds, to: toolbar).minX)
       for id in ["languageModeButton", "schemeButton", "scriptShortcut", "skinShortcut", "moreShortcut", "dismissShortcut"] {
@@ -313,6 +319,51 @@ final class NineKeyKeyboardTests: XCTestCase {
     }
   }
 
+  func testNewCandidatesAndPagesReturnToLeadingCandidate() throws {
+    let previous = InputSchemePreference.scheme
+    defer { InputSchemePreference.scheme = previous }
+    for scheme in [ChineseInputScheme.nineKey, .quanpin] {
+      InputSchemePreference.scheme = scheme
+      let controller = KeyboardViewController()
+      controller.loadViewIfNeeded()
+      controller.view.frame = CGRect(x: 0, y: 0, width: 320, height: 260)
+      func type(_ text: String) throws {
+        for character in text {
+          let key: UIButton
+          if scheme == .nineKey {
+            key = try button("nineKey\(character)", in: controller)
+          } else {
+            key = try XCTUnwrap(descendants(controller.view).first {
+              $0.accessibilityLabel == "字母 \(String(character).uppercased())"
+            } as? UIButton)
+          }
+          key.sendActions(for: .primaryActionTriggered)
+        }
+        controller.view.layoutIfNeeded()
+      }
+      try type(scheme == .nineKey ? "6" : "n")
+      let candidate = try button("candidate-1", in: controller)
+      var ancestor = candidate.superview
+      while ancestor != nil && !(ancestor is UIScrollView) { ancestor = ancestor?.superview }
+      let scroll = try XCTUnwrap(ancestor as? UIScrollView)
+      XCTAssertFalse(scroll.delaysContentTouches)
+      XCTAssertTrue(scroll.canCancelContentTouches)
+      XCTAssertTrue(scroll.touchesShouldCancel(in: candidate))
+      XCTAssertGreaterThan(scroll.contentSize.width, scroll.bounds.width + 40)
+      scroll.setContentOffset(CGPoint(x: 40, y: 0), animated: false)
+      try type(scheme == .nineKey ? "4" : "i")
+      XCTAssertEqual(scroll.contentOffset.x, 0, accuracy: 0.5)
+      let next = try button("nextCandidatePage", in: controller)
+      XCTAssertFalse(next.isHidden)
+      scroll.setContentOffset(CGPoint(x: 40, y: 0), animated: false)
+      next.sendActions(for: .primaryActionTriggered)
+      controller.view.layoutIfNeeded()
+      XCTAssertEqual(scroll.contentOffset.x, 0, accuracy: 0.5)
+      let leading = try button("candidate-1", in: controller)
+      XCTAssertGreaterThanOrEqual(leading.convert(leading.bounds, to: scroll).minX, 0)
+    }
+  }
+
   func testAllLayoutsKeepNineKeyHeight() throws {
     let previous = InputSchemePreference.scheme
     defer { InputSchemePreference.scheme = previous }
@@ -331,10 +382,49 @@ final class NineKeyKeyboardTests: XCTestCase {
           controller.view.layoutIfNeeded()
           XCTAssertEqual(try button("returnKey", in: controller).bounds.height, reference, accuracy: 0.5)
           XCTAssertEqual(controller.view.constraints.first { $0.identifier == "keyboardHeight" }?.constant, 260)
+          if !symbols && [.nineKey, .quanpin].contains(scheme) {
+            let selector = try button("schemeButton", in: controller)
+            XCTAssertGreaterThanOrEqual(selector.bounds.width, 50)
+            let label = try XCTUnwrap(selector.titleLabel)
+            let insets = try XCTUnwrap(selector.configuration).contentInsets
+            XCTAssertLessThanOrEqual(label.intrinsicContentSize.width + insets.leading + insets.trailing, selector.bounds.width)
+            for id in ["languageModeButton", "scriptShortcut", "skinShortcut", "moreShortcut", "dismissShortcut"] {
+              XCTAssertGreaterThanOrEqual(try button(id, in: controller).bounds.width, 44)
+            }
+            if width == 320 {
+              let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: controller.view.bounds).image { context in
+                controller.view.layer.render(in: context.cgContext)
+              })
+              attachment.name = "Narrow \(scheme.rawValue) keyboard and toolbar"
+              attachment.lifetime = .keepAlways
+              add(attachment)
+            }
+          }
+          let punctuation = try button("quickPunctuationKey", in: controller)
+          XCTAssertEqual(punctuation.isHidden, symbols || scheme == .nineKey)
+          if !punctuation.isHidden {
+            XCTAssertEqual(punctuation.configuration?.title, scheme == .japanese ? "、" : "，")
+            XCTAssertEqual(punctuation.bounds.width, 44, accuracy: 0.5)
+            XCTAssertGreaterThanOrEqual(try button("spaceKey", in: controller).bounds.width, 79.2)
+            XCTAssertEqual(punctuation.menu?.children.count, 7)
+          }
+          XCTAssertEqual(try button("symbolDeleteKey", in: controller).isHidden, !symbols)
           if !symbols && scheme != .nineKey {
-            for label in ["Q", "A", "Z"] {
+            let delete = try button("letterDeleteKey", in: controller)
+            let shift = try button("shiftButton", in: controller)
+            let m = try XCTUnwrap(descendants(controller.view).first { $0.accessibilityLabel == "字母 M" } as? UIButton)
+            XCTAssertEqual(delete.superview, m.superview)
+            XCTAssertGreaterThan(delete.frame.minX, m.frame.maxX)
+            XCTAssertEqual(delete.bounds.width, 44, accuracy: 0.5)
+            XCTAssertEqual(shift.bounds.width, 44, accuracy: 0.5)
+            XCTAssertEqual(delete.bounds.height, reference, accuracy: 0.5)
+            XCTAssertLessThanOrEqual(delete.convert(delete.bounds, to: controller.view).maxX, width - 4.5)
+            for label in ["Q", "A", "Z", "P", "L", "M"] {
               let key = try XCTUnwrap(descendants(controller.view).first { $0.accessibilityLabel == "字母 \(label)" } as? UIButton)
               XCTAssertEqual(key.bounds.height, reference, accuracy: 0.5)
+              let frame = key.convert(key.bounds, to: controller.view)
+              XCTAssertGreaterThanOrEqual(frame.minX, 4.5)
+              XCTAssertLessThanOrEqual(frame.maxX, controller.view.bounds.width - 4.5, "\(scheme) \(label) frame \(frame)")
             }
           }
           if symbols { try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered) }
@@ -355,7 +445,7 @@ final class NineKeyKeyboardTests: XCTestCase {
         controller.openLocalInputMode(trigger)
         controller.view.layoutIfNeeded()
         let returnKey = try button("returnKey", in: controller)
-        for label in ["Q", "A", "Z"] {
+        for label in ["Q", "A", "Z", "P", "L", "M"] {
           let key = try XCTUnwrap(descendants(controller.view).first { $0.accessibilityLabel == "字母 \(label)" } as? UIButton)
           XCTAssertEqual(key.bounds.height, returnKey.bounds.height, accuracy: 0.5)
           XCTAssertGreaterThanOrEqual(key.bounds.height, 44)

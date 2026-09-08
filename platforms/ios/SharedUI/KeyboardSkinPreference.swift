@@ -62,7 +62,7 @@ enum KeyboardSkin: String, CaseIterable {
   }
   var keyBackground: UIColor {
     switch self {
-    case .custom: CustomKeyboardSkin.color(CustomKeyboardSkinStore.current.keyBackground)
+    case .custom: CustomKeyboardSkin.color(CustomKeyboardSkinStore.current.keyBackground).withAlphaComponent(CGFloat(CustomKeyboardSkinStore.current.keyOpacity ?? 1))
     case .forest: adaptive((1, 1, 1), (0.19, 0.24, 0.21))
     case .ocean: adaptive((1, 1, 1), (0.18, 0.22, 0.29))
     case .rose: adaptive((1, 1, 1), (0.27, 0.19, 0.23))
@@ -108,7 +108,10 @@ enum KeyboardSkin: String, CaseIterable {
     default: 0
     }
   }
-  var borderColor: UIColor { accent.withAlphaComponent(self == .midnight ? 0.65 : 0.28) }
+  var borderColor: UIColor {
+    if self == .custom, let rgb = CustomKeyboardSkinStore.current.customBorderColor { return CustomKeyboardSkin.color(rgb) }
+    return accent.withAlphaComponent(self == .midnight ? 0.65 : 0.28)
+  }
   var shadowOpacity: Float {
     if self == .custom { return Float(CustomKeyboardSkinStore.current.shadow) }
     return self == .typewriter ? 0.30 : (self == .candy ? 0.16 : 0)

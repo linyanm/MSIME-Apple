@@ -1,6 +1,7 @@
 import UIKit
+import ImageIO
 
-struct CustomKeyboardSkin: Codable, Equatable, Hashable {
+struct CustomKeyboardSkin: Codable, Equatable, Hashable, Sendable {
   var background: UInt32 = 0xE8F0EB
   var keyBackground: UInt32 = 0xFFFFFF
   var keyForeground: UInt32 = 0x17251D
@@ -11,6 +12,16 @@ struct CustomKeyboardSkin: Codable, Equatable, Hashable {
   var shadow: Double = 0
   var pattern: Int = 0
   var monospaced = false
+  // Optional fields preserve decoding of existing v1 designs.
+  var keyOpacity: Double?
+  var gradientEnd: UInt32?
+  var gradientHorizontal: Bool?
+  var patternOpacity: Double?
+  var customBorderColor: UInt32?
+  var photo: Data?
+  var photoShade: Double?
+  var photoPosition: Double?
+
 
   var normalized: Self {
     var result = self
@@ -22,6 +33,13 @@ struct CustomKeyboardSkin: Codable, Equatable, Hashable {
     result.cornerRadius = cornerRadius.isFinite ? min(20, max(0, cornerRadius)) : 8
     result.borderWidth = borderWidth.isFinite ? min(2, max(0, borderWidth)) : 0
     result.shadow = shadow.isFinite ? min(0.4, max(0, shadow)) : 0
+    result.keyOpacity = keyOpacity.map { $0.isFinite ? min(1, max(0.25, $0)) : 1 }
+    result.gradientEnd = gradientEnd.map { $0 & 0xFFFFFF }
+    result.customBorderColor = customBorderColor.map { $0 & 0xFFFFFF }
+    result.patternOpacity = patternOpacity.map { $0.isFinite ? min(0.5, max(0, $0)) : 0.15 }
+    result.photoShade = photoShade.map { $0.isFinite ? min(0.8, max(0, $0)) : 0.25 }
+    result.photoPosition = photoPosition.map { $0.isFinite ? min(1, max(0, $0)) : 0.5 }
+    if let photo, photo.count > 512_000 { result.photo = nil }
     result.pattern = (0...3).contains(pattern) ? pattern : 0
     return result
   }
@@ -60,6 +78,7 @@ struct CustomKeyboardSkin: Codable, Equatable, Hashable {
     Self.contrast(keyForeground, keyBackground) >= 4.5
       && Self.contrast(accent, background) >= 4.5
       && Self.contrast(accent, keyBackground) >= 4.5
+      && (gradientEnd.map { Self.contrast(accent, $0) >= 4.5 } ?? true)
   }
 }
 
@@ -87,5 +106,89 @@ enum CustomKeyboardSkinStore {
       }
       return value
     }
+  }
+}
+
+struct SavedKeyboardSkin: Codable, Identifiable, Equatable {
+  var id = UUID()
+  var name: String
+  var design: CustomKeyboardSkin
+}
+
+enum CustomSkinLibrary {
+  // Keep the multi-photo library out of preferences, which the keyboard reads on each key.
+  private static var file: URL {
+    let root = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: InputSchemePreference.appGroupIdentifier)
+      ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    return root.appendingPathComponent("CustomSkins", isDirectory: true).appendingPathComponent("library.json")
+  }
+  static var designs: [SavedKeyboardSkin] {
+    guard let size = try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+          size <= 9_000_000,
+          let data = try? Data(contentsOf: file),
+          let items = try? JSONDecoder().decode([SavedKeyboardSkin].self, from: data) else { return [] }
+    return Array(items.prefix(12)).map { item in
+      var item = item
+      item.design = item.design.normalized
+      return item
+    }
+  }
+  @discardableResult
+  static func save(_ items: [SavedKeyboardSkin]) -> Bool {
+    let items = items.prefix(12).map { item in
+      var item = item
+      item.name = String(item.name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(32))
+      item.design = item.design.normalized
+      return item
+    }
+    do {
+      let data = try JSONEncoder().encode(items)
+      try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try data.write(to: file, options: .atomic)
+      return true
+    } catch { return false }
+  }
+}
+
+extension CustomKeyboardSkin {
+  static var templates: [(String, CustomKeyboardSkin)] {
+    var paper = Self()
+    paper.background = 0xE3D6BD; paper.keyBackground = 0xFFF5DF; paper.keyForeground = 0x382A1C
+    paper.accent = 0x53391F; paper.actionBackground = 0x53391F
+    paper.cornerRadius = 4; paper.borderWidth = 1; paper.shadow = 0.3; paper.monospaced = true; paper.pattern = 1
+    var night = Self()
+    night.background = 0x151022; night.gradientEnd = 0x30224A; night.keyBackground = 0x291E40
+    night.keyForeground = 0xFFFFFF; night.accent = 0xD4BBFF; night.actionBackground = 0x69469B
+    night.borderWidth = 1; night.customBorderColor = 0xA987E8; night.pattern = 1
+    var peach = Self()
+    peach.background = 0xFFE0D0; peach.gradientEnd = 0xF9D6E5; peach.keyBackground = 0xFFF8EE
+    peach.keyForeground = 0x51283A; peach.accent = 0x84334F; peach.actionBackground = 0x84334F
+    peach.cornerRadius = 18; peach.shadow = 0.15; peach.pattern = 3
+    var blue = Self()
+    blue.background = 0xDCEAF8; blue.gradientEnd = 0xDDEFE9; blue.gradientHorizontal = true
+    blue.accent = 0x224E75; blue.actionBackground = 0x224E75; blue.borderWidth = 0.5
+    var grid = night
+    grid.background = 0x102438; grid.gradientEnd = nil; grid.keyBackground = 0x17354F
+    grid.accent = 0xA2D8FA; grid.actionBackground = 0x285D84; grid.cornerRadius = 2
+    grid.monospaced = true; grid.pattern = 2; grid.customBorderColor = 0x548CAA
+    return [("水杉留白", Self()), ("复古纸感", paper), ("紫夜星光", night), ("奶油桃桃", peach), ("海盐渐变", blue), ("工程蓝图", grid)]
+  }
+}
+
+// Decode only a bounded thumbnail, even when the chosen original is a large panorama.
+enum SkinPhotoData {
+  static func thumbnail(at url: URL) -> Data? {
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1024,
+            kCGImageSourceShouldCacheImmediately: true
+          ] as CFDictionary) else { return nil }
+    let image = UIImage(cgImage: cg)
+    for quality in [0.8, 0.6, 0.4, 0.2] {
+      if let data = image.jpegData(compressionQuality: quality), data.count <= 512_000 { return data }
+    }
+    return nil
   }
 }
