@@ -91,11 +91,16 @@ struct KeyboardSkinPreview: View {
       .foregroundStyle(color(emphasized ? skin.actionForeground : skin.keyForeground))
       .background(keySurface(emphasized: emphasized))
   }
+  @ViewBuilder
   private func keySurface(emphasized: Bool = false) -> some View {
+    if skin == .custom {
+      SkinKeySurface(design: CustomKeyboardSkinStore.current, action: emphasized)
+    } else {
     RoundedRectangle(cornerRadius: skin.cornerRadius)
       .fill(color(emphasized ? skin.actionBackground : skin.keyBackground))
       .overlay(RoundedRectangle(cornerRadius: skin.cornerRadius).stroke(color(skin.borderColor), lineWidth: skin.borderWidth))
       .shadow(color: .black.opacity(Double(skin.shadowOpacity)), radius: skin.shadowRadius, y: skin.shadowOffset)
+    }
   }
 }
 
@@ -108,11 +113,15 @@ struct SkinDesignThumbnail: View {
           .foregroundStyle(Color(uiColor: title == "↵" ? skin.actionForeground : skin.keyForeground))
           .frame(width: 23, height: 32)
           .background {
+            if skin == .custom {
+              SkinKeySurface(design: CustomKeyboardSkinStore.current, action: title == "↵", scale: 0.6)
+            } else {
             RoundedRectangle(cornerRadius: skin.cornerRadius * 0.6)
               .fill(Color(uiColor: title == "↵" ? skin.actionBackground : skin.keyBackground))
               .overlay(RoundedRectangle(cornerRadius: skin.cornerRadius * 0.6)
                 .stroke(Color(uiColor: skin.borderColor), lineWidth: skin.borderWidth))
               .shadow(color: .black.opacity(Double(skin.shadowOpacity)), radius: skin.shadowRadius, y: skin.shadowOffset)
+            }
           }
       }
     }

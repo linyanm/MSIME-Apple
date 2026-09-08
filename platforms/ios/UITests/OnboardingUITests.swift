@@ -108,6 +108,33 @@ final class OnboardingUITests: XCTestCase {
   }
 
   @MainActor
+  func testAISkinGenerationSavesAndPreparesCommunityPublication() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-hasCompletedOnboarding", "YES", "-aiSkinPreview"]
+    app.launch()
+    app.buttons["skinSettingsLink"].tap()
+    app.buttons["customSkinEditorLink"].tap()
+    app.buttons["openAISkinDesigner"].tap()
+    XCTAssertTrue(app.navigationBars["AI 皮肤抽卡"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.textViews["aiSkinPrompt"].exists)
+    XCTAssertTrue(app.buttons["generateAISkins"].isEnabled)
+    let deck = XCTAttachment(screenshot: app.screenshot())
+    deck.name = "AI 皮肤抽卡入口"; deck.lifetime = .keepAlways; add(deck)
+    app.buttons["generateAISkins"].tap()
+    let save = app.buttons["saveAISkin_AI 测试 1"]
+    XCTAssertTrue(save.waitForExistence(timeout: 5))
+    save.tap()
+    XCTAssertEqual(save.label, "已保存")
+    app.buttons["publishAISkin_AI 测试 1"].tap()
+    XCTAssertTrue(app.navigationBars["发布皮肤"].waitForExistence(timeout: 5))
+    XCTAssertTrue((app.textFields["皮肤名称（最多 32 字）"].value as? String)?.hasPrefix("AI 测试 1") == true)
+    XCTAssertFalse(app.buttons["confirmCommunitySkinPublication"].isEnabled, "Publication requires explicit consent")
+    let shot = XCTAttachment(screenshot: app.screenshot())
+    shot.name = "AI 生成皮肤的发布预览"; shot.lifetime = .keepAlways; add(shot)
+    app.buttons["取消"].tap()
+  }
+
+  @MainActor
   func testCommunityCategoriesPreviewAndPublisher() {
     let app = XCUIApplication()
     app.launchArguments = ["-hasCompletedOnboarding", "YES", "-communityPreview"]
@@ -121,7 +148,7 @@ final class OnboardingUITests: XCTestCase {
     XCTAssertEqual(first.frame.minY, second.frame.minY, accuracy: 2)
     let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "Community word packs"; shot.lifetime = .keepAlways; add(shot)
     first.tap()
-    XCTAssertTrue(app.buttons["导入这版词库"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["communityImportLocal"].waitForExistence(timeout: 5))
     app.navigationBars.buttons.firstMatch.tap()
     app.buttons["communityCategory-2"].tap()
     app.buttons["communityResource-10000000-0000-4000-8000-000000000003"].tap()
@@ -529,57 +556,21 @@ final class OnboardingUITests: XCTestCase {
   }
 
   @MainActor
-  func testGeneratedSkinCanSavePublishAndDelete() {
-    let app = XCUIApplication()
-    app.launchArguments = ["-hasCompletedOnboarding", "YES", "-skinGenerationFixture"]
-    app.launch()
-    app.buttons["skinSettingsLink"].tap()
-    app.buttons["customSkinEditorLink"].tap()
-    app.buttons["openSkinGeneration"].tap()
-    let prompt = app.textViews["skinGenerationPrompt"]
-    XCTAssertTrue(prompt.waitForExistence(timeout: 5))
-    prompt.tap(); prompt.typeText("Green ceramic keyboard")
-    app.buttons["generateSkinButton"].tap()
-    let name = app.textFields["generatedSkinName"]
-    XCTAssertTrue(name.waitForExistence(timeout: 5))
-    // Scroll within the generator, leaving the editor underneath untouched.
-    let scroll = app.scrollViews.firstMatch
-    for _ in 0..<5 { if app.buttons["saveGeneratedSkin"].isHittable { break }; scroll.swipeUp() }
-    app.segmentedControls["generatedSkinLayout"].buttons["9 键"].tap()
-    app.buttons["saveGeneratedSkin"].tap()
-    XCTAssertFalse(app.buttons["saveGeneratedSkin"].isEnabled)
-    let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "AI skin saved preview"; shot.lifetime = .keepAlways; add(shot)
-    app.buttons["publishGeneratedSkin"].tap()
-    XCTAssertTrue(app.navigationBars["发布皮肤"].waitForExistence(timeout: 5))
-    XCTAssertEqual(app.textFields["皮肤名称（最多 32 字）"].value as? String, "AI 苔绿庭院")
-    app.buttons["取消"].tap()
-    app.buttons["deleteGeneratedSkin"].tap()
-    app.buttons["删除设计"].tap()
-    XCTAssertFalse(app.textFields["generatedSkinName"].exists)
-    app.navigationBars["AI 生成皮肤"].buttons["完成"].tap()
-    app.buttons["skinEditorTools"].tap()
-    app.buttons["我的皮肤"].tap()
-    XCTAssertFalse(app.buttons["savedSkin_AI 苔绿庭院"].exists)
-  }
-
-  @MainActor
   func testCancelledSkinGenerationDoesNotShowLateResult() {
     let app = XCUIApplication()
-    app.launchArguments = ["-hasCompletedOnboarding", "YES", "-skinGenerationFixture", "-skinGenerationSlowFixture"]
+    app.launchArguments = ["-hasCompletedOnboarding", "YES", "-aiSkinPreview", "-skinGenerationSlowFixture"]
     app.launch()
     app.buttons["skinSettingsLink"].tap()
     app.buttons["customSkinEditorLink"].tap()
-    app.buttons["openSkinGeneration"].tap()
-    let prompt = app.textViews["skinGenerationPrompt"]
-    XCTAssertTrue(prompt.waitForExistence(timeout: 5))
-    prompt.tap(); prompt.typeText("Green keyboard")
-    app.buttons["generateSkinButton"].tap()
-    XCTAssertTrue(app.buttons["取消生成"].waitForExistence(timeout: 3))
-    app.buttons["取消生成"].tap()
-    let late = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"), object: app.textFields["generatedSkinName"])
+    app.buttons["openAISkinDesigner"].tap()
+    XCTAssertTrue(app.buttons["generateAISkins"].waitForExistence(timeout: 5))
+    app.buttons["generateAISkins"].tap()
+    XCTAssertTrue(app.buttons["取消"].waitForExistence(timeout: 3))
+    app.buttons["取消"].tap()
+    let late = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true"), object: app.buttons["saveAISkin_AI 测试 1"])
     late.isInverted = true
     XCTAssertEqual(XCTWaiter.wait(for: [late], timeout: 6), .completed)
-    XCTAssertTrue(app.buttons["generateSkinButton"].isEnabled)
+    XCTAssertTrue(app.buttons["generateAISkins"].isEnabled)
   }
 
   @MainActor
@@ -620,10 +611,18 @@ final class OnboardingUITests: XCTestCase {
     app.launch()
     openEditor()
     let radius = app.sliders["customSkinCornerRadius"]
-    for _ in 0..<5 {
-      if radius.isHittable { break }
-      app.swipeUp()
+    func revealRadius() {
+      let controls = app.descendants(matching: .any)["skinEditorControls"].firstMatch
+      for _ in 0..<12 {
+        let top = app.buttons["skinEditorTab_按键"].frame.maxY + 28
+        let bottom = app.buttons["applyCustomSkin"].frame.minY - 28
+        if radius.exists && radius.isHittable && radius.frame.minY > top && radius.frame.maxY < bottom { return }
+        let down = radius.exists && radius.frame.midY < top
+        controls.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+          .press(forDuration: 0.05, thenDragTo: controls.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: down ? 0.7 : 0.3)))
+      }
     }
+    revealRadius()
     XCTAssertTrue(radius.isHittable)
     // XCTest's normalized drag is approximate, and Slider.value can be a
     // percentage on one runtime and a domain value on another. Verify the
@@ -642,14 +641,11 @@ final class OnboardingUITests: XCTestCase {
     app.terminate()
     app.launch()
     openEditor()
-    for _ in 0..<5 {
-      if radius.isHittable { break }
-      app.swipeUp()
-    }
+    revealRadius()
     XCTAssertEqual(radiusLabel.label, edited, "The edited corner radius must survive restarting the app")
     for _ in 0..<5 {
       if app.buttons["applyCustomSkin"].isHittable { break }
-      app.swipeDown()
+      app.descendants(matching: .any)["skinEditorControls"].firstMatch.swipeDown()
     }
     app.buttons["applyCustomSkin"].tap()
     let attachment = XCTAttachment(screenshot: app.screenshot())
@@ -657,19 +653,12 @@ final class OnboardingUITests: XCTestCase {
     attachment.lifetime = .keepAlways
     add(attachment)
     XCTAssertTrue(app.buttons["applyCustomSkin"].label.contains("正在使用"))
-    app.buttons["skinEditorTools"].tap(); app.buttons["设计模板"].tap()
-    // Exercise explicit reset after checking persistence, using simulator-only settings.
-    for _ in 0..<5 {
-      if app.buttons["重置我的皮肤"].isHittable { break }
-      app.swipeUp()
-    }
+    // Reset lives in the editor tools menu, independent of the selected category.
+    app.buttons["skinEditorTools"].tap()
     app.buttons["重置我的皮肤"].tap()
     app.buttons["重置"].tap()
     app.buttons["skinEditorTab_按键"].tap()
-    for _ in 0..<5 {
-      if radius.isHittable { break }
-      app.swipeDown()
-    }
+    revealRadius()
     XCTAssertEqual(radiusLabel.label, "圆角 · 8")
   }
 

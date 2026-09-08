@@ -311,6 +311,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         self?.handleSymbol(symbol)
       }
       button.configuration?.background.backgroundColor = .clear
+      button.configuration?.background.customView = nil
       punctuationStack.addArrangedSubview(button)
     }
     for content in [punctuationStack, makeSpellingStrip()] {
@@ -1102,6 +1103,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       button.accessibilityValue = "开启"
     }
     button.configuration = configuration
+    decorateKey(button)
   }
 
   private func updateLanguageModeButton() {
@@ -1112,7 +1114,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 3, leading: 5, bottom: 3, trailing: 5)
     configuration.background.cornerRadius = 8
+    configuration.background.backgroundColor = KeyboardSkinPreference.selected.actionBackground
     bottomLanguageButton?.configuration = configuration
+    if let button = bottomLanguageButton { decorateKey(button) }
     bottomLanguageButton?.accessibilityIdentifier = "bottomLanguageKey"
     bottomLanguageButton?.accessibilityLabel =
       isChineseMode ? "切换到英文输入" : "切换到所选输入方案"
@@ -1926,6 +1930,19 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     button.addTarget(self, action: #selector(prepareKeyFeedback), for: .touchDown)
     let skin = KeyboardSkinPreference.selected
     guard var configuration = button.configuration else { return }
+    if skin == .custom {
+      let surface = SkinKeySurfaceView()
+      surface.design = CustomKeyboardSkinStore.current
+      surface.fillColor = configuration.background.backgroundColor ?? skin.keyBackground
+      configuration.background.customView = surface
+      configuration.background.backgroundColor = .clear
+      configuration.background.cornerRadius = 0
+      configuration.background.strokeWidth = 0
+      button.configuration = configuration
+      button.layer.shadowOpacity = 0
+      return
+    }
+    configuration.background.customView = nil
     configuration.background.cornerRadius = skin.cornerRadius
     configuration.background.strokeWidth = skin.borderWidth
     configuration.background.strokeColor = skin.borderColor
@@ -2103,7 +2120,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     skinBackdrop.skin = skin
     func recolor(_ node: UIView) {
       if let button = node as? UIButton, var configuration = button.configuration {
-        if let color = configuration.background.backgroundColor, color.cgColor.alpha > 0 {
+        if configuration.background.customView is SkinKeySurfaceView || (configuration.background.backgroundColor?.cgColor.alpha ?? 0) > 0 {
           configuration.background.backgroundColor = skin.keyBackground
           configuration.baseForegroundColor = skin.keyForeground
         }
@@ -2124,6 +2141,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       configuration.background.backgroundColor = skin.actionBackground
       configuration.baseForegroundColor = skin.actionForeground
       enterButton?.configuration = configuration
+      if let enterButton { decorateKey(enterButton) }
     }
     updateLanguageModeButton()
     updateSchemeButton()

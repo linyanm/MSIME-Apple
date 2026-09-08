@@ -20,6 +20,8 @@ set(METASEQUOIA_CANDIDATE_SKIN_SOURCES
     ${METASEQUOIA_MACOS_ROOT}/src/CandidateSkinPreviewView.mm
     ${METASEQUOIA_MACOS_ROOT}/src/SkinSettingsView.mm)
 
+include(cmake/BackendAccount.cmake)
+
 set(METASEQUOIA_SPARKLE_VERSION "2.9.6")
 set(METASEQUOIA_SPARKLE_SHA256 "52bf9e88cdd972fc0c81501377a880e90d47031bd8ca5462488f843e2609e192")
 set(METASEQUOIA_SPARKLE_URL
@@ -33,6 +35,13 @@ set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
 # Metal and the CPU backend remain available for local Whisper.
 set(GGML_BLAS OFF CACHE BOOL "" FORCE)
 add_subdirectory(vendor/MetasequoiaImeEngine engine)
+add_library(MetasequoiaMacDictionaryRuntime STATIC
+    platforms/macos/src/DictionaryRuntime.mm
+    shared/apple-bridge/DictionarySnapshotBridge.mm
+    shared/apple-bridge/DictionaryInstallation.mm
+    shared/apple-bridge/DictionarySessionLease.mm)
+target_compile_options(MetasequoiaMacDictionaryRuntime PRIVATE -fobjc-arc -Wall -Wextra -Wpedantic -Werror)
+target_link_libraries(MetasequoiaMacDictionaryRuntime PUBLIC MetasequoiaIme::Engine "-framework Foundation")
 add_library(MetasequoiaAppleVoice STATIC
     ${METASEQUOIA_MACOS_ROOT}/src/VoiceInputService.mm
     ${METASEQUOIA_MACOS_ROOT}/src/VoiceSettings.mm)
@@ -64,6 +73,15 @@ if(BUILD_TESTING)
     target_link_libraries(MetasequoiaAppleInputSessionAdapterTests PRIVATE MetasequoiaIme::Engine)
     target_compile_options(MetasequoiaAppleInputSessionAdapterTests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     add_test(NAME apple_input_session_adapter COMMAND MetasequoiaAppleInputSessionAdapterTests)
+    add_executable(MetasequoiaDictionarySnapshotRuntimeTests
+        ${METASEQUOIA_MACOS_ROOT}/tests/DictionarySnapshotRuntimeTests.mm
+        shared/apple-bridge/DictionaryInstallation.mm
+        shared/apple-bridge/DictionarySessionLease.mm)
+    target_include_directories(MetasequoiaDictionarySnapshotRuntimeTests PRIVATE shared/apple-bridge)
+    target_compile_options(MetasequoiaDictionarySnapshotRuntimeTests PRIVATE -fobjc-arc -Wall -Wextra -Wpedantic -Werror)
+    target_link_libraries(MetasequoiaDictionarySnapshotRuntimeTests PRIVATE MetasequoiaIme::Engine "-framework Foundation")
+    add_test(NAME dictionary_snapshot_runtime COMMAND MetasequoiaDictionarySnapshotRuntimeTests)
+
     add_executable(MetasequoiaInputControllerKeyRoutingTests ${METASEQUOIA_MACOS_ROOT}/tests/InputControllerKeyRoutingTests.mm)
     target_compile_options(MetasequoiaInputControllerKeyRoutingTests PRIVATE -fobjc-arc -Wall -Wextra -Wpedantic -Werror)
     target_link_libraries(MetasequoiaInputControllerKeyRoutingTests PRIVATE MetasequoiaIme::Engine ${APPKIT_FRAMEWORK} ${INPUT_METHOD_KIT_FRAMEWORK})
@@ -122,6 +140,16 @@ if(METASEQUOIA_IME_BUILD_INPUT_METHOD)
     endif()
 
     file(SHA256 "${METASEQUOIA_IME_DICTIONARY}" METASEQUOIA_IME_DICTIONARY_SHA256)
+    get_filename_component(dictionary_directory "${METASEQUOIA_IME_DICTIONARY}" DIRECTORY)
+    set(METASEQUOIA_IME_ENGLISH_DICTIONARY "${dictionary_directory}/english.db")
+    if(NOT EXISTS "${METASEQUOIA_IME_ENGLISH_DICTIONARY}")
+        message(FATAL_ERROR "英文词库缺失。请运行 scripts/fetch_dictionary.py，或重新生成测试词库。")
+    endif()
+    file(SHA256 "${METASEQUOIA_IME_ENGLISH_DICTIONARY}" METASEQUOIA_IME_ENGLISH_SHA256)
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dictionary-digests")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/dictionary-digests/msime.db.sha256" "${METASEQUOIA_IME_DICTIONARY_SHA256}\n")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/dictionary-digests/english.db.sha256" "${METASEQUOIA_IME_ENGLISH_SHA256}\n")
+
     find_library(APPKIT_FRAMEWORK AppKit REQUIRED)
     find_library(CARBON_FRAMEWORK Carbon REQUIRED)
     find_library(INPUT_METHOD_KIT_FRAMEWORK InputMethodKit REQUIRED)
@@ -209,6 +237,12 @@ if(METASEQUOIA_IME_BUILD_INPUT_METHOD)
         set_source_files_properties("${dictionary_directory}/dictionary-manifest.json"
             PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     endif()
+    set(METASEQUOIA_IME_SNAPSHOT_RESOURCES
+        "${METASEQUOIA_IME_ENGLISH_DICTIONARY}"
+        "${CMAKE_CURRENT_BINARY_DIR}/dictionary-digests/msime.db.sha256"
+        "${CMAKE_CURRENT_BINARY_DIR}/dictionary-digests/english.db.sha256")
+    target_sources(MetasequoiaIME PRIVATE ${METASEQUOIA_IME_SNAPSHOT_RESOURCES})
+    set_source_files_properties(${METASEQUOIA_IME_SNAPSHOT_RESOURCES} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     set_source_files_properties(${METASEQUOIA_IME_DICTIONARY} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     set_source_files_properties(${METASEQUOIA_IME_ICONS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     set_source_files_properties(${METASEQUOIA_IME_HELPCODES}
@@ -221,7 +255,7 @@ if(METASEQUOIA_IME_BUILD_INPUT_METHOD)
         PROPERTIES MACOSX_PACKAGE_LOCATION Resources HEADER_FILE_ONLY TRUE)
     set_target_properties(MetasequoiaIME PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_BINARY_DIR}/MetasequoiaIME-Info.plist MACOSX_BUNDLE_BUNDLE_NAME "Metasequoia IME" MACOSX_BUNDLE_GUI_IDENTIFIER "com.houko.inputmethod.MetasequoiaIME" MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION} MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION} OUTPUT_NAME MetasequoiaIME BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@executable_path/../Frameworks")
     target_compile_options(MetasequoiaIME PRIVATE -fobjc-arc -Wall -Wextra -Wpedantic -Werror)
-    target_link_libraries(MetasequoiaIME PRIVATE MetasequoiaAppleVoice MetasequoiaIme::Engine MetasequoiaSparkle ${APPKIT_FRAMEWORK} ${CARBON_FRAMEWORK} ${INPUT_METHOD_KIT_FRAMEWORK})
+    target_link_libraries(MetasequoiaIME PRIVATE MSIMEBackendAccount MetasequoiaMacDictionaryRuntime MetasequoiaAppleVoice MetasequoiaIme::Engine MetasequoiaSparkle ${APPKIT_FRAMEWORK} ${CARBON_FRAMEWORK} ${INPUT_METHOD_KIT_FRAMEWORK})
     add_custom_command(TARGET MetasequoiaIME POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_DIR:MetasequoiaIME>/Contents/Frameworks"
         COMMAND /usr/bin/ditto "${METASEQUOIA_SPARKLE_FRAMEWORK}"
@@ -241,7 +275,7 @@ if(METASEQUOIA_IME_BUILD_INPUT_METHOD)
             ${METASEQUOIA_MACOS_ROOT}/src/StringConversion.mm
             ${METASEQUOIA_MACOS_ROOT}/src/UpdateController.mm)
         target_compile_options(MetasequoiaCandidatePaginationTests PRIVATE -fobjc-arc -Wall -Wextra -Wpedantic -Werror)
-        target_link_libraries(MetasequoiaCandidatePaginationTests PRIVATE MetasequoiaAppleVoice MetasequoiaIme::Engine MetasequoiaSparkle ${APPKIT_FRAMEWORK} ${CARBON_FRAMEWORK} ${INPUT_METHOD_KIT_FRAMEWORK})
+        target_link_libraries(MetasequoiaCandidatePaginationTests PRIVATE MSIMEBackendAccount MetasequoiaMacDictionaryRuntime MetasequoiaAppleVoice MetasequoiaIme::Engine MetasequoiaSparkle ${APPKIT_FRAMEWORK} ${CARBON_FRAMEWORK} ${INPUT_METHOD_KIT_FRAMEWORK})
         set_target_properties(MetasequoiaCandidatePaginationTests PROPERTIES BUILD_RPATH "${METASEQUOIA_SPARKLE_ROOT}")
         add_test(NAME candidate_pagination COMMAND MetasequoiaCandidatePaginationTests)
         add_executable(MetasequoiaDictionaryInstallerTests ${METASEQUOIA_MACOS_ROOT}/tests/DictionaryInstallerTests.mm ${METASEQUOIA_MACOS_ROOT}/src/DictionaryInstaller.mm)
@@ -259,7 +293,7 @@ if(METASEQUOIA_IME_BUILD_INPUT_METHOD)
         add_test(NAME update_controller COMMAND MetasequoiaUpdateControllerTests)
         add_executable(MetasequoiaPreferencesWindowTests ${METASEQUOIA_MACOS_ROOT}/tests/PreferencesWindowTests.mm ${METASEQUOIA_MACOS_ROOT}/src/PreferencesWindowController.mm ${METASEQUOIA_CANDIDATE_SKIN_SOURCES} ${METASEQUOIA_MACOS_ROOT}/src/DictionaryInstaller.mm ${METASEQUOIA_MACOS_ROOT}/src/UpdateController.mm)
         target_compile_options(MetasequoiaPreferencesWindowTests PRIVATE -fobjc-arc -Wall -Wextra -Wpedantic -Werror)
-        target_link_libraries(MetasequoiaPreferencesWindowTests PRIVATE MetasequoiaIme::Engine MetasequoiaSparkle ${APPKIT_FRAMEWORK} ${INPUT_METHOD_KIT_FRAMEWORK})
+        target_link_libraries(MetasequoiaPreferencesWindowTests PRIVATE MSIMEBackendAccount MetasequoiaIme::Engine MetasequoiaSparkle ${APPKIT_FRAMEWORK} ${INPUT_METHOD_KIT_FRAMEWORK})
         set_target_properties(MetasequoiaPreferencesWindowTests PROPERTIES BUILD_RPATH "${METASEQUOIA_SPARKLE_ROOT}")
         add_test(NAME preferences_window COMMAND MetasequoiaPreferencesWindowTests)
         add_test(NAME release_package COMMAND ${CMAKE_COMMAND} -E env

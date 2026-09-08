@@ -19,8 +19,8 @@ struct CustomSkinEditorView: View {
   @State private var renaming: UUID?
   @State private var deleting: SavedKeyboardSkin?
   @State private var replacing: SavedKeyboardSkin?
+  @State private var showAI = false
   @State private var showPhotos = false
-  @State private var showGenerate = false
   @State private var publishingSkin: SavedKeyboardSkin?
   @State private var message: String?
   @AppStorage(KeyboardFeedbackPreference.soundKey, store: KeyboardFeedbackPreference.defaults) private var soundEnabled = true
@@ -107,10 +107,10 @@ struct CustomSkinEditorView: View {
 
   private var backgroundGallery: some View {
     Section {
-      Button { showGenerate = true } label: {
-        Label("AI 生成皮肤", systemImage: "sparkles").font(.headline)
+      Button { showAI = true } label: {
+        Label("AI 皮肤抽卡", systemImage: "sparkles").font(.headline)
           .frame(maxWidth: .infinity).padding(.vertical, 10)
-      }.accessibilityIdentifier("openSkinGeneration")
+      }.accessibilityIdentifier("openAISkinDesigner")
 
       HStack(spacing: 12) {
         Button { section = "设计" } label: {
@@ -243,6 +243,12 @@ Section("按键配色") {
   ColorPicker("功能键颜色", selection: color(\.actionBackground), supportsOpacity: false)
 }
 Section("键帽设计") {
+  Picker("键帽造型", selection: Binding(get: { design.keyShape ?? .rounded }, set: { update(\.keyShape, $0) })) {
+    ForEach(SkinKeyShape.allCases, id: \.self) { Text($0.title).tag($0) }
+  }.accessibilityIdentifier("customSkinKeyShape")
+  Picker("键帽材质", selection: Binding(get: { design.keyMaterial ?? .flat }, set: { update(\.keyMaterial, $0) })) {
+    ForEach(SkinKeyMaterial.allCases, id: \.self) { Text($0.title).tag($0) }
+  }.accessibilityIdentifier("customSkinKeyMaterial")
   VStack(alignment: .leading) {
     Text("键帽不透明度 · \(Int((design.keyOpacity ?? 1) * 100))%")
     Slider(value: Binding(get: { design.keyOpacity ?? 1 }, set: { update(\.keyOpacity, $0) }), in: 0.25...1, onEditingChanged: trackSlider)
@@ -324,7 +330,7 @@ if section == "我的" {
       ToolbarItem(placement: .navigationBarTrailing) {
         HStack(spacing: 10) {
           Menu {
-            Button("AI 生成皮肤", systemImage: "sparkles") { showGenerate = true }
+            Button("AI 皮肤抽卡", systemImage: "sparkles") { showAI = true }
             Button("设计模板", systemImage: "square.grid.2x2") { section = "设计" }
             Button("我的皮肤", systemImage: "square.stack") { section = "我的" }
             Button("重做", systemImage: "arrow.uturn.forward") {
@@ -340,8 +346,8 @@ if section == "我的" {
         }
       }
     }
-    .sheet(isPresented: $showGenerate, onDismiss: { saved = CustomSkinLibrary.designs }) {
-      SkinGenerationView { item in apply(item.design); section = "按键" }
+    .sheet(isPresented: $showAI, onDismiss: { saved = CustomSkinLibrary.designs }) {
+      AISkinGenerationView { next in apply(next); selected = KeyboardSkin.custom.rawValue; section = "按键" }
     }
     .sheet(item: $publishingSkin) { item in SavedSkinPublishFlow(skinID: item.id) }
     .sheet(isPresented: $showPhotos) {

@@ -859,6 +859,42 @@ int main()
                 }),
                 "Closing standalone settings did not finish or request application termination.");
         [[NSNotificationCenter defaultCenter] removeObserver:standaloneCloseObserver];
+        NSDictionary *originalCloudSettings = [MetasequoiaPreferencesWindowController cloudSettingsSnapshot];
+        require(originalCloudSettings.count == 20, "The cloud snapshot missed a native setting.");
+        NSMutableDictionary *invalidSkinSettings = [originalCloudSettings mutableCopy];
+        invalidSkinSettings[@"platform.macos.candidate_skin"] = @"../private";
+        require(![[MetasequoiaPreferencesWindowController applyCloudSettingsSnapshot:invalidSkinSettings] boolValue],
+                "An invalid skin identifier reached native settings.");
+        require([[MetasequoiaPreferencesWindowController cloudSettingsSnapshot] isEqual:originalCloudSettings],
+                "A rejected skin changed other settings.");
+        invalidSkinSettings[@"platform.macos.candidate_skin"] = @"wechat\0hidden";
+        require(![[MetasequoiaPreferencesWindowController applyCloudSettingsSnapshot:invalidSkinSettings] boolValue],
+                "A truncated skin identifier was accepted.");
+        invalidSkinSettings[@"platform.macos.candidate_skin"] = @"wechat";
+        require([[MetasequoiaPreferencesWindowController applyCloudSettingsSnapshot:invalidSkinSettings] boolValue],
+                "A valid skin could not be applied.");
+        require([[MetasequoiaPreferencesWindowController storedCandidateSkin] isEqualToString:@"wechat"],
+                "Cloud skin selection did not reach the native preference.");
+        require([[MetasequoiaPreferencesWindowController applyCloudSettingsSnapshot:originalCloudSettings] boolValue],
+                "Could not restore original skin settings.");
+        NSMutableDictionary *invalidCloudSettings = [originalCloudSettings mutableCopy];
+        invalidCloudSettings[@"platform.macos.input_scheme"] = @2;
+        invalidCloudSettings[@"platform.macos.candidate_font_size"] = @17;
+        require(![[MetasequoiaPreferencesWindowController applyCloudSettingsSnapshot:invalidCloudSettings] boolValue],
+                "Unsupported cloud font size was accepted.");
+        require([[MetasequoiaPreferencesWindowController cloudSettingsSnapshot] isEqual:originalCloudSettings],
+                "Invalid cloud settings partially changed local preferences.");
+        invalidCloudSettings[@"platform.macos.candidate_font_size"] = @18;
+        invalidCloudSettings[@"platform.macos.candidate_learning"] = @1;
+        require(![[MetasequoiaPreferencesWindowController applyCloudSettingsSnapshot:invalidCloudSettings] boolValue],
+                "An integer was accepted for a boolean cloud setting.");
+        invalidCloudSettings[@"platform.macos.candidate_learning"] = @YES;
+        require([[MetasequoiaPreferencesWindowController applyCloudSettingsSnapshot:invalidCloudSettings] boolValue],
+                "A valid full cloud settings snapshot was rejected.");
+        require([[MetasequoiaPreferencesWindowController cloudSettingsSnapshot] isEqual:invalidCloudSettings],
+                "Cloud settings did not roundtrip through native setters.");
+        require([[MetasequoiaPreferencesWindowController applyCloudSettingsSnapshot:originalCloudSettings] boolValue],
+                "The test settings could not be restored.");
     }
     return 0;
 }

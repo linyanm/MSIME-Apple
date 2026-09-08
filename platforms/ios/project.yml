@@ -91,8 +91,10 @@ targets:
     platform: iOS
     sources:
       - path: platforms/ios/App/Sources
+      - path: shared/backend-ui
       - path: shared/backend/BackendAccountClient.swift
       - path: shared/backend/BackendChatClient.swift
+      - path: shared/backend/BackendSkinArtworkClient.swift
       - path: shared/backend/BackendAccountSession.swift
       - path: shared/backend/BackendClipboardClient.swift
       - path: shared/backend/BackendPreferencesClient.swift
@@ -100,6 +102,7 @@ targets:
       - path: shared/backend/BackendDictionaryClient.swift
       - path: shared/backend/BackendCandidateClient.swift
       - path: shared/backend/BackendSnapshotClient.swift
+      - path: shared/backend/BackendCommunityResourceClient.swift
       - path: platforms/ios/App/Services
       - path: vendor/MetasequoiaImeEngine/voice/src/provider_protocol.cpp
       - path: platforms/ios/KeyboardExtension/Resources/dictionary-manifest.json
@@ -219,13 +222,16 @@ targets:
     platform: iOS
     sources:
       - path: platforms/ios/KeyboardTests
+      - path: platforms/ios/App/Services/AISkinService.swift
       - path: platforms/ios/App/Services/SkinCommunityAPI.swift
+      - path: platforms/ios/App/Services/CommunityPreviewFixtures.swift
       - path: platforms/ios/App/Services/CloudDictionaryTransfer.swift
       - path: shared/backend/BackendDictionaryClient.swift
       - path: shared/backend/BackendCandidateClient.swift
       - path: shared/backend/BackendSnapshotClient.swift
       - path: shared/backend/BackendAccountClient.swift
       - path: shared/backend/BackendChatClient.swift
+      - path: shared/backend/BackendSkinArtworkClient.swift
       - path: shared/backend/BackendAccountSession.swift
       - path: platforms/ios/KeyboardExtension/Sources
       - path: platforms/ios/App/Services/CustomService.swift
@@ -278,6 +284,7 @@ targets:
       - path: platforms/ios/SharedUI/MetasequoiaTheme.swift
       - path: shared/backend/BackendAccountClient.swift
       - path: shared/backend/BackendChatClient.swift
+      - path: shared/backend/BackendSkinArtworkClient.swift
       - path: shared/backend/BackendAccountSession.swift
       - path: shared/backend/BackendClipboardClient.swift
       - path: shared/backend/BackendPreferencesClient.swift
@@ -285,6 +292,7 @@ targets:
       - path: shared/backend/BackendDictionaryClient.swift
       - path: shared/backend/BackendCandidateClient.swift
       - path: shared/backend/BackendSnapshotClient.swift
+      - path: shared/backend/BackendCommunityResourceClient.swift
       - path: platforms/ios/App/Services/CustomService.swift
       - path: platforms/ios/App/Services/AppServicesBridge.mm
       - path: vendor/MetasequoiaImeEngine/voice/src/provider_protocol.cpp

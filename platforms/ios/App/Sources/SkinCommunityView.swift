@@ -203,6 +203,7 @@ struct CommunityPublishView: View {
             } catch { message = error.localizedDescription }
           }
         }.disabled(busy || !agrees || design == nil || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          .accessibilityIdentifier("confirmCommunitySkinPublication")
         if busy { ProgressView() }
       }.disabled(busy)
         .navigationTitle("发布皮肤")
@@ -248,8 +249,6 @@ struct CommunityDesignPreview: View {
   private func key(_ text: String) -> some View {
     Text(text).font(.system(size: 14, weight: .medium, design: design.monospaced ? .monospaced : .default))
       .foregroundStyle(color(text == "↵" ? CustomKeyboardSkin.readableText(on: design.actionBackground) : design.keyForeground)).frame(maxWidth: .infinity, maxHeight: .infinity)
-      .background(color(text == "↵" ? design.actionBackground : design.keyBackground).opacity(text == "↵" ? 1 : design.keyOpacity ?? 1), in: RoundedRectangle(cornerRadius: design.cornerRadius))
-      .overlay(RoundedRectangle(cornerRadius: design.cornerRadius).stroke(color(design.customBorderColor ?? design.accent), lineWidth: design.borderWidth))
-      .shadow(color: .black.opacity(design.shadow), radius: 3, y: 2)
+      .background { SkinKeySurface(design: design, action: text == "↵") }
   }
 }
