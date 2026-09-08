@@ -15,13 +15,22 @@ struct CommunitySkin: Codable, Identifiable, Sendable {
 }
 struct CommunityPage: Decodable, Sendable { let skins: [CommunitySkin]; let has_more: Bool }
 struct CommunityChallenge: Decodable, Sendable { let challenge_id: String; let nonce: String }
-struct CommunityUser: Codable, Sendable { let id: String; let display_name: String }
+struct CommunityUser: Codable, Sendable {
+  let id: String
+  let display_name: String
+  var created_at: String? = nil
+}
+struct CommunityIdentity: Decodable, Sendable { let provider: String }
+struct CommunityProfile: Decodable, Sendable {
+  let user: CommunityUser
+  let identities: [CommunityIdentity]
+}
 struct CommunityTokens: Codable, Sendable {
   var saved_at: Date?
   var expires_in: Int?
   let access_token: String
   let refresh_token: String
-  let user: CommunityUser
+  var user: CommunityUser
 }
 struct CommunityFailure: LocalizedError {
   let message: String
@@ -147,6 +156,28 @@ actor SkinCommunityAPI {
     result.saved_at = Date()
     generation += 1
     try writeCredentials(result)
+  }
+  func profile() async throws -> CommunityProfile {
+    let expectedGeneration = generation
+    let profile: CommunityProfile = try await request("/v1/users/me", authenticated: true)
+    guard expectedGeneration == generation, var tokens = try readCredentials(), tokens.user.id == profile.user.id else {
+      throw CancellationError()
+    }
+    tokens.user = profile.user
+    try writeCredentials(tokens)
+    return profile
+  }
+  func updateProfile(name: String) async throws -> CommunityProfile {
+    let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !name.isEmpty, name.unicodeScalars.count <= 64,
+          !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
+      throw CommunityFailure(message: "昵称需为 1–64 个字符，不能包含换行或控制字符。")
+    }
+    let expectedGeneration = generation
+    let _: [String: Bool] = try await request("/v1/users/me", method: "PATCH",
+      body: JSONSerialization.data(withJSONObject: ["display_name": name]), authenticated: true)
+    guard expectedGeneration == generation else { throw CancellationError() }
+    return try await profile()
   }
   func logout(deleteAccount: Bool = false) async throws {
     let _: [String: Bool] = try await request(deleteAccount ? "/v1/users/me" : "/v1/auth/logout", method: deleteAccount ? "DELETE" : "POST", body: deleteAccount ? nil : JSONSerialization.data(withJSONObject: ["all": false]), authenticated: true)

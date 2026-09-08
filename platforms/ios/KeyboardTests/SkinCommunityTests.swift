@@ -23,6 +23,11 @@ private final class CommunityFixtureProtocol: URLProtocol, @unchecked Sendable {
       status = 200
     } else if path == "/v1/auth/logout" {
       body = ""; status = 204
+    } else if path == "/v1/users/me" && request.httpMethod == "PATCH" {
+      body = ""; status = 204
+    } else if path == "/v1/users/me" {
+      body = #"{"user":{"id":"fixture-user","display_name":"新昵称","created_at":"2026-09-08T00:00:00Z"},"identities":[{"provider":"apple","subject":"not-displayed"}]}"#
+      status = 200
     } else if request.value(forHTTPHeaderField: "Authorization") == "Bearer expired" {
       body = #"{"error":{"code":"invalid_credentials"}}"#; status = 401
     } else if request.url?.query?.contains("offset=20") == true {
@@ -73,6 +78,26 @@ final class SkinCommunityTests: XCTestCase {
     XCTAssertFalse(signedOut)
     let profileAfterLogout = try await api.currentUser()
     XCTAssertNil(profileAfterLogout)
+  }
+  func testProfileFetchUpdateAndValidation() async throws {
+    let memory = CommunityMemoryCredentials()
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [CommunityFixtureProtocol.self]
+    let api = SkinCommunityAPI(configuration: configuration, readCredentials: { memory.read() }, writeCredentials: { memory.write($0) })
+    try await api.login(challenge: "fixture", identityToken: "synthetic")
+    for invalid in ["  ", String(repeating: "字", count: 65), "名字\n换行"] {
+      do { _ = try await api.updateProfile(name: invalid); XCTFail("invalid name accepted") }
+      catch { XCTAssertTrue(error.localizedDescription.contains("1–64")) }
+    }
+    XCTAssertEqual(memory.read()?.user.display_name, "测试")
+    let profile = try await api.updateProfile(name: " 新昵称 ")
+    XCTAssertEqual(profile.user.display_name, "新昵称")
+    XCTAssertEqual(profile.identities.first?.provider, "apple")
+    XCTAssertEqual(profile.user.created_at, "2026-09-08T00:00:00Z")
+    XCTAssertEqual(memory.read()?.user.display_name, "新昵称")
+    try await api.logout()
+    do { _ = try await api.profile(); XCTFail("signed-out profile must require authentication") }
+    catch { XCTAssertEqual(error.localizedDescription, "请先使用 Apple 登录。") }
   }
   @MainActor func testCommunityPreviewDoesNotChangeActiveDesign() throws {
     let previous = CustomKeyboardSkinStore.current

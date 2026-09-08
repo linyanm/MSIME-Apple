@@ -78,6 +78,7 @@ struct AccountSettingsView: View {
 struct AppleAccountSection: View {
   @Binding var signedIn: Bool
   @State private var user: CommunityUser?
+  @State private var editProfile = false
   @State private var needsRecovery = false
   @State private var busy = false
   @State private var message: String?
@@ -86,7 +87,7 @@ struct AppleAccountSection: View {
   private let api = SkinCommunityAPI.shared
 
   private var displayName: String {
-    guard let name = user?.display_name, !name.isEmpty else { return "水杉用户" }
+    guard let name = user?.display_name, !name.isEmpty else { return "尚未设置昵称" }
     return name
   }
 
@@ -103,6 +104,15 @@ struct AppleAccountSection: View {
         }
       }.padding(.vertical, 10)
       if signedIn {
+        Button { editProfile = true } label: {
+          HStack {
+            Label("个人资料", systemImage: "person.text.rectangle")
+            Spacer()
+            Text(user?.display_name.isEmpty == false ? "查看与编辑" : "设置昵称")
+              .font(.subheadline).foregroundStyle(.secondary)
+            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary)
+          }
+        }.accessibilityIdentifier("editAccountProfile")
         Menu("账号") {
           Button("退出登录") { run { try await api.logout(); signedIn = false; await prepareLogin() } }
           Button("重新登录") { run { try await api.clearExpiredLogin(); signedIn = false; await prepareLogin() } }
@@ -144,8 +154,13 @@ struct AppleAccountSection: View {
     }
     .task {
       do { user = try await api.currentUser(); signedIn = user != nil } catch { needsRecovery = true; message = error.localizedDescription }
-      if !signedIn { await prepareLogin() }
+      if signedIn {
+        do { user = try await api.profile().user }
+        catch is CancellationError { }
+        catch { message = error.localizedDescription }
+      } else { await prepareLogin() }
     }
+    .sheet(isPresented: $editProfile) { AccountProfileEditor { profile in user = profile } }
     .alert("账号与登录", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
       Button("好", role: .cancel) {}
     } message: { Text(message ?? "") }
@@ -160,5 +175,95 @@ struct AppleAccountSection: View {
   private func run(_ action: @escaping @MainActor () async throws -> Void) {
     guard !busy else { return }; busy = true
     Task { defer { busy = false }; do { try await action() } catch { message = error.localizedDescription } }
+  }
+}
+
+struct AccountProfileEditor: View {
+  var onSaved: (CommunityUser) -> Void
+  @Environment(\.dismiss) private var dismiss
+  @State private var profile: CommunityProfile?
+  @State private var name = ""
+  @State private var busy = false
+  @State private var message: String?
+  private var normalizedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+  private var validName: Bool {
+    !normalizedName.isEmpty && normalizedName.unicodeScalars.count <= 64 &&
+      !normalizedName.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) }
+  }
+  private var joined: String? {
+    guard let value = profile?.user.created_at else { return nil }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    let fractional = formatter.date(from: value)
+    formatter.formatOptions = [.withInternetDateTime]
+    guard let date = fractional ?? formatter.date(from: value) else { return nil }
+    return date.formatted(date: .abbreviated, time: .omitted)
+  }
+  var body: some View {
+    NavigationView {
+      Form {
+        Section {
+          TextField("设置你的昵称", text: $name)
+            .textContentType(.nickname).submitLabel(.done)
+            .accessibilityIdentifier("accountNicknameField")
+            .disabled(profile == nil || busy)
+          Text("\(normalizedName.unicodeScalars.count)/64").font(.caption).foregroundStyle(.secondary)
+        } header: { Text("昵称") } footer: {
+          Text("昵称会公开显示在你的社区作品上，修改后已发布作品也会使用新昵称。")
+        }
+        if let profile {
+          Section("账号信息") {
+            VStack(alignment: .leading, spacing: 6) {
+              Text("账号 ID")
+              Text(profile.user.id).font(.footnote.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+            }
+            HStack {
+              Text("登录方式")
+              Spacer()
+              Text(profile.identities.map { $0.provider == "apple" ? "Apple" : $0.provider }.joined(separator: "、"))
+                .foregroundStyle(.secondary)
+            }
+            if let joined {
+              HStack { Text("注册时间"); Spacer(); Text(joined).foregroundStyle(.secondary) }
+            }
+          }
+        }
+        if busy { ProgressView().frame(maxWidth: .infinity) }
+        if profile == nil && !busy { Button("重新加载资料") { load() } }
+      }
+      .navigationTitle("个人资料").navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(busy) }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("保存") {
+            busy = true
+            Task {
+              defer { busy = false }
+              do {
+                let updated = try await SkinCommunityAPI.shared.updateProfile(name: normalizedName)
+                onSaved(updated.user)
+                dismiss()
+              } catch { message = error.localizedDescription }
+            }
+          }.disabled(busy || profile == nil || !validName || normalizedName == profile?.user.display_name)
+            .accessibilityIdentifier("saveAccountProfile")
+        }
+      }
+      .task { load() }
+      .alert("个人资料", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
+        Button("好", role: .cancel) {}
+      } message: { Text(message ?? "") }
+    }
+  }
+  private func load() {
+    guard !busy else { return }; busy = true
+    Task {
+      defer { busy = false }
+      do {
+        let result = try await SkinCommunityAPI.shared.profile()
+        profile = result; name = result.user.display_name
+        onSaved(result.user)
+      } catch { message = error.localizedDescription }
+    }
   }
 }
