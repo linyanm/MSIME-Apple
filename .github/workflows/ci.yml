@@ -148,6 +148,8 @@ jobs:
           submodules: recursive
       - name: Install project generator
         run: brew install boost fmt spdlog nlohmann-json xcodegen
+      - name: Test shared account transport and session lifecycle
+        run: swift test --package-path shared/backend
       - name: Validate keyboard configuration
         run: |
           python3 platforms/ios/tests/ProjectConfigurationTests.py

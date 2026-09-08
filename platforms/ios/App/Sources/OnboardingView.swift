@@ -19,6 +19,12 @@ struct SettingsView: View {
           }
         }
 
+        Section("账号与同步") {
+          NavigationLink(destination: AccountSettingsView()) {
+            Label("水杉账号", systemImage: "person.crop.circle")
+          }.accessibilityIdentifier("accountSettingsLink")
+        }
+
         Section("键盘与服务") {
           NavigationLink(destination: InputSettingsView()) {
             Label("输入设置", systemImage: "slider.horizontal.3")
