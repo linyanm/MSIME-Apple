@@ -57,6 +57,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var nineKeyHeight: NSLayoutConstraint!
   private var nineKeySymbolsButton: UIButton!
   private let punctuationStack = UIStackView()
+  private var quickPunctuationButton: UIButton!
+  private var quickPunctuationWidth: NSLayoutConstraint?
   private var symbolDeleteWidth: NSLayoutConstraint?
   private var standardActionWidths: [NSLayoutConstraint] = []
   private var nineKeyActionWidths: [NSLayoutConstraint] = []
@@ -737,6 +739,16 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     actionDeleteButton = delete
     row.addArrangedSubview(delete)
 
+    let punctuation = makeKey(title: ",", accessibilityLabel: "常用标点") { [weak self] in
+      guard let self else { return }
+      handleSymbol(quickPunctuationSymbols[0])
+    }
+    punctuation.accessibilityIdentifier = "quickPunctuationKey"
+    punctuation.accessibilityHint = "轻点输入，长按选择常用标点"
+    quickPunctuationButton = punctuation
+    quickPunctuationWidth = punctuation.widthAnchor.constraint(equalToConstant: 44)
+    row.addArrangedSubview(punctuation)
+
     let space = makeKey(title: "空格", accessibilityLabel: "空格") { [weak self] in
       self?.handleSpace()
     }
@@ -1343,6 +1355,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     updateKeyboardLayout()
   }
 
+  private var quickPunctuationSymbols: [String] {
+    guard isChineseMode, !session.isInLocalMode else { return [",", ".", "?", "!", ":", ";", "@"] }
+    if inputScheme == .japanese { return ["、", "。", "？", "！", "「", "」", "・"] }
+    return ["，", "。", "？", "！", "、", "；", "："]
+  }
+
   private func updateKeyboardLayout() {
     standardRowHeights.forEach { $0.1.isActive = false }
     microsoftFinalKey?.isHidden = !(isChineseMode && inputScheme == .microsoft && !session.isInLocalMode)
@@ -1356,7 +1374,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     if actionRow != nil {
       let usesNineKeyLayout = nineKey && !showsSymbols
       nineKeyHeight.isActive = usesNineKeyLayout
-      let globeIndex = usesNineKeyLayout ? 4 : 2
+      let globeIndex = usesNineKeyLayout ? 5 : 2
       if actionRow.arrangedSubviews.firstIndex(of: actionGlobeButton) != globeIndex {
         actionRow.removeArrangedSubview(actionGlobeButton)
         actionGlobeButton.removeFromSuperview()
@@ -1364,6 +1382,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       }
       NSLayoutConstraint.deactivate(standardActionWidths + nineKeyActionWidths)
       symbolDeleteWidth?.isActive = false
+      quickPunctuationWidth?.isActive = false
       globeWidthConstraint?.isActive = false
       actionGlobeButton.isHidden = !needsInputModeSwitchKey
       if needsInputModeSwitchKey {
@@ -1371,6 +1390,14 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         globeWidthConstraint?.isActive = true
       }
       nineKeySymbolsButton.isHidden = !usesNineKeyLayout
+      quickPunctuationButton.isHidden = usesNineKeyLayout || showsSymbols
+      quickPunctuationWidth?.isActive = !quickPunctuationButton.isHidden
+      let punctuation = quickPunctuationSymbols
+      quickPunctuationButton.configuration?.title = punctuation[0]
+      quickPunctuationButton.accessibilityValue = punctuation[0]
+      quickPunctuationButton.menu = UIMenu(children: punctuation.map { symbol in
+        UIAction(title: symbol) { [weak self] _ in self?.handleSymbol(symbol) }
+      })
       actionDeleteButton.isHidden = !showsSymbols
       symbolDeleteWidth?.isActive = showsSymbols
       NSLayoutConstraint.activate(usesNineKeyLayout ? nineKeyActionWidths : standardActionWidths)

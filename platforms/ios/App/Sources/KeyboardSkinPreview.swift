@@ -54,6 +54,7 @@ struct KeyboardSkinPreview: View {
         key("123").frame(width: 38)
         Image(systemName: "globe").frame(width: 34, height: 40)
           .background(keySurface())
+        if !nineKey { key("，").frame(width: 38) }
         key("空格")
         key("换行", emphasized: true).frame(width: 52)
       }.frame(height: 40)
