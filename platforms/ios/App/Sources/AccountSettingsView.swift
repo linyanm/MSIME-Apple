@@ -36,6 +36,14 @@ struct AccountSettingsView: View {
         }
       }
 
+      if signedIn {
+        Section("云端数据") {
+          NavigationLink(destination: CloudClipboardView(session: .shared, client: BackendAccountClient())) {
+            Label("云剪贴板", systemImage: "doc.on.clipboard")
+          }.accessibilityIdentifier("accountCloudClipboard")
+        }
+      }
+
       Section("发现与记录") {
         NavigationLink(destination: SkinCommunityView()) {
           HStack(spacing: 12) {
@@ -77,6 +85,8 @@ struct AccountSettingsView: View {
 
 struct AppleAccountSection: View {
   @Binding var signedIn: Bool
+  @StateObject private var codeModel = CodeLoginModel()
+  @State private var codeChannel: CodeLoginChannel?
   @State private var user: CommunityUser?
   @State private var editProfile = false
   @State private var needsRecovery = false
@@ -100,7 +110,7 @@ struct AppleAccountSection: View {
         VStack(alignment: .leading, spacing: 5) {
           Text(signedIn ? displayName : "欢迎来到水杉")
             .font(.title3.bold())
-          Text(signedIn ? "Apple 账号已登录" : "登录，分享你的键盘设计")
+          Text(signedIn ? "水杉账号已登录" : "登录，分享你的键盘设计")
             .font(.subheadline).foregroundStyle(.secondary)
         }
       }.padding(.vertical, 10)
@@ -144,9 +154,17 @@ struct AppleAccountSection: View {
               Task { await prepareLogin() }
             }
           }.accessibilityIdentifier("backendAppleSignIn").signInWithAppleButtonStyle(.black).frame(height: 44).disabled(busy)
-        } else {
+        } else if codeModel.providers["apple"] == true {
           Button("准备 Apple 登录") { Task { await prepareLogin() } }.disabled(busy)
         }
+        ForEach(CodeLoginChannel.allCases) { channel in
+          if codeModel.providers[channel.rawValue] == true {
+            Button(channel.title) { codeModel.user = nil; codeModel.message = nil; codeChannel = channel }
+              .accessibilityIdentifier("backendCodeLogin_\(channel.rawValue)")
+          }
+        }
+        Button("刷新登录方式") { Task { await codeModel.loadProviders(); await prepareLogin() } }
+        if let status = codeModel.message { Text(status).font(.caption).foregroundStyle(.secondary) }
         Text("登录后可在皮肤社区发布、下载和评分。日常输入无需登录。").font(.caption).foregroundStyle(.secondary)
         if needsRecovery {
           Button("清除失效登录状态") { run { try await api.clearExpiredLogin(); signedIn = false; needsRecovery = false; await prepareLogin() } }
@@ -155,6 +173,7 @@ struct AppleAccountSection: View {
       }
     }
     .task {
+      await codeModel.loadProviders()
       do { user = try await api.currentUser(); signedIn = user != nil } catch { needsRecovery = true; message = error.localizedDescription }
       if signedIn {
         do { user = try await api.profile().user }
@@ -162,6 +181,12 @@ struct AppleAccountSection: View {
         catch { message = error.localizedDescription }
       } else { await prepareLogin() }
     }
+    .sheet(item: $codeChannel, onDismiss: {
+      Task {
+        do { user = try await api.currentUser(); signedIn = user != nil }
+        catch { message = error.localizedDescription }
+      }
+    }) { channel in CodeLoginView(model: codeModel, channel: channel) }
     .sheet(isPresented: $editProfile) { AccountProfileEditor { profile in user = profile } }
     .alert("账号与登录", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
       Button("好", role: .cancel) {}
@@ -175,6 +200,7 @@ struct AppleAccountSection: View {
   }
   @MainActor private func prepareLogin() async {
     challenge = nil
+    guard codeModel.providers["apple"] == true else { return }
     do { challenge = try await api.challenge() } catch { message = error.localizedDescription }
   }
   private func run(_ action: @escaping @MainActor () async throws -> Void) {
