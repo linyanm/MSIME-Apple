@@ -4,6 +4,13 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef NS_ENUM(NSInteger, MetasequoiaCandidateAction) {
+    MetasequoiaCandidateActionPromote,
+    MetasequoiaCandidateActionRemove,
+    MetasequoiaCandidateActionFixFirst,
+    MetasequoiaCandidateActionClearPosition,
+};
+
 @interface MetasequoiaInputSnapshot : NSObject
 
 @property(nonatomic, readonly, getter=isHandled) BOOL handled;
@@ -18,6 +25,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+@class MSIMEPreparedDictionarySnapshot;
+
 @interface MetasequoiaInputSessionBridge : NSObject
 
 - (MetasequoiaInputSnapshot *)handleCharacter:(NSString *)character;
@@ -29,7 +38,35 @@ NS_ASSUME_NONNULL_BEGIN
 - (MetasequoiaInputSnapshot *)commitRaw;
 - (MetasequoiaInputSnapshot *)cancel;
 - (MetasequoiaInputSnapshot *)selectCandidateAtIndex:(NSUInteger)index;
+- (BOOL)setLearningEnabled:(BOOL)enabled;
+- (BOOL)setFuzzyPinyinRules:(uint32_t)rules;
+- (BOOL)suspendDictionarySession;
+- (BOOL)resumeDictionarySessionWithError:(NSError **)error NS_SWIFT_NAME(resumeDictionarySession());
+// Call on the session-owning thread. This token describes the current logical
+// journal and generation, and is used to reject stale snapshot replacements.
+- (nullable NSString *)localDictionaryStateVersionWithError:(NSError **)error
+    NS_SWIFT_NAME(localDictionaryStateVersion());
+- (nullable NSDictionary<NSString *, id> *)dictionarySnapshotContextWithError:(NSError **)error
+    NS_SWIFT_NAME(dictionarySnapshotContext());
+- (BOOL)activateDictionarySnapshot:(MSIMEPreparedDictionarySnapshot *)snapshot
+                   expectedVersion:(NSString *)expectedVersion
+                             error:(NSError **)error NS_SWIFT_NAME(activateDictionarySnapshot(_:expectedVersion:));
+- (BOOL)applyPersonalPrevious:(nullable NSDictionary<NSString *, id> *)previous
+                  replacement:(nullable NSDictionary<NSString *, id> *)replacement
+                    requestID:(NSString *)requestID
+                        error:(NSError **)error;
+- (nullable NSDictionary<NSString *, id> *)personalEntriesAtOffset:(NSUInteger)offset error:(NSError **)error;
+
+- (MetasequoiaInputSnapshot *)editCandidateAtIndex:(NSUInteger)index
+                                      expectedWord:(NSString *)word
+                                            action:(MetasequoiaCandidateAction)action;
 - (MetasequoiaInputSnapshot *)switchToShuangpin:(BOOL)usesShuangpin;
+- (MetasequoiaInputSnapshot *)switchToNineKey;
+- (MetasequoiaInputSnapshot *)switchToWubi;
+- (MetasequoiaInputSnapshot *)switchToShuangpinProfile:(NSString *)name;
+- (MetasequoiaInputSnapshot *)switchToJapanese;
+- (MetasequoiaInputSnapshot *)chooseNineKeySpellingAtIndex:(NSUInteger)index;
+- (NSArray<NSString *> *)nineKeySpellings;
 
 /// Opens one of the engine's local input modes by its trigger letter. The engine keys these off a
 /// capital delivered with a shift-only modifier, which this keyboard has no way to produce, so the
@@ -40,6 +77,8 @@ NS_ASSUME_NONNULL_BEGIN
 /// YES while the Unicode local mode is open, when the digits are input for a code point rather than
 /// candidate numbers.
 @property(nonatomic, readonly, getter=isInUnicodeMode) BOOL inUnicodeMode;
+/// Local utilities need alphabetic keys even when nine-key pinyin is selected.
+@property(nonatomic, readonly, getter=isInLocalMode) BOOL inLocalMode;
 
 /// Per-key double-pinyin hints for the scheme the session is actually running, keyed by uppercase
 /// letter. Empty in full pinyin. Derived from the engine's own profile so a frontend never hardcodes

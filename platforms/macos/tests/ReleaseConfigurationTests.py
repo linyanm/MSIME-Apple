@@ -96,7 +96,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertTrue((MACOS_ROOT / "resources" / menu_icon).is_file())
         self.assertIn(menu_icon, (PROJECT_ROOT / "CMakeLists.txt").read_text())
         menu_icon_svg = (MACOS_ROOT / "resources" / "MetasequoiaIMEMenuIcon.svg").read_text()
-        self.assertIn('<rect width="32" height="36" fill="#fff" />', menu_icon_svg)
+        self.assertNotIn("<rect", menu_icon_svg)
 
         icon_path = MACOS_ROOT / "resources" / menu_icon
         dpi_output = subprocess.check_output(
@@ -110,7 +110,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
             ["sips", "-g", "hasAlpha", str(icon_path)],
             text=True,
         )
-        self.assertRegex(alpha_output, r"hasAlpha:\s*no")
+        self.assertRegex(alpha_output, r"hasAlpha:\s*yes")
 
     def test_input_controller_survives_the_engine_helpcode_semantics(self):
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
@@ -123,7 +123,10 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("SchemeType::Quanpin", scheme_guard)
         self.assertIn("SchemeType::Shuangpin", scheme_guard)
 
-        # The engine consumes A-Z during a composition as helpcode input. macOS does not offer that, so uppercase must not reach the session while something is being composed; it commits the leading candidate and the application inserts the capital. The one capital path that is allowed opens a local input mode, and the engine guards every one of those triggers on there being no composition, so this branch has to carry the same guard. The full-width and keymap-highlight paths elsewhere in this file legitimately look at uppercase, so scope the check to the key-routing branch.
+        # The engine consumes A-Z during a composition as helpcode input. Forward that path so
+        # dual-code shuangpin (mauM) can filter; idle Shift+letter still opens a local mode.
+        # The full-width and keymap-highlight paths elsewhere in this file legitimately look at
+        # uppercase, so scope the check to the key-routing branch.
         character_branch = controller.split("case metasequoia::mac::ControllerKeyAction::Character:", 1)[1].split(
             "if (!result.handled)", 1
         )[0]
@@ -138,9 +141,10 @@ class ReleaseConfigurationTests(unittest.TestCase):
             1,
             "uppercase reaches the session from more than one place in the key-routing branch",
         )
-        uppercase_branch = character_branch.split("character <= 'Z'", 1)[1].split("}", 1)[0]
-        self.assertIn("_sessionSnapshot.preedit.empty()", uppercase_branch)
-        self.assertIn("_localInputModesEnabled", character_branch)
+        uppercase_branch = character_branch.split("character <= 'Z'", 1)[1].split("else if (character == '\\''", 1)[0]
+        self.assertIn("!_sessionSnapshot.preedit.empty()", uppercase_branch)
+        self.assertIn("_session->character(static_cast<char>(character), shiftOnly)", uppercase_branch)
+        self.assertIn("_localInputModesEnabled && shiftOnly", uppercase_branch)
         self.assertIn("NSEventModifierFlagShift", uppercase_branch)
         self.assertIn("character(static_cast<char>(character), true)", uppercase_branch)
 
@@ -511,6 +515,10 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("@CMAKE_OSX_DEPLOYMENT_TARGET@", info_plist)
         self.assertIn('file(SHA256 "${METASEQUOIA_IME_DICTIONARY}" METASEQUOIA_IME_DICTIONARY_SHA256)', cmake)
         self.assertIn("PreferencesWindowController.mm", cmake)
+        self.assertIn("CandidateSkin.cpp", cmake)
+        self.assertIn("CandidateSkinAppearance.mm", cmake)
+        self.assertIn("CandidateSkinPreviewView.mm", cmake)
+        self.assertIn("SkinSettingsView.mm", cmake)
         self.assertIn("UpdateController.mm", cmake)
         self.assertIn('set(METASEQUOIA_SPARKLE_VERSION "2.9.6")', cmake)
         self.assertIn("Sparkle-${METASEQUOIA_SPARKLE_VERSION}.tar.xz", cmake)
@@ -558,11 +566,11 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("refreshDictionaryStatus", preferences_controller)
         self.assertIn("EnsureMetasequoiaDictionary", preferences_controller)
         self.assertIn("constexpr CGFloat kWindowWidth = 680.0", preferences_controller)
-        self.assertIn("constexpr CGFloat kWindowHeight = 660.0", preferences_controller)
+        self.assertIn("constexpr CGFloat kWindowHeight = 800.0", preferences_controller)
         self.assertIn("NSWindowToolbarStylePreference", preferences_controller)
         self.assertIn("NSToolbarDisplayModeIconAndLabel", preferences_controller)
         self.assertIn("toolbarSelectableItemIdentifiers", preferences_controller)
-        self.assertIn('@"键盘输入", @"外观", @"词库与数据", @"更新与反馈"', preferences_controller)
+        self.assertIn('@"键盘输入", @"外观", @"皮肤", @"词库与数据", @"更新与反馈"', preferences_controller)
         self.assertIn('@[ @"全拼输入", @"双拼输入", @"五笔输入" ]', preferences_controller)
         self.assertIn('addItemWithTitle:@"小鹤双拼"', preferences_controller)
         self.assertIn('addItemWithTitle:@"86 五笔"', preferences_controller)
@@ -614,8 +622,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
         commit_composition = input_controller.split("- (void)commitComposition:(id)sender", 1)[1].split(
             "- (void)deactivateServer:(id)sender", 1
         )[0]
-        self.assertIn("commitLeadingCandidate", commit_composition)
-        self.assertNotIn("Command::CommitRaw", commit_composition)
+        self.assertIn("Command::CommitRaw", commit_composition)
+        self.assertNotIn("commitLeadingCandidate", commit_composition)
         self.assertIn("在没有活动组词时于下一次按键前生效", readme)
 
         release_installer = (MACOS_ROOT / "scripts/install-release.sh").read_text()

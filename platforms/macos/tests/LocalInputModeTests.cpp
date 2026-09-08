@@ -1,6 +1,6 @@
 #include "PublicSessionTestOptions.h"
-// The controller only forwards a capital to the session when nothing is being composed and Shift is
-// the only modifier. These tests pin the engine side of that arrangement: which capitals open a
+// Idle Shift+letter opens a local mode. During a composition the same capital is helpcode input,
+// and the engine still refuses to open a mode on top of one. These tests pin which capitals open a
 // mode, that the rest stay unhandled so the application still inserts them, and that a disabled
 // mode gives its trigger letter back.
 #include <metasequoia/session.h>
@@ -106,13 +106,12 @@ int RunTest()
         options.local_modes = AppleOptions(true);
         metasequoia::Session session(options);
 
-        // The engine guards every trigger on there being no composition, which is the same condition
-        // the controller checks before forwarding a capital at all.
         Require(session.character('n').handled, "The guard fixture did not start a composition.");
         const auto duringComposition = session.character('U', true);
+        Require(duringComposition.handled && session.snapshot().preedit == "nU",
+                "An uppercase letter during composition was not taken as helpcode.");
         Require(session.snapshot().local_mode == metasequoia::LocalInputMode::None,
                 "A trigger opened a local mode on top of a live composition.");
-        (void)duringComposition;
     }
 
     std::filesystem::remove_all(dataDirectory);

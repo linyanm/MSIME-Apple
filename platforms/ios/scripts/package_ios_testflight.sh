@@ -15,8 +15,8 @@ tag_name=${1:-}
 : "${METASEQUOIA_IOS_APP_PROVISIONING_PROFILE_PATH:?METASEQUOIA_IOS_APP_PROVISIONING_PROFILE_PATH is required}"
 : "${METASEQUOIA_IOS_KEYBOARD_PROVISIONING_PROFILE_PATH:?METASEQUOIA_IOS_KEYBOARD_PROVISIONING_PROFILE_PATH is required}"
 
-if [[ ! "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    printf '%s\n' 'Tag must use the vMAJOR.MINOR.PATCH format.' >&2
+if [[ ! "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-build\.[1-9][0-9]{0,3}\.[0-9]{1,2}\.[0-9]{1,2})?$ ]]; then
+    printf '%s\n' 'Tag must use vMAJOR.MINOR.PATCH with an optional -build.X.Y.Z suffix.' >&2
     exit 1
 fi
 if [[ ! -s "$METASEQUOIA_IOS_AUTH_KEY_PATH" ]]; then
@@ -32,7 +32,7 @@ for profile in \
     fi
 done
 
-for tool in xcodegen xcodebuild xcrun; do
+for tool in git pod xcodegen xcodebuild xcrun; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         printf 'Required tool is missing: %s\n' "$tool" >&2
         exit 1
@@ -51,6 +51,41 @@ if [[ ! -s "$dictionary" ]]; then
 fi
 
 version=${tag_name#v}
+version=${version%%-build.*}
+
+# CFBundleVersion has to be unique and strictly increasing within one CFBundleShortVersionString.
+# Deriving it from the marketing version left exactly one possible build per release, so a build that
+# failed Beta App Review could not be replaced without cutting another release -- and every new
+# marketing version starts a fresh TestFlight version train that needs its own review. The commit
+# count is monotonic and reproducible from the checkout alone.
+# CI supplies the shared build. Keep commit-count builds for local legacy packaging.
+if [[ -n "${METASEQUOIA_BUILD_NUMBER:-}" || "$tag_name" == *-build.* ]]; then
+    build_number=${METASEQUOIA_BUILD_NUMBER:-}
+    if [[ "$tag_name" == *-build.* ]]; then
+        build_number=${tag_name##*-build.}
+        if [[ "${METASEQUOIA_BUILD_NUMBER:-$build_number}" != "$build_number" ]]; then
+            printf '%s\n' "Build number does not match release tag." >&2
+            exit 1
+        fi
+    fi
+else
+    if ! git -C "$project_root" rev-parse --git-dir >/dev/null 2>&1; then
+        printf 'Not a git checkout, so the build number cannot be derived: %s\n' "$project_root" >&2
+        exit 1
+    fi
+    if [[ "$(git -C "$project_root" rev-parse --is-shallow-repository)" == "true" ]]; then
+        printf 'Refusing to build from a shallow checkout: the commit count would restart low and App Store Connect would reject the build as a downgrade. Check out with fetch-depth: 0.\n' >&2
+        exit 1
+    fi
+    build_number=$(git -C "$project_root" rev-list --count HEAD)
+fi
+
+# TestFlight groups builds by CFBundleShortVersionString and reviews each group on its own, so
+# carrying the patch digit here bought a fresh Beta App Review for every release. iOS ships x.y and
+# lets the build number carry the rest; only a minor bump opens a new group now. The release
+# artifacts still take their names from the full tag.
+marketing_version=${version%.*}
+
 build_root="$project_root/build/ios-testflight"
 archive_path="$build_root/MetasequoiaIME.xcarchive"
 export_path="$build_root/export"
@@ -58,6 +93,7 @@ rm -rf -- "$build_root"
 mkdir -p "$build_root" "$export_path"
 
 xcodegen generate --spec "$spec" --project "$build_root" --project-root "$project_root"
+MSIME_IOS_BUILD_ROOT="$build_root" pod install --deployment --project-directory="$project_root/platforms/ios"
 
 # Install the exact distribution profiles selected by the Release configuration. Xcode's cloud
 # signing fallback can select a development profile for an automatic archive, which then cannot be
@@ -76,14 +112,14 @@ keyboard_profile_name=$(security cms -D -i "$METASEQUOIA_IOS_KEYBOARD_PROVISIONI
 archive_log="$build_root/archive.log"
 set +e
 xcodebuild archive \
-    -project "$build_root/MetasequoiaImeIOS.xcodeproj" \
+    -workspace "$build_root/MetasequoiaImeIOS.xcworkspace" \
     -scheme MetasequoiaImeIOS \
     -configuration Release \
     -destination 'generic/platform=iOS' \
     -archivePath "$archive_path" \
     -derivedDataPath "$build_root/derived" \
-    MARKETING_VERSION="$version" \
-    CURRENT_PROJECT_VERSION="$version" \
+    MARKETING_VERSION="$marketing_version" \
+    CURRENT_PROJECT_VERSION="$build_number" \
     CODE_SIGNING_ALLOWED=YES \
     CODE_SIGNING_REQUIRED=YES \
     CODE_SIGN_STYLE=Manual \
@@ -105,6 +141,13 @@ if [[ ! -d "$application" || ! -d "$extension" ]]; then
     printf '%s\n' 'Signed archive is missing the host application or keyboard extension.' >&2
     exit 1
 fi
+
+# Verify both targets before distributing the archive.
+for bundle in "$archive_path/Products/Applications/MetasequoiaIME.app" \
+    "$archive_path/Products/Applications/MetasequoiaIME.app/PlugIns/MetasequoiaKeyboard.appex"; do
+    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$bundle/Info.plist")" = "$build_number"
+    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$bundle/Info.plist")" = "$marketing_version"
+done
 
 export_options="$build_root/ExportOptions.plist"
 cat > "$export_options" <<EOF

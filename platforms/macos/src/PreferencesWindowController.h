@@ -12,6 +12,9 @@ bool MetasequoiaShouldShowPreferences(int argc, const char *argv[]);
 @interface MetasequoiaPreferencesWindowController : NSWindowController <NSWindowDelegate>
 + (instancetype)sharedController;
 + (void)prepareInputSessionsForLearnedDataReset;
++ (NSDictionary<NSString *, id> *)cloudSettingsSnapshot;
++ (NSNumber *)validateCloudSettingsSnapshot:(NSDictionary<NSString *, id> *)values;
++ (NSNumber *)applyCloudSettingsSnapshot:(NSDictionary<NSString *, id> *)values;
 + (NSInteger)storedScheme;
 + (void)setStoredScheme:(NSInteger)scheme;
 + (BOOL)storedAutocorrectEnabled;
@@ -24,6 +27,8 @@ bool MetasequoiaShouldShowPreferences(int argc, const char *argv[]);
 + (void)setShuangpinHelpcodeSchema:(NSInteger)schema;
 + (BOOL)storedChinesePunctuationEnabled;
 + (void)setChinesePunctuationEnabled:(BOOL)enabled;
++ (NSString *)storedCandidateSkin;
++ (void)setStoredCandidateSkin:(NSString *)skinId;
 + (NSInteger)storedCandidatePanelStyle;
 + (void)setCandidatePanelStyle:(NSInteger)style;
 + (NSInteger)storedCandidatePageSize;

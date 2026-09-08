@@ -1,13 +1,28 @@
 #pragma once
 
+#include <metasequoia/personal_dictionary.h>
 #include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+namespace metasequoia
+{
+struct RuntimePaths;
+}
+
 namespace metasequoia::apple
 {
+enum class CandidateAction
+{
+    Promote,
+    Remove,
+    FixFirst,
+    ClearPosition
+};
 struct InputSnapshot
 {
     bool handled = false;
@@ -24,6 +39,8 @@ class InputSessionAdapter
 {
   public:
     InputSessionAdapter();
+    // Prepared paths are captured for this adapter and retained across scheme/preferences changes.
+    explicit InputSessionAdapter(const RuntimePaths &paths);
     ~InputSessionAdapter();
 
     InputSessionAdapter(const InputSessionAdapter &) = delete;
@@ -38,6 +55,7 @@ class InputSessionAdapter
     // None while no local mode is open. A frontend needs this to know that its digits are input for a
     // Unicode code point rather than candidate numbers.
     bool in_unicode_mode() const;
+    bool in_local_mode() const;
     InputSnapshot handle_candidate_key(char character);
     InputSnapshot handle_punctuation(char character);
     InputSnapshot handle_backspace();
@@ -46,11 +64,36 @@ class InputSessionAdapter
     InputSnapshot commit_raw();
     InputSnapshot cancel();
     InputSnapshot select_candidate(std::size_t index);
+    // Returns false during composition; the platform retries after its current snapshot is idle.
+    bool set_learning_enabled(bool enabled);
+    bool learning_enabled() const;
+    bool set_fuzzy_pinyin_rules(std::uint32_t rules);
+    RuntimePaths runtime_paths() const;
+    bool idle() const;
+    PersonalDictionaryEditResult edit_personal_word(const std::optional<PersonalDictionaryEntry> &previous,
+                                                    const std::optional<PersonalDictionaryEntry> &replacement,
+                                                    const std::string &request_id);
+    // The host supplies an Engine-staged, verified generation and owns all other
+    // writers. Publish its durable pointer only after constructing the replacement
+    // session. A throwing publisher leaves this adapter on its original paths.
+    // Returns false during composition/local input, without invoking publish.
+    bool activate_dictionary_generation(const RuntimePaths &paths, const std::function<void()> &publish);
+    PersonalDictionaryPage personal_words(std::size_t offset, std::size_t limit) const;
+    InputSnapshot edit_candidate(std::size_t index, const std::string &expected_word, CandidateAction action);
     InputSnapshot switch_to_shuangpin(bool uses_shuangpin);
     bool uses_shuangpin() const;
+    InputSnapshot switch_to_shuangpin_profile(const std::string &name);
+    std::string shuangpin_profile_name() const;
+    InputSnapshot switch_to_wubi();
+    InputSnapshot switch_to_japanese();
+    InputSnapshot switch_to_nine_key();
+    InputSnapshot choose_nine_key_spelling(std::size_t index);
+    std::vector<std::string> nine_key_spellings() const;
 
   private:
     class Impl;
     std::unique_ptr<Impl> impl_;
+    bool learning_enabled_ = false;
+    std::uint32_t fuzzy_pinyin_rules_ = 0;
 };
 } // namespace metasequoia::apple

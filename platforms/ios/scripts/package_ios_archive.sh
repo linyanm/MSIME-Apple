@@ -23,18 +23,51 @@ if [[ "$output_dir" != /* ]]; then
     output_dir="$(pwd)/$output_dir"
 fi
 
-if [[ ! "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    printf '%s\n' "Tag must use the vMAJOR.MINOR.PATCH format." >&2
+if [[ ! "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-build\.[1-9][0-9]{0,3}\.[0-9]{1,2}\.[0-9]{1,2})?$ ]]; then
+    printf '%s\n' "Tag must use vMAJOR.MINOR.PATCH with an optional -build.X.Y.Z suffix." >&2
     exit 1
 fi
 version=${tag_name#v}
+version=${version%%-build.*}
 
-for tool in xcodegen xcodebuild ditto shasum; do
+for tool in git pod xcodegen xcodebuild ditto shasum; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         printf 'Required tool is missing: %s\n' "$tool" >&2
         exit 1
     fi
 done
+
+# This archive is what a maintainer opens in Xcode Organizer to push to TestFlight, so it needs the
+# same build number rule as the signed path: unique and increasing within one marketing version,
+# rather than a copy of the marketing version that allows only one build per release.
+# CI supplies the shared build. Keep commit-count builds for local legacy packaging.
+if [[ -n "${METASEQUOIA_BUILD_NUMBER:-}" || "$tag_name" == *-build.* ]]; then
+    build_number=${METASEQUOIA_BUILD_NUMBER:-}
+    if [[ "$tag_name" == *-build.* ]]; then
+        build_number=${tag_name##*-build.}
+        if [[ "${METASEQUOIA_BUILD_NUMBER:-$build_number}" != "$build_number" ]]; then
+            printf '%s\n' "Build number does not match release tag." >&2
+            exit 1
+        fi
+    fi
+else
+    if ! git -C "$project_root" rev-parse --git-dir >/dev/null 2>&1; then
+        printf 'Not a git checkout, so the build number cannot be derived: %s\n' "$project_root" >&2
+        exit 1
+    fi
+    if [[ "$(git -C "$project_root" rev-parse --is-shallow-repository)" == "true" ]]; then
+        printf 'Refusing to build from a shallow checkout: the commit count would restart low and App Store Connect would reject the build as a downgrade. Check out with fetch-depth: 0.\n' >&2
+        exit 1
+    fi
+    build_number=$(git -C "$project_root" rev-list --count HEAD)
+fi
+
+# TestFlight groups builds by CFBundleShortVersionString and reviews each group on its own, so
+# carrying the patch digit here bought a fresh Beta App Review for every release. iOS ships x.y and
+# lets the build number carry the rest; only a minor bump opens a new group now. This archive has to
+# agree with the signed path, or a maintainer uploading it from Organizer would open a second group
+# for the same release. The release artifacts still take their names from the full tag.
+marketing_version=${version%.*}
 
 spec="$project_root/platforms/ios/project.yml"
 if [[ ! -f "$spec" ]]; then
@@ -59,18 +92,19 @@ rm -rf -- "$build_root"
 mkdir -p "$build_root" "$output_dir"
 
 xcodegen generate --spec "$spec" --project "$build_root" --project-root "$project_root"
+MSIME_IOS_BUILD_ROOT="$build_root" pod install --deployment --project-directory="$project_root/platforms/ios"
 
-# MARKETING_VERSION is passed on the command line as well as being bumped in project.yml, so the
-# archive carries the release version even when the spec is momentarily behind the tag being built.
+# The version settings are passed on the command line as well as being bumped in project.yml, so the
+# archive follows the tag being built even when the spec is momentarily behind it.
 xcodebuild archive \
-    -project "$build_root/MetasequoiaImeIOS.xcodeproj" \
+    -workspace "$build_root/MetasequoiaImeIOS.xcworkspace" \
     -scheme MetasequoiaImeIOS \
     -configuration Release \
     -destination 'generic/platform=iOS' \
     -archivePath "$archive_path" \
     -derivedDataPath "$build_root/derived" \
-    MARKETING_VERSION="$version" \
-    CURRENT_PROJECT_VERSION="$version" \
+    MARKETING_VERSION="$marketing_version" \
+    CURRENT_PROJECT_VERSION="$build_number" \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGN_IDENTITY="" \
@@ -93,13 +127,20 @@ if [[ ! -s "$extension/msime.db" ]]; then
     exit 1
 fi
 
+# Verify both targets before distributing the archive.
+for bundle in "$archive_path/Products/Applications/MetasequoiaIME.app" \
+    "$archive_path/Products/Applications/MetasequoiaIME.app/PlugIns/MetasequoiaKeyboard.appex"; do
+    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$bundle/Info.plist")" = "$build_number"
+    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$bundle/Info.plist")" = "$marketing_version"
+done
+
 archive_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$application/Info.plist")
-if [[ "$archive_version" != "$version" ]]; then
+if [[ "$archive_version" != "$marketing_version" ]]; then
     printf 'Archive version %s does not match tag %s.\n' "$archive_version" "$tag_name" >&2
     exit 1
 fi
 extension_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$extension/Info.plist")
-if [[ "$extension_version" != "$version" ]]; then
+if [[ "$extension_version" != "$marketing_version" ]]; then
     printf 'Keyboard extension version %s does not match tag %s.\n' "$extension_version" "$tag_name" >&2
     exit 1
 fi

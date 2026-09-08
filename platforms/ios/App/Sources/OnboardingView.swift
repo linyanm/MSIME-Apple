@@ -1,11 +1,187 @@
 import SwiftUI
 import UIKit
 
-struct OnboardingView: View {
-  @State private var sampleText = ""
-  @FocusState private var tryoutFocused: Bool
-  @State private var usesShuangpin = InputSchemePreference.usesShuangpin
+struct KeyboardSettingsView: View {
+  var body: some View {
+    Form {
+        Section("键盘外观与输入") {
+          NavigationLink(destination: InputSettingsView()) {
+            Label("输入设置", systemImage: "slider.horizontal.3")
+          }.accessibilityIdentifier("inputSettingsLink")
+          NavigationLink(destination: KeyboardLayoutSettingsView()) {
+            Label("键盘布局", systemImage: "rectangle.3.group")
+          }.accessibilityIdentifier("keyboardLayoutLink")
+          NavigationLink(destination: SkinSettingsView()) {
+            Label("皮肤", systemImage: "paintpalette")
+          }.accessibilityIdentifier("skinSettingsLink")
+        }
+        Section("词库与智能服务") {
+          NavigationLink(destination: DictionarySettingsView()) {
+            Label("词库", systemImage: "books.vertical")
+          }.accessibilityIdentifier("dictionarySettingsLink")
+          NavigationLink(destination: ServiceSettingsView(kind: .ai)) {
+            Label("AI 设置", systemImage: "sparkles")
+          }.accessibilityIdentifier("aiSettingsLink")
+          NavigationLink(destination: ServiceSettingsView(kind: .voice)) {
+            Label("语音设置", systemImage: "waveform")
+          }.accessibilityIdentifier("voiceSettingsLink")
+        }
+
+        Section("系统") {
+          Button {
+            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+            UIApplication.shared.open(url)
+          } label: {
+            Label("系统键盘设置", systemImage: "gearshape")
+          }
+          .accessibilityIdentifier("openKeyboardSettingsButton")
+        }
+    }.navigationTitle("键盘设置").navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+struct InputSettingsView: View {
+  @Environment(\.scenePhase) private var scenePhase
+  @AppStorage(KeyboardFeedbackPreference.soundKey, store: KeyboardFeedbackPreference.defaults)
+  private var soundEnabled = true
+  @AppStorage(KeyboardFeedbackPreference.hapticsKey, store: KeyboardFeedbackPreference.defaults)
+  private var hapticsEnabled = false
+  @AppStorage(KeyboardFeedbackPreference.strengthKey, store: KeyboardFeedbackPreference.defaults)
+  private var hapticStrength = KeyboardHapticStrength.medium.rawValue
+  @State private var previewFeedback: UIImpactFeedbackGenerator?
+  @State private var inputScheme = InputSchemePreference.scheme
+  @State private var enabledSchemes = InputSchemePreference.enabledSchemes
   @State private var usesTraditionalOutput = ChineseOutputPreference.usesTraditional
+
+  var body: some View {
+    Form {
+        Section {
+          ForEach(ChineseInputScheme.allCases, id: \.self) { scheme in
+            HStack {
+              Button {
+                inputScheme = scheme
+                InputSchemePreference.scheme = scheme
+              } label: {
+                HStack {
+                  Text(scheme.title).foregroundStyle(.primary)
+                  Spacer()
+                  if inputScheme == scheme {
+                    Image(systemName: "checkmark")
+                      .foregroundStyle(MetasequoiaTheme.forest)
+                      .accessibilityHidden(true)
+                  }
+                }
+              }
+              .buttonStyle(.plain)
+              .accessibilityIdentifier("inputScheme_\(scheme.rawValue)")
+              .accessibilityValue(inputScheme == scheme ? "已选择" : "未选择")
+              .accessibilityAddTraits(inputScheme == scheme ? [.isSelected] : [])
+              .disabled(!enabledSchemes.contains(scheme))
+              Toggle(scheme.title, isOn: Binding(get: { enabledSchemes.contains(scheme) }, set: { enabled in
+                var selection = enabledSchemes
+                if enabled { selection.append(scheme) } else { selection.removeAll { $0 == scheme } }
+                InputSchemePreference.enabledSchemes = selection
+                reloadPreferences()
+              }))
+              .labelsHidden()
+              .disabled(enabledSchemes.count == 1 && enabledSchemes.contains(scheme))
+              .accessibilityIdentifier("enabledInputScheme_\(scheme.rawValue)")
+            }
+
+          }
+        } header: {
+          Text("输入方案")
+        } footer: {
+          Text("开启的方案会显示在键盘快捷切换中，至少保留一种。点击名称设为当前方案。左右滑动空格可移动光标；滑动前会先完成当前输入。")
+        }
+
+        Section("手写输入") {
+          Text("首次在键盘中下载中文模型，需要完全访问权限。下载后可离线识别，笔迹和识别结果不会上传。Google ML Kit 会发送性能及使用统计。")
+            .font(.footnote).foregroundStyle(.secondary)
+          Link("手写 SDK 隐私说明", destination: URL(string: "https://developers.google.com/ml-kit/terms")!)
+        }
+
+        Section("高情商回复") {
+          Text("复制对方的话，切换到高情商回复键盘，点“粘贴”后选择九宫格里的回复风格。支持帮你回、帮润色和换一句，点选回复插入聊天输入框。")
+            .font(.footnote).foregroundStyle(.secondary)
+          NavigationLink(destination: ServiceSettingsView(kind: .ai)) {
+            Label("配置键盘 AI", systemImage: "sparkles")
+          }
+        }
+
+        Section {
+          NavigationLink(destination: FuzzyPinyinSettingsView()) {
+            Label("模糊音", systemImage: "waveform.path")
+          }.accessibilityIdentifier("fuzzyPinyinSettingsLink")
+        }
+
+        Section {
+          Picker("输出字形", selection: $usesTraditionalOutput) {
+            Text("简体").tag(false)
+            Text("繁体").tag(true)
+          }
+          .pickerStyle(.segmented)
+          .accessibilityIdentifier("chineseOutputPicker")
+          .onChange(of: usesTraditionalOutput) { value in
+            ChineseOutputPreference.usesTraditional = value
+          }
+        } header: {
+          Text("简繁体")
+        } footer: {
+          Text("应用于候选词和输入的文字。")
+        }
+
+        Section {
+          Toggle("按键音", isOn: $soundEnabled)
+            .accessibilityIdentifier("keyboardSoundToggle")
+          Toggle("按键振动", isOn: $hapticsEnabled)
+            .accessibilityIdentifier("keyboardHapticsToggle")
+            .onChange(of: hapticsEnabled) { enabled in if enabled { previewHaptics() } }
+          if hapticsEnabled {
+            Picker("振动强度", selection: $hapticStrength) {
+              ForEach(KeyboardHapticStrength.allCases, id: \.rawValue) { strength in
+                Text(strength.title).tag(strength.rawValue)
+              }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("keyboardHapticStrengthPicker")
+            .onChange(of: hapticStrength) { _ in previewHaptics() }
+            Button("试一下振动", action: previewHaptics)
+              .accessibilityIdentifier("previewKeyboardHaptics")
+          }
+        } header: {
+          Text("按键反馈")
+        } footer: {
+          Text("按键音受系统静音设置控制；振动效果取决于设备与系统支持。")
+        }
+
+    }
+    .navigationTitle("输入设置")
+    .navigationBarTitleDisplayMode(.inline)
+      .onAppear(perform: reloadPreferences)
+      .onChange(of: scenePhase) { phase in
+        if phase == .active { reloadPreferences() }
+      }
+  }
+
+  private func previewHaptics() {
+    guard hapticsEnabled else { return }
+    let strength = KeyboardHapticStrength(rawValue: hapticStrength) ?? .medium
+    let generator = UIImpactFeedbackGenerator(style: strength.style)
+    previewFeedback = generator
+    generator.impactOccurred(intensity: strength.intensity)
+    generator.prepare()
+  }
+
+  private func reloadPreferences() {
+    inputScheme = InputSchemePreference.scheme
+    enabledSchemes = InputSchemePreference.enabledSchemes
+    usesTraditionalOutput = ChineseOutputPreference.usesTraditional
+  }
+}
+
+struct OnboardingView: View {
+  var onFinish: (() -> Void)? = nil
 
   private let steps = [
     ("1", "打开键盘设置", "前往“设置 → 通用 → 键盘 → 键盘”。"),
@@ -32,117 +208,25 @@ struct OnboardingView: View {
             .font(.headline)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
+            .foregroundStyle(.white)
+            .background(
+              MetasequoiaTheme.forest, in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.white)
-        .background(
-          MetasequoiaTheme.forest, in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-        )
         .accessibilityIdentifier("openKeyboardSettingsButton")
         .accessibilityHint("打开水杉输入法的系统设置页面")
 
-        VStack(alignment: .leading, spacing: 16) {
-          HStack(spacing: 12) {
-            // Decorative next to the row's own title and subtitle. Left visible to VoiceOver, a
-            // symbol reads either its system name ("插入文本") or, when it has none, its raw
-            // identifier, and neither says anything the row's text does not already say.
-            Image(systemName: "character.cursor.ibeam")
-              .font(.system(size: 17, weight: .semibold))
-              .foregroundStyle(MetasequoiaTheme.forest)
-              .frame(width: 38, height: 38)
-              .background(MetasequoiaTheme.mist, in: Circle())
-              .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 3) {
-              Text("输入方案")
-                .font(.headline)
-                .foregroundStyle(MetasequoiaTheme.ink)
-              Text("设置会同步到水杉键盘")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            }
-          }
-
-          Picker("输入方案", selection: $usesShuangpin) {
-            Text("全拼").tag(false)
-            Text("小鹤双拼").tag(true)
-          }
-          .pickerStyle(.segmented)
-          .accessibilityIdentifier("inputSchemePicker")
-          .onChange(of: usesShuangpin) { newValue in
-            InputSchemePreference.usesShuangpin = newValue
-          }
-
-          Divider()
-
-          HStack(spacing: 12) {
-            Image(systemName: "character.book.closed")
-              .font(.system(size: 17, weight: .semibold))
-              .foregroundStyle(MetasequoiaTheme.forest)
-              .frame(width: 38, height: 38)
-              .background(MetasequoiaTheme.mist, in: Circle())
-              .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 3) {
-              Text("输出字形")
-                .font(.headline)
-                .foregroundStyle(MetasequoiaTheme.ink)
-              Text("词库保持简体，仅转换候选和上屏文字")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            }
-          }
-
-          Picker("输出字形", selection: $usesTraditionalOutput) {
-            Text("简体").tag(false)
-            Text("繁体").tag(true)
-          }
-          .pickerStyle(.segmented)
-          .accessibilityIdentifier("chineseOutputPicker")
-          .onChange(of: usesTraditionalOutput) { newValue in
-            ChineseOutputPreference.usesTraditional = newValue
-          }
-        }
-        .padding(18)
-        .background(.background, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay {
-          RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .stroke(MetasequoiaTheme.needle.opacity(0.12), lineWidth: 1)
-        }
-        .onAppear {
-          usesShuangpin = InputSchemePreference.usesShuangpin
-          usesTraditionalOutput = ChineseOutputPreference.usesTraditional
+        if let onFinish {
+          Button("已完成，进入设置", action: onFinish)
+            .font(.headline)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .accessibilityIdentifier("finishOnboardingButton")
         }
 
-        VStack(alignment: .leading, spacing: 10) {
-          HStack {
-            Text("启用后试一试")
-              .font(.headline)
-              .foregroundStyle(MetasequoiaTheme.ink)
-            Spacer(minLength: 8)
-            // The field had no way to put the keyboard away, which also meant the keyboard never
-            // saw a dismissal while this app stayed in front.
-            if tryoutFocused {
-              Button("收起键盘") { tryoutFocused = false }
-                .font(.subheadline)
-                .foregroundStyle(MetasequoiaTheme.forest)
-                .accessibilityIdentifier("dismissKeyboardButton")
-            }
-          }
-          TextField("在这里试试水杉键盘", text: $sampleText)
-            .focused($tryoutFocused)
-            .textFieldStyle(.plain)
-            .padding(.horizontal, 16)
-            .frame(minHeight: 52)
-            .background(.background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay {
-              RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(MetasequoiaTheme.needle.opacity(0.35), lineWidth: 1)
-            }
-            .accessibilityIdentifier("keyboardTryoutField")
-        }
-
-        Text("键盘扩展默认不请求“允许完全访问”。输入内容保留在设备上。")
+        Text("键盘默认离线。打字统计需开启“允许完全访问”以保存本机字数；AI 和语音服务可在设置中单独配置。")
           .font(.footnote)
           .foregroundStyle(.secondary)
           .frame(maxWidth: .infinity, alignment: .center)
@@ -150,8 +234,10 @@ struct OnboardingView: View {
       .padding(.horizontal, 22)
       .padding(.vertical, 30)
     }
-    .background(MetasequoiaTheme.mist.ignoresSafeArea())
+    .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
     .tint(MetasequoiaTheme.forest)
+    .navigationTitle("启用指南")
+    .navigationBarTitleDisplayMode(.inline)
   }
 
   private var header: some View {
@@ -169,8 +255,8 @@ struct OnboardingView: View {
       VStack(alignment: .leading, spacing: 5) {
         Text("水杉输入法")
           .font(.system(.largeTitle, design: .rounded).weight(.bold))
-          .foregroundStyle(MetasequoiaTheme.ink)
-        Text("同一颗引擎，原生 iOS 键盘")
+          .foregroundStyle(.primary)
+        Text("添加键盘，开始使用水杉输入法")
           .font(.subheadline.weight(.medium))
           .foregroundStyle(MetasequoiaTheme.needle)
       }
@@ -196,7 +282,7 @@ struct OnboardingView: View {
       VStack(alignment: .leading, spacing: 5) {
         Text(title)
           .font(.headline)
-          .foregroundStyle(MetasequoiaTheme.ink)
+          .foregroundStyle(.primary)
         Text(detail)
           .font(.subheadline)
           .foregroundStyle(.secondary)

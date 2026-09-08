@@ -129,7 +129,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertIn('private static let key = "inputSchemeUsesShuangpin"', shared_preference)
         self.assertIn("UserDefaults(suiteName: appGroupIdentifier)", shared_preference)
         self.assertIn("UserDefaults.standard.object(forKey: key)", shared_preference)
-        self.assertIn("InputSchemePreference.usesShuangpin", controller)
+        self.assertIn("InputSchemePreference.scheme", controller)
         self.assertNotIn("schemePreferenceKey", controller)
 
     def test_english_capitalization_policy(self):
@@ -172,7 +172,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertIn('Text("简体").tag(false)', onboarding)
         self.assertIn('Text("繁体").tag(true)', onboarding)
         self.assertIn('.accessibilityIdentifier("chineseOutputPicker")', onboarding)
-        self.assertIn("ChineseOutputPreference.usesTraditional = newValue", onboarding)
+        self.assertIn("ChineseOutputPreference.usesTraditional = value", onboarding)
 
         self.assertIn("usesTraditionalOutput = ChineseOutputPreference.usesTraditional", controller)
         self.assertIn("synchronizeChineseOutputPreference()", controller)
@@ -183,7 +183,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         # The engine and the packaged dictionary stay simplified, so conversion belongs at the
         # render and commit boundary only. Converting the preedit would rewrite pinyin, and
         # converting before selection would break the engine index the candidate chips carry.
-        self.assertIn("insertOwnText(chineseOutput(commitText))", controller)
+        self.assertIn("insertOwnText(source == .japanese ? commitText : chineseOutput(commitText), source: source)", controller)
         self.assertIn("let display = chineseOutput(candidate)", controller)
         self.assertIn('configuration.title = "\\(number)  \\(display)"', controller)
         self.assertIn("self.render(self.session.selectCandidate(at: UInt(index)))", controller)
@@ -208,8 +208,10 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
     def test_keyboard_uses_system_input_click_feedback(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
-        self.assertIn("UIInputViewAudioFeedback", controller)
-        self.assertIn("var enableInputClicksWhenVisible: Bool { true }", controller)
+        input_view = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardInputView.swift").read_text()
+        self.assertIn("UIInputViewAudioFeedback", input_view)
+        self.assertIn("var enableInputClicksWhenVisible: Bool { KeyboardFeedbackPreference.soundEnabled }", input_view)
+        self.assertIn("inputView = KeyboardInputView", controller)
         self.assertIn("UIDevice.current.playInputClick()", controller)
         self.assertIn("private func playInputClick()", controller)
         self.assertGreaterEqual(controller.count("playInputClick()"), 9)
@@ -268,7 +270,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertIn("ios-testflight.ipa", script)
         self.assertIn("Uploaded %s to TestFlight", script)
 
-    def test_keyboard_is_local_and_declares_the_system_extension_contract(self):
+    def test_keyboard_declares_shared_statistics_access_and_system_extension_contract(self):
         with (IOS_ROOT / "KeyboardExtension/Resources/Info.plist").open("rb") as info_file:
             info = plistlib.load(info_file)
 
@@ -277,7 +279,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertEqual(extension["NSExtensionPointIdentifier"], "com.apple.keyboard-service")
         self.assertEqual(extension["NSExtensionPrincipalClass"], "$(PRODUCT_MODULE_NAME).KeyboardViewController")
         self.assertEqual(attributes["PrimaryLanguage"], "zh-Hans")
-        self.assertFalse(attributes["RequestsOpenAccess"])
+        self.assertTrue(attributes["RequestsOpenAccess"])
 
     def test_keyboard_exposes_required_document_and_next_keyboard_actions(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
@@ -330,7 +332,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         # only commitCandidate produces it, so the first-page path has to keep using it.
         self.assertIn("return session.commitCandidate()", helper)
 
-        space = controller.split("private func handleSpace", 1)[1].split("\n  }", 1)[0]
+        space = controller.split("private func handleSpace()", 1)[1].split("\n  }", 1)[0]
         self.assertIn("commitVisibleCandidate()", space)
         self.assertNotIn("session.commitCandidate()", space)
 
@@ -349,7 +351,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
         cmake = (IOS_ROOT.parents[1] / "CMakeLists.txt").read_text()
 
-        self.assertIn("GetXiaoheShuangpinProfile()", keymap)
+        self.assertIn("GetShuangpinProfile(profile_name)", keymap)
         self.assertIn("shuangpinKeyHints", bridge_header)
         self.assertIn("shared/apple-bridge/ShuangpinKeymap.cpp", cmake)
 
@@ -361,7 +363,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertIn("button.accessibilityValue = hint", controller)
         # English mode feeds the client directly rather than a composition, so a double-pinyin hint
         # there would describe something the key does not do.
-        self.assertIn("let hint = isChineseMode ? shuangpinKeyHints[lowercase.uppercased()] : nil", controller)
+        self.assertIn("let hint = isChineseMode && !session.isInLocalMode ? shuangpinKeyHints[lowercase.uppercased()] : nil", controller)
 
     def test_local_input_modes_are_reachable_and_only_the_serviceable_ones(self):
         # The engine opens a local mode on a capital carried with its shift_only flag, which no iOS
@@ -379,26 +381,16 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         # InputSessionAdapterTests exercises idle and in-composition mode triggers through the
         # real adapter. Do not couple this packaging check to the engine facade's method names.
 
-        # Only the four this frontend can answer. The rest read others.db, english.db or
-        # dict_japanese.dat, none of which are packaged.
         options = adapter.split("LocalModeOptions options;", 1)[1].split("return session_options", 1)[0]
-        for enabled in ("unicode", "date_time", "super_jianpin"):
+        for enabled in ("unicode", "date_time", "super_jianpin", "quick_phrase", "emoji", "kaomoji", "temporary_english", "temporary_japanese"):
             self.assertIn(f"options.{enabled} = true;", options)
-        # quick_phrase reads quick_parases and temporary_japanese reads dict_japanese.dat, neither of
-        # which is in Engine's mobile product: its manifest declares features ['pinyin']. Emoji
-        # and kaomoji read others.db and temporary English reads english.db, none of which Apple
-        # fetches at all.
-        for disabled in ("quick_phrase", "emoji", "kaomoji", "temporary_english", "temporary_japanese"):
-            self.assertIn(f"options.{disabled} = false;", options)
-        self.assertIn("['pinyin']", profile)
-
         self.assertIn('(trigger: "U", title: "Unicode 码点")', controller)
-        self.assertNotIn('title: "快捷短语"', controller)
+        self.assertIn('title: "快捷短语"', controller)
         self.assertIn("session.openLocalMode(trigger)", controller)
         self.assertIn('preeditButton.accessibilityIdentifier = "preeditButton"', controller)
         # The entry point is the strip's own name, which is only dead space while nothing is being
         # composed and the keyboard is in Chinese mode.
-        self.assertIn("let offersModes = idle && isChineseMode", controller)
+        self.assertIn("let offersModes = idle && supportsLocalTools", controller)
         # Disabling the button would dim the title, and the title is the preedit.
         self.assertNotIn("preeditButton.isEnabled", controller)
         self.assertIn("preeditButton.menu =", controller)
@@ -433,40 +425,25 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         disappear = controller.split("override func viewWillDisappear", 1)[1].split("\n  }", 1)[0]
         self.assertIn("diagnosticDismissTimer?.invalidate()", disappear)
 
-    def test_setting_row_icons_stay_out_of_the_accessibility_tree(self):
-        # Both icons sit next to a title and a subtitle that already carry the row's meaning. Left
-        # visible, VoiceOver reads the symbol's system name where it has one and its raw identifier
-        # where it does not, which is how "character.book.closed" ended up being announced.
-        onboarding = (IOS_ROOT / "App/Sources/OnboardingView.swift").read_text()
-
-        for symbol in ("character.cursor.ibeam", "character.book.closed"):
-            row = onboarding.split(f'Image(systemName: "{symbol}")', 1)[1].split("\n\n", 1)[0]
-            self.assertIn(".accessibilityHidden(true)", row, f"{symbol} is still announced")
-
     def test_onboarding_exposes_a_regular_text_field_for_keyboard_tryout(self):
-        onboarding = (IOS_ROOT / "App/Sources/OnboardingView.swift").read_text()
-
-        self.assertIn('TextField("在这里试试水杉键盘"', onboarding)
-        self.assertIn('.accessibilityIdentifier("keyboardTryoutField")', onboarding)
-        # Without this the keyboard could not be put away without leaving the app.
-        self.assertIn("@FocusState private var tryoutFocused: Bool", onboarding)
-        self.assertIn(".focused($tryoutFocused)", onboarding)
-        self.assertIn('Button("收起键盘") { tryoutFocused = false }', onboarding)
-        self.assertIn('.accessibilityIdentifier("dismissKeyboardButton")', onboarding)
+        chat = (IOS_ROOT / "App/Sources/KeyboardChatView.swift").read_text()
+        self.assertIn('TextField("输入消息，试试键盘"', chat)
+        self.assertIn('.accessibilityIdentifier("keyboardTryoutField")', chat)
+        self.assertIn("@FocusState private var focused: Bool", chat)
+        self.assertIn(".focused($focused)", chat)
+        self.assertIn('Button("收起键盘") { focused = false }', chat)
+        self.assertIn('.accessibilityIdentifier("dismissKeyboardButton")', chat)
 
     def test_host_app_exposes_the_shared_input_scheme_setting(self):
         onboarding = (IOS_ROOT / "App/Sources/OnboardingView.swift").read_text()
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
         self.assertIn(
-            "@State private var usesShuangpin = InputSchemePreference.usesShuangpin",
+            "@State private var inputScheme = InputSchemePreference.scheme",
             onboarding,
         )
-        self.assertIn('Picker("输入方案", selection: $usesShuangpin)', onboarding)
-        self.assertIn('Text("全拼").tag(false)', onboarding)
-        self.assertIn('Text("小鹤双拼").tag(true)', onboarding)
-        self.assertIn('.accessibilityIdentifier("inputSchemePicker")', onboarding)
-        self.assertIn("InputSchemePreference.usesShuangpin = newValue", onboarding)
+        self.assertIn("ChineseInputScheme.allCases", onboarding)
+        self.assertIn("InputSchemePreference.scheme = scheme", onboarding)
         self.assertIn("private var hasComposition = false", controller)
         self.assertIn("override func viewWillAppear", controller)
         self.assertIn("synchronizeInputSchemePreference()", controller)
@@ -500,9 +477,13 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
     def test_bridge_installs_the_bundled_dictionary_before_engine_startup(self):
         bridge = (IOS_ROOT.parents[1] / "shared/apple-bridge/MetasequoiaInputSessionBridge.mm").read_text()
 
-        self.assertIn('URLForResource:@"msime" withExtension:@"db"', bridge)
-        self.assertIn('URLForResource:@"msime.db" withExtension:@"sha256"', bridge)
-        self.assertIn('setenv("METASEQUOIA_IME_DATA_DIR"', bridge)
+        installer = (IOS_ROOT.parents[1] / "shared/apple-bridge/DictionaryInstallation.mm").read_text()
+        self.assertIn("PrepareDictionaryInstallation", bridge)
+        self.assertIn("InputSessionAdapter>(installation.paths)", bridge)
+        self.assertLess(bridge.index("const auto &installation = ConfigureDataDirectory(true)"),
+                        bridge.index("InputSessionAdapter>(installation.paths)"))
+        self.assertIn("prepare_runtime_paths", installer)
+        self.assertIn('@[@"msime.db",@"english.db",@"others.db",@"dict_japanese.dat"]', "".join(installer.split()))
 
     def test_keyboard_exposes_engine_owned_number_and_punctuation_routing(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
@@ -555,14 +536,16 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
         self.assertIn("private var isChineseMode = true", controller)
-        self.assertIn("languageModeButton", controller)
+        self.assertIn("bottomLanguageButton", controller)
         self.assertIn("toggleInputMode", controller)
         self.assertIn("render(session.handleCharacter(character))", controller)
         self.assertIn("insertOwnText(output)", controller)
         self.assertIn("if !isChineseMode {\n      insertOwnText(symbol)", controller)
         self.assertIn("isChineseMode ? session.finishComposition() : session.cancel()", controller)
-        self.assertIn("isChineseMode ? \"中\" : \"英\"", controller)
-        self.assertIn('languageModeButton.accessibilityIdentifier = "languageModeButton"', controller)
+        self.assertIn('inputScheme == .japanese ? "日" : "中"', controller)
+        self.assertIn('bottomLanguageButton?.accessibilityIdentifier = "bottomLanguageKey"', controller)
+        self.assertIn("bottomLanguageButton?.configuration = configuration", controller)
+        self.assertIn("bottomLanguageButton?.isHidden = false", controller)
 
     def test_english_keyboard_supports_one_shot_shift_and_caps_lock(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
@@ -592,7 +575,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertIn("case .done:", controller)
         self.assertIn("enterButton?.accessibilityLabel = title", controller)
 
-        self.assertIn("switch textDocumentProxy.autocapitalizationType ?? .sentences", controller)
+        self.assertIn("textDocumentProxy.autocapitalizationType ?? .sentences", controller)
 
     def test_project_and_ci_run_native_onboarding_ui_tests(self):
         project = (IOS_ROOT / "project.yml").read_text()
@@ -614,7 +597,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         ui_tests = (IOS_ROOT / "UITests/OnboardingUITests.swift").read_text()
 
         self.assertIn(
-            "@MainActor\n  func testOnboardingExposesEnablementPathAndTryoutField()",
+            "@MainActor\n  func testSettingsPersistAndExposeGuideAndTryout()",
             ui_tests,
         )
 
@@ -622,26 +605,36 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
         self.assertIn(
-            "space.widthAnchor.constraint(equalTo: globe.widthAnchor, multiplier: 1.8)",
+            "space.widthAnchor.constraint(greaterThanOrEqualToConstant: 44)",
+            controller,
+        )
+        # Presets add bottom-row actions; keep Space's minimum small enough for
+        # narrow screens, including when applying a different preset at runtime.
+        self.assertIn("standardActionWidths[1].constant = 44", controller)
+        self.assertIn(
+            "delete.widthAnchor.constraint(equalToConstant: 44)",
             controller,
         )
         self.assertIn(
-            "globe.widthAnchor.constraint(greaterThanOrEqualToConstant: 44)",
+            "enter.widthAnchor.constraint(equalToConstant: 59.4)",
             controller,
         )
-        self.assertIn(
-            "enter.widthAnchor.constraint(equalTo: globe.widthAnchor, multiplier: 1.35)",
-            controller,
-        )
+        # Alphabetic Delete lives in the letter row; hiding symbol Delete must not
+        # collapse Space/Return or leave a required width on a hidden stack item.
+        self.assertIn("symbolDeleteWidth?.isActive = showsSymbols", controller)
+        self.assertNotIn("equalTo: delete.widthAnchor", controller)
         self.assertNotIn("layoutToggle.widthAnchor.constraint(equalToConstant: 56)", controller)
         self.assertNotIn("space.widthAnchor.constraint(greaterThanOrEqualToConstant: 110)", controller)
         self.assertNotIn("enter.widthAnchor.constraint(equalToConstant: 72)", controller)
+        self.assertIn("actionGlobeButton.isHidden = !needsInputModeSwitchKey", controller)
+        self.assertIn("globeWidthConstraint?.isActive = false", controller)
 
-    def test_keyboard_respects_the_height_assigned_by_the_system(self):
+    def test_keyboard_requests_consistent_height_below_system_priority(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
         self.assertIn("root.bottomAnchor.constraint(equalTo: view.bottomAnchor", controller)
-        self.assertNotIn("view.heightAnchor.constraint", controller)
+        self.assertIn("height.priority = .init(999)", controller)
+        self.assertIn("landscape ? 216 : 260", controller)
 
     def test_keyboard_exposes_a_persisted_full_and_double_pinyin_switch(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
@@ -649,11 +642,12 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         adapter_header = (IOS_ROOT.parents[1] / "shared/apple-bridge/InputSessionAdapter.h").read_text()
 
         self.assertIn("schemeButton", controller)
-        self.assertIn("toggleScheme", controller)
-        self.assertIn("usesShuangpin = InputSchemePreference.usesShuangpin", controller)
-        self.assertIn("InputSchemePreference.usesShuangpin = usesShuangpin", controller)
+        self.assertIn("selectInputScheme", controller)
+        self.assertIn("inputScheme = InputSchemePreference.scheme", controller)
+        self.assertIn("InputSchemePreference.scheme = scheme", controller)
         self.assertIn("session.switch(toShuangpin: usesShuangpin)", controller)
-        self.assertIn('usesShuangpin ? "小鹤" : "全拼"', controller)
+        self.assertIn('configuration.image = UIImage(systemName: "keyboard")', controller)
+        self.assertIn("schemeButton.accessibilityValue = inputScheme.title", controller)
         self.assertIn('schemeButton.accessibilityIdentifier = "schemeButton"', controller)
         self.assertIn("switchToShuangpin", bridge_header)
         self.assertIn("switch_to_shuangpin", adapter_header)
@@ -693,18 +687,91 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
     def test_chinese_mode_never_sends_uppercase_to_the_session(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
-        # The engine consumes A-Z during a composition as helpcode input. The bridge rejects uppercase,
-        # but this keyboard is the other half of that contract: in Chinese mode the shift key is hidden,
-        # shift handling returns early, and key titles stay lowercase, so an uppercase letter never
-        # reaches handleCharacter in the first place. Losing any one of the three would send capitals
-        # into the session and swallow them instead of inserting them.
-        self.assertIn("button.isHidden = isChineseMode", controller)
+        # Shift leaves the Engine scheme before enabling English capitalization; uppercase letters
+        # are inserted directly rather than being consumed as Engine helpcode input.
         shift_handler = controller.split("private func toggleLetterCase", 1)[1].split("\n  }", 1)[0]
-        self.assertIn("guard !isChineseMode else { return }", shift_handler)
+        self.assertIn("if isChineseMode {", shift_handler)
+        self.assertIn("toggleInputMode()", shift_handler)
         self.assertIn("let usesUppercase = !isChineseMode && letterCaseState != .lowercase", controller)
         character_handler = controller.split("private func handleCharacter", 1)[1].split("\n  }", 1)[0]
         self.assertIn("render(session.handleCharacter(character))", character_handler)
         self.assertNotIn("uppercased()", character_handler.split("} else {", 1)[0])
+
+    def test_build_number_is_the_commit_count_and_not_the_marketing_version(self):
+        # App Store Connect keys Beta App Review to CFBundleShortVersionString and rejects a repeated
+        # CFBundleVersion inside it. Both used to carry the release version, which allowed exactly one
+        # upload per release: a build that failed review could only be replaced by cutting another.
+        scripts = {
+            name: (IOS_ROOT / "scripts" / name).read_text()
+            for name in ("package_ios_testflight.sh", "package_ios_archive.sh")
+        }
+        for name, script in scripts.items():
+            self.assertIn('CURRENT_PROJECT_VERSION="$build_number"', script, name)
+            self.assertNotIn('CURRENT_PROJECT_VERSION="$version"', script, name)
+            # TestFlight reviews each CFBundleShortVersionString on its own, so shipping the patch
+            # digit meant a Beta App Review per release. Both paths must truncate alike, or an
+            # archive uploaded from Organizer opens a second group for the same release.
+            self.assertIn("marketing_version=${version%.*}", script, name)
+            self.assertIn('MARKETING_VERSION="$marketing_version"', script, name)
+            self.assertNotIn('MARKETING_VERSION="$version"', script, name)
+
+        truncation = subprocess.run(
+            ["bash", "-c", 'version="0.48.6"; printf "%s" "${version%.*}"'],
+            capture_output=True, text=True, check=True,
+        )
+        self.assertEqual(truncation.stdout, "0.48")
+
+        start = 'if ! git -C "$project_root" rev-parse --git-dir'
+        end = 'build_number=$(git -C "$project_root" rev-list --count HEAD)'
+        fragments = {
+            name: script[script.index(start):script.index(end) + len(end)]
+            for name, script in scripts.items()
+        }
+        self.assertEqual(*fragments.values(), "both release paths must derive the build number alike")
+
+        fragment = next(iter(fragments.values()))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            origin = root / "origin"
+            origin.mkdir()
+            env = {
+                **os.environ,
+                "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+            }
+            subprocess.run(["git", "init", "-q", "-b", "main", str(origin)], check=True)
+            for index in range(3):
+                (origin / "f").write_text(str(index))
+                subprocess.run(["git", "-C", str(origin), "add", "f"], check=True)
+                subprocess.run(
+                    ["git", "-C", str(origin), "commit", "-q", "-m", f"c{index}"], check=True, env=env
+                )
+
+            runner = root / "run.sh"
+            runner.write_text(
+                f'#!/usr/bin/env bash\nset -euo pipefail\nproject_root="$1"\n{fragment}\n'
+                'printf "%s\\n" "$build_number"\n'
+            )
+            runner.chmod(0o755)
+
+            done = subprocess.run(
+                [str(runner), str(origin)], capture_output=True, text=True, check=True
+            )
+            self.assertEqual(done.stdout.strip(), "3")
+
+            # A shallow checkout restarts the count low enough that App Store Connect reads the next
+            # upload as a downgrade, so the scripts have to stop rather than produce that number.
+            shallow = root / "shallow"
+            subprocess.run(
+                ["git", "clone", "-q", "--depth", "1", origin.as_uri(), str(shallow)], check=True
+            )
+            refused = subprocess.run([str(runner), str(shallow)], capture_output=True, text=True)
+            self.assertNotEqual(refused.returncode, 0)
+            self.assertIn("shallow", refused.stderr)
+
+            outside = subprocess.run([str(runner), str(root)], capture_output=True, text=True)
+            self.assertNotEqual(outside.returncode, 0)
+            self.assertIn("Not a git checkout", outside.stderr)
 
 
 if __name__ == "__main__":

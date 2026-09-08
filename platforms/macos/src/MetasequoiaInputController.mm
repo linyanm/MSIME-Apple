@@ -1,6 +1,8 @@
 #import "MetasequoiaInputController.h"
 
 #import "DictionaryInstaller.h"
+#include "DictionaryRuntime.h"
+#include "../../../shared/apple-bridge/DictionarySessionLease.h"
 #import "FloatingToolbarPanel.h"
 #import "ChineseTextConversion.h"
 #include "CandidateFontSize.h"
@@ -89,11 +91,18 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 }
 } // namespace
 
+static NSHashTable *LiveDictionaryControllers()
+{
+    static NSHashTable *controllers = [NSHashTable weakObjectsHashTable];
+    return controllers;
+}
+
 @interface MetasequoiaInputController () <MetasequoiaFloatingToolbarDelegate, MetasequoiaCandidatePanelDelegate>
 @end
 
 @implementation MetasequoiaInputController
 {
+    std::unique_ptr<metasequoia::apple::DictionarySessionLease> _dictionaryLease;
     std::unique_ptr<metasequoia::Session> _session;
     metasequoia::SessionOptions _sessionOptions;
     metasequoia::SessionSnapshot _sessionSnapshot;
@@ -117,6 +126,21 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     id<MetasequoiaVoiceService> _voiceService;
     NSUInteger _voiceGeneration;
     id _voiceMouseMonitor;
+}
+
+// Main-thread publication first checks every composition, then releases every
+// idle session. Cross-process readers remain protected by DictionarySessionLease.
++ (NSNumber *)suspendForCloudDictionarySwitch
+{
+    if (!NSThread.isMainThread)
+        return @NO;
+    for (MetasequoiaInputController *controller in LiveDictionaryControllers())
+        if (controller->_session && (!controller->_sessionSnapshot.preedit.empty() ||
+                                     controller->_sessionSnapshot.local_mode != metasequoia::LocalInputMode::None))
+            return @NO;
+    for (MetasequoiaInputController *controller in LiveDictionaryControllers())
+        [controller prepareForLearnedDataReset:nil];
+    return @YES;
 }
 
 - (instancetype)initWithServer:(IMKServer *)server delegate:(id)delegate client:(id)inputClient
@@ -197,6 +221,7 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     (void)notification;
     [self commitLeadingCandidate:self.client];
     _session.reset();
+    _dictionaryLease.reset();
     _candidateSelection.reset();
     _candidateHighlightedIndex = 0;
     _candidatePageStart = 0;
@@ -211,6 +236,7 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 
 - (void)reloadSessionFromPreferences
 {
+    [LiveDictionaryControllers() addObject:self];
     const NSInteger storedScheme = [MetasequoiaPreferencesWindowController storedScheme];
     _shuangpinKeymapEnabled = [MetasequoiaPreferencesWindowController storedShuangpinKeymapEnabled];
     if (storedScheme != 1 || !_shuangpinKeymapEnabled)
@@ -238,7 +264,10 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     {
         return;
     }
-    const auto paths = metasequoia::RuntimePaths::legacy();
+    if (!_dictionaryLease)
+        _dictionaryLease =
+            std::make_unique<metasequoia::apple::DictionarySessionLease>(MetasequoiaDictionaryUserDirectory());
+    const auto paths = MetasequoiaCurrentDictionaryPaths();
     metasequoia::SessionOptions options;
     options.paths = paths;
     options.scheme = preferences.scheme;
@@ -305,7 +334,17 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     }
 
     _dictionaryRetryAfter = 0.0;
-    [self reloadSessionFromPreferences];
+    try
+    {
+        [self reloadSessionFromPreferences];
+    }
+    catch (const std::exception &)
+    {
+        _session.reset();
+        _dictionaryLease.reset();
+        _dictionaryRetryAfter = now + kDictionaryRetryDelay;
+        return NO;
+    }
     return _session != nullptr;
 }
 
@@ -561,23 +600,23 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
         if (characters.length == 1)
         {
             const unichar character = [characters characterAtIndex:0];
-            // Only lowercase reaches the session. The engine now treats A-Z during a composition as helpcode input,
-            // which macOS never asked for and does not document; forwarding it would swallow the capital instead of
-            // committing the leading candidate and letting the application insert it.
             if (character >= 'a' && character <= 'z')
             {
                 result = metasequoia::mac::HandleCharacterWithWubiAutoCommit(*_session, static_cast<char>(character),
                                                                              _wubiAutoCommitUniqueEnabled);
             }
-            // Shift and a capital with nothing being composed is how the engine opens a local input
-            // mode. It stays out of the helpcode path above, which only applies during a
-            // composition, and a capital that is not one of the triggers still comes back unhandled
-            // so the application inserts it.
-            else if (_localInputModesEnabled && character >= 'A' && character <= 'Z' &&
-                     _sessionSnapshot.preedit.empty() && (modifiers & NSEventModifierFlagShift) != 0 &&
-                     (modifiers & ~NSEventModifierFlagShift) == 0)
+            else if (character >= 'A' && character <= 'Z')
             {
-                result = _session->character(static_cast<char>(character), true);
+                const bool shiftOnly =
+                    (modifiers & NSEventModifierFlagShift) != 0 && (modifiers & ~NSEventModifierFlagShift) == 0;
+                if (!_sessionSnapshot.preedit.empty())
+                {
+                    result = _session->character(static_cast<char>(character), shiftOnly);
+                }
+                else if (_localInputModesEnabled && shiftOnly)
+                {
+                    result = _session->character(static_cast<char>(character), true);
+                }
             }
             else if (character == '\'' && !_sessionSnapshot.preedit.empty())
             {
@@ -642,12 +681,11 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     {
         return;
     }
-    // Every automatic commit runs through here: losing focus, pressing a modifier, typing a key the
-    // session does not take, resetting learned data. finish_composition defaults to the engine's
-    // own first candidate for the leading segment, which threw away a candidate the user had
-    // arrowed onto — type shi, press Down to highlight 时, click into another application, and 是
-    // was committed. The rest of the composition still finishes from the engine's first candidate,
-    // which is what the default argument means and what this path already did.
+    // Every automatic commit runs through here: pressing a modifier, typing a key the session does
+    // not take, resetting learned data. finish_composition defaults to the engine's own first
+    // candidate for the leading segment, which threw away a candidate the user had arrowed onto.
+    // The rest of the composition still finishes from the engine's first candidate, which is what
+    // the default argument means and what this path already did.
     const metasequoia::LocalInputMode localMode = _sessionSnapshot.local_mode;
     const auto result = _session->finish(_candidateSelection.live_selected_index(_sessionSnapshot).value_or(0));
     if (result.handled)
@@ -909,7 +947,17 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 
 - (void)commitComposition:(id)sender
 {
-    [self commitLeadingCandidate:sender];
+    [self cancelVoiceInput];
+    if (_session == nullptr || _sessionSnapshot.preedit.empty())
+    {
+        return;
+    }
+    const metasequoia::LocalInputMode localMode = _sessionSnapshot.local_mode;
+    const auto result = _session->command(metasequoia::Command::CommitRaw);
+    if (result.handled)
+    {
+        [self applyResult:result localMode:localMode client:sender];
+    }
 }
 
 - (void)prepareForDeactivation:(id)sender
