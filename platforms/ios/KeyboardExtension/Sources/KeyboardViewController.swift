@@ -454,13 +454,13 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private func installShortcutBar(in container: UIView) {
     shortcutBar.axis = .horizontal
     shortcutBar.distribution = .fill
-    shortcutBar.spacing = 1
+    shortcutBar.spacing = 0
     shortcutBar.accessibilityIdentifier = "keyboardShortcutBar"
     shortcutBar.translatesAutoresizingMaskIntoConstraints = false
     let brand = UIView()
     let icon = UIImageView()
     if let path = Bundle(for: KeyboardViewController.self).path(forResource: "KeyboardBrand", ofType: "png") {
-      icon.image = UIImage(contentsOfFile: path)?.preparingThumbnail(of: CGSize(width: 66, height: 66))
+      icon.image = UIImage(contentsOfFile: path)?.preparingThumbnail(of: CGSize(width: 72, height: 72))
     }
     icon.accessibilityIdentifier = "keyboardBrandIcon"
     icon.contentMode = .scaleAspectFit
@@ -470,9 +470,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     brand.addSubview(icon)
     shortcutBar.addArrangedSubview(brand)
     NSLayoutConstraint.activate([
-      brand.widthAnchor.constraint(equalToConstant: 22),
-      icon.widthAnchor.constraint(equalToConstant: 22),
-      icon.heightAnchor.constraint(equalToConstant: 22),
+      brand.widthAnchor.constraint(equalToConstant: 36),
+      icon.widthAnchor.constraint(equalToConstant: 24),
+      icon.heightAnchor.constraint(equalToConstant: 24),
       icon.centerXAnchor.constraint(equalTo: brand.centerXAnchor),
       icon.centerYAnchor.constraint(equalTo: brand.centerYAnchor),
     ])

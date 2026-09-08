@@ -279,6 +279,11 @@ final class NineKeyKeyboardTests: XCTestCase {
       XCTAssertFalse(toolbar.isHidden)
       let brand = try XCTUnwrap(descendants(toolbar).first { $0.accessibilityIdentifier == "keyboardBrandIcon" } as? UIImageView)
       XCTAssertNotNil(brand.image)
+      XCTAssertEqual(brand.bounds.width, 24, accuracy: 0.1)
+      XCTAssertEqual(brand.bounds.height, 24, accuracy: 0.1)
+      let brandSlot = try XCTUnwrap(brand.superview)
+      XCTAssertGreaterThanOrEqual(brand.frame.minX, 6)
+      XCTAssertGreaterThanOrEqual(brandSlot.bounds.width - brand.frame.maxX, 6)
       XCTAssertLessThan(brand.convert(brand.bounds, to: toolbar).maxX,
                         try button("languageModeButton", in: controller).convert(try button("languageModeButton", in: controller).bounds, to: toolbar).minX)
       for id in ["languageModeButton", "schemeButton", "scriptShortcut", "skinShortcut", "moreShortcut", "dismissShortcut"] {
