@@ -21,5 +21,5 @@
 - 线上 auth/providers：Apple 开启，Google、微信、手机、邮箱未开启。Apple 开启不代表真实账号登录验收通过。
 - 已检查 Vault `msime-backend` 及 `common`、`notification`、`user` 的键名，没有发现可直接使用的新增登录渠道配置。不得挪用其他产品的 OAuth 客户端冒充本产品配置。
 - 短信实现当前为阿里云短信，邮件实现为 SMTP；用户曾指明“短信用 Lark”，具体网关信息待确认。该配置问题不阻止其他客户端工作。
-- Apple 独立工作区基于 develop 600625d，新增公共账号网络层并加入 iOS 构建输入；5 项 Swift 协议测试通过。账号 UI、Keychain 和实际宿主接入仍待完成。
+- Apple 独立工作区基于 develop 600625d，新增公共账号网络层并加入 iOS 构建输入；7 项 Swift 协议/会话测试、45 项项目配置测试、完整 iOS Simulator App 构建及账号入口 UI 测试通过。设置页已有账号入口、原生 Apple 登录、Keychain、刷新协调、昵称修改、退出与注销；真实签名账号登录及其余渠道/同步界面仍待完成。
 - Windows、Apple、Linux 原工作区均有未提交适配与其他修改，保持原样。后续需逐项审查并将所需适配移到新基线，不能直接覆盖或把未提交代码当作已发布结果。

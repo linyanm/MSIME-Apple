@@ -2,6 +2,6 @@
 
 `BackendAccountClient.swift` 是 iOS 与 macOS 可复用的账号网络层。服务地址固定为生产 HTTPS，拒绝重定向，禁用 Cookie 和缓存，限制普通 JSON 响应大小；不记录凭据或供应商响应。平台负责 Keychain、登录 UI、会话刷新协调和用户明确开启的同步。
 
-当前已提供渠道查询、登录挑战、登录、刷新、账号资料、修改名称、注销会话与删除账号的传输。网络层存在不代表 UI 已接入或真实账号验收完成。
+当前已提供渠道查询、登录挑战、登录、刷新、账号资料、修改名称、注销会话与删除账号的传输。iOS 设置页通过原生 Apple 登录按钮传递服务端 nonce/state，令牌存入仅当前设备可用的 Keychain；会话 actor 协调刷新并拒绝退出后迟到的响应。真实签名账号验收及其他平台 UI 仍待完成。
 
 验证：`swift test --package-path shared/backend`。iOS App 和 ServiceTests 的 XcodeGen 输入包含同一份实现。
