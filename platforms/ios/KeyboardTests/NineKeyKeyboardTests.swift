@@ -43,6 +43,7 @@ final class NineKeyKeyboardTests: XCTestCase {
         XCTAssertEqual(q.bounds.height, try button("returnKey", in: controller).bounds.height, accuracy: 0.5)
         XCTAssertGreaterThanOrEqual(q.bounds.height, 44)
         if type != .asciiCapable { XCTAssertEqual(q.configuration?.title, "q") }
+        XCTAssertEqual(try button("quickPunctuationKey", in: controller).configuration?.title, ",")
         q.sendActions(for: .primaryActionTriggered)
         XCTAssertEqual(try button("preeditButton", in: controller).configuration?.title, "英文输入")
         try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
@@ -398,6 +399,14 @@ final class NineKeyKeyboardTests: XCTestCase {
               attachment.lifetime = .keepAlways
               add(attachment)
             }
+          }
+          let punctuation = try button("quickPunctuationKey", in: controller)
+          XCTAssertEqual(punctuation.isHidden, symbols || scheme == .nineKey)
+          if !punctuation.isHidden {
+            XCTAssertEqual(punctuation.configuration?.title, scheme == .japanese ? "、" : "，")
+            XCTAssertEqual(punctuation.bounds.width, 44, accuracy: 0.5)
+            XCTAssertGreaterThanOrEqual(try button("spaceKey", in: controller).bounds.width, 79.2)
+            XCTAssertEqual(punctuation.menu?.children.count, 7)
           }
           XCTAssertEqual(try button("symbolDeleteKey", in: controller).isHidden, !symbols)
           if !symbols && scheme != .nineKey {
