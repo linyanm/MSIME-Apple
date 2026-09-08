@@ -25,6 +25,8 @@ typedef NS_ENUM(NSInteger, MetasequoiaCandidateAction) {
 
 @end
 
+@class MSIMEPreparedDictionarySnapshot;
+
 @interface MetasequoiaInputSessionBridge : NSObject
 
 - (MetasequoiaInputSnapshot *)handleCharacter:(NSString *)character;
@@ -37,6 +39,17 @@ typedef NS_ENUM(NSInteger, MetasequoiaCandidateAction) {
 - (MetasequoiaInputSnapshot *)cancel;
 - (MetasequoiaInputSnapshot *)selectCandidateAtIndex:(NSUInteger)index;
 - (BOOL)setLearningEnabled:(BOOL)enabled;
+- (BOOL)suspendDictionarySession;
+- (BOOL)resumeDictionarySessionWithError:(NSError **)error NS_SWIFT_NAME(resumeDictionarySession());
+// Call on the session-owning thread. This token describes the current logical
+// journal and generation, and is used to reject stale snapshot replacements.
+- (nullable NSString *)localDictionaryStateVersionWithError:(NSError **)error
+    NS_SWIFT_NAME(localDictionaryStateVersion());
+- (nullable NSDictionary<NSString *, id> *)dictionarySnapshotContextWithError:(NSError **)error
+    NS_SWIFT_NAME(dictionarySnapshotContext());
+- (BOOL)activateDictionarySnapshot:(MSIMEPreparedDictionarySnapshot *)snapshot
+                   expectedVersion:(NSString *)expectedVersion
+                             error:(NSError **)error NS_SWIFT_NAME(activateDictionarySnapshot(_:expectedVersion:));
 - (BOOL)applyPersonalPrevious:(nullable NSDictionary<NSString *, id> *)previous
                   replacement:(nullable NSDictionary<NSString *, id> *)replacement
                     requestID:(NSString *)requestID
