@@ -20,6 +20,8 @@ struct CustomSkinEditorView: View {
   @State private var deleting: SavedKeyboardSkin?
   @State private var replacing: SavedKeyboardSkin?
   @State private var showPhotos = false
+  @State private var showGenerate = false
+  @State private var publishingSkin: SavedKeyboardSkin?
   @State private var message: String?
   @AppStorage(KeyboardFeedbackPreference.soundKey, store: KeyboardFeedbackPreference.defaults) private var soundEnabled = true
   @AppStorage(KeyboardFeedbackPreference.hapticsKey, store: KeyboardFeedbackPreference.defaults) private var hapticsEnabled = false
@@ -81,7 +83,7 @@ struct CustomSkinEditorView: View {
     }.background(Color(uiColor: .systemBackground))
   }
 
-  private func previewDock(compact: Bool) -> some View {
+  private func previewDock() -> some View {
     VStack(spacing: 0) {
       Divider()
       HStack(spacing: 10) {
@@ -98,13 +100,18 @@ struct CustomSkinEditorView: View {
             .font(.caption.weight(.semibold))
         }.accessibilityIdentifier("applyCustomSkin")
       }.padding(.horizontal, 12).background(Color(uiColor: .systemBackground))
-      KeyboardSkinPreview(skin: .custom, nineKey: nineKey, compact: compact).id(design)
-        .frame(height: compact ? 160 : 250).accessibilityIdentifier("fullKeyboardSkinPreview")
+      KeyboardSkinPreview(skin: .custom, nineKey: nineKey).id(design)
+        .accessibilityIdentifier("fullKeyboardSkinPreview")
     }
   }
 
   private var backgroundGallery: some View {
     Section {
+      Button { showGenerate = true } label: {
+        Label("AI 生成皮肤", systemImage: "sparkles").font(.headline)
+          .frame(maxWidth: .infinity).padding(.vertical, 10)
+      }.accessibilityIdentifier("openSkinGeneration")
+
       HStack(spacing: 12) {
         Button { section = "设计" } label: {
           Label("设计模板", systemImage: "square.grid.2x2").frame(maxWidth: .infinity).frame(height: 44)
@@ -170,7 +177,7 @@ struct CustomSkinEditorView: View {
           ForEach(CustomKeyboardSkin.curatedTemplates + Array(CustomKeyboardSkin.templates.prefix(6)), id: \.0) { title, template in
             Button { apply(template) } label: {
               VStack(alignment: .leading, spacing: 10) {
-                CommunityDesignPreview(design: template, compact: true).frame(height: 96)
+                CommunityDesignPreview(design: template)
                 Text(title).font(.caption.weight(.semibold)).foregroundStyle(Color(uiColor: CustomKeyboardSkin.color(template.accent)))
               }.padding(10).background(LinearGradient(colors: [Color(uiColor: CustomKeyboardSkin.color(template.background)), Color(uiColor: CustomKeyboardSkin.color(template.gradientEnd ?? template.background))], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 12))
             }.buttonStyle(.plain).accessibilityIdentifier("skinTemplate_" + title)
@@ -273,6 +280,7 @@ if section == "我的" {
         }.accessibilityIdentifier("savedSkin_" + item.name)
         Spacer()
         Menu {
+          Button("发布到社区") { publishingSkin = item }
           Button("用当前设计更新") { replacing = item }
           Button("重命名") { renaming = item.id; name = item.name; showSave = true }
           Button("删除", role: .destructive) { deleting = item }
@@ -295,11 +303,11 @@ if section == "我的" {
         if geometry.size.width > geometry.size.height {
           HStack(spacing: 0) {
             editorControls
-            previewDock(compact: true).frame(width: geometry.size.width * 0.55)
+            previewDock().frame(width: geometry.size.width * 0.55)
           }
         } else {
           editorControls
-          previewDock(compact: geometry.size.height < 500)
+          previewDock()
         }
       }
       .background(Color(uiColor: .systemGroupedBackground))
@@ -316,6 +324,7 @@ if section == "我的" {
       ToolbarItem(placement: .navigationBarTrailing) {
         HStack(spacing: 10) {
           Menu {
+            Button("AI 生成皮肤", systemImage: "sparkles") { showGenerate = true }
             Button("设计模板", systemImage: "square.grid.2x2") { section = "设计" }
             Button("我的皮肤", systemImage: "square.stack") { section = "我的" }
             Button("重做", systemImage: "arrow.uturn.forward") {
@@ -331,6 +340,10 @@ if section == "我的" {
         }
       }
     }
+    .sheet(isPresented: $showGenerate, onDismiss: { saved = CustomSkinLibrary.designs }) {
+      SkinGenerationView { item in apply(item.design); section = "按键" }
+    }
+    .sheet(item: $publishingSkin) { item in SavedSkinPublishFlow(skinID: item.id) }
     .sheet(isPresented: $showPhotos) {
       SkinPhotoPicker { data in
         showPhotos = false
