@@ -1,38 +1,68 @@
 import UIKit
 
 @MainActor
-final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedback {
+final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDelegate {
   private enum LetterCaseState {
     case lowercase, shifted, capsLock
   }
 
+  private let skinBackdrop = KeyboardSkinBackgroundView()
+  private var keyboardHeightConstraint: NSLayoutConstraint?
   private let session = MetasequoiaInputSessionBridge()
+  private var personalDictionaryTimer: Timer?
+  private var synchronizingPersonalDictionary = false
   private let preeditButton = UIButton()
+  private let exitLocalModeButton = UIButton()
+  private var localModeTrigger: String?
+  private var standardRowHeights: [(UIView, NSLayoutConstraint)] = []
   private let candidateScrollView = UIScrollView()
   private let diagnosticLabel = UILabel()
   private let previousPageButton = UIButton()
   private let nextPageButton = UIButton()
   private let candidateStack = UIStackView()
+  private let candidateEmptySpacer = UIView()
   private let languageModeButton = UIButton()
   private let schemeButton = UIButton()
+  private let shortcutBar = UIStackView()
+  private var candidateContent: UIStackView?
+  private let scriptShortcut = UIButton()
+  private let skinShortcut = UIButton()
+  private var skinPicker: KeyboardSkinPickerView?
+  private let moreShortcut = UIButton()
+  private let dismissShortcut = UIButton()
   private var letterButtons: [(button: UIButton, lowercase: String, hint: UILabel)] = []
+  private var microsoftFinalKey: UIButton?
   private var letterRowViews: [UIView] = []
   private var symbolRowViews: [UIView] = []
   private var layoutToggleButton: UIButton?
   private weak var shiftButton: UIButton?
   private weak var enterButton: UIButton?
+  private weak var spaceButton: UIButton?
+  private var cursorMovement = SpaceCursorMovement()
   private var backspaceRepeatTimer: Timer?
   private var didRepeatBackspace = false
   private var hasComposition = false
   private var isChineseMode = true
+  private var inputContext = KeyboardInputContext()
   private var inputScheme: ChineseInputScheme = .quanpin
-  private var usesShuangpin: Bool { inputScheme == .shuangpin }
+  private var usesShuangpin: Bool { inputScheme.shuangpinProfile != nil }
+  private var supportsLocalTools: Bool { isChineseMode && inputScheme != .wubi && inputScheme != .japanese }
   private var nineKeyRows: [UIView] = []
+  private var actionRow: UIStackView!
+  private var actionDeleteButton: UIButton!
+  private var actionGlobeButton: UIButton!
+  private var globeWidthConstraint: NSLayoutConstraint?
+  private var nineKeyHeight: NSLayoutConstraint!
+  private var nineKeySymbolsButton: UIButton!
+  private let punctuationStack = UIStackView()
+  private var standardActionWidths: [NSLayoutConstraint] = []
+  private var nineKeyActionWidths: [NSLayoutConstraint] = []
   private let nineKeyContainer = UIStackView()
   private let spellingScrollView = UIScrollView()
   private let spellingStack = UIStackView()
   private var usesTraditionalOutput = false
   private var visiblePreedit = ""
+  private var candidateRevision: UInt64 = 0
   private var visibleCandidates: [String] = []
   private var visibleDiagnostic: String?
   private var diagnosticDismissTimer: Timer?
@@ -52,7 +82,22 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   // The strip numbers its chips 1-9 to match the digits on the symbol layer, so a page is nine.
   private static let candidatePageSize = 9
 
-  var enableInputClicksWhenVisible: Bool { true }
+  private var feedbackStrength: KeyboardHapticStrength?
+  private var feedbackGenerator: UIImpactFeedbackGenerator?
+  private var keyFeedback: UIImpactFeedbackGenerator {
+    let strength = KeyboardFeedbackPreference.hapticStrength
+    if let feedbackGenerator, feedbackStrength == strength { return feedbackGenerator }
+    let generator: UIImpactFeedbackGenerator
+    if #available(iOS 17.5, *) {
+      if let feedbackGenerator { view.removeInteraction(feedbackGenerator) }
+      generator = UIImpactFeedbackGenerator(style: strength.style, view: view)
+    } else {
+      generator = UIImpactFeedbackGenerator(style: strength.style)
+    }
+    feedbackStrength = strength
+    feedbackGenerator = generator
+    return generator
+  }
 
   private let letterRows = [
     Array("qwertyuiop"),
@@ -61,22 +106,53 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   ]
   private let symbolRows = [
     Array("1234567890").map(String.init),
-    [",", ".", "?", "!", ";", ":", "'", "\""],
-    ["(", ")", "[", "]", "<", ">", "\\", "-"],
+    [",", ".", "?", "!", ";", ":", "'", "\"", "@", "/"],
+    ["(", ")", "[", "]", "<", ">", "\\", "-", "_", "="],
   ]
+
+  override func loadView() {
+    inputView = KeyboardInputView(frame: .zero, inputViewStyle: .keyboard)
+  }
 
   override func viewDidLoad() {
     super.viewDidLoad()
     inputScheme = InputSchemePreference.scheme
     usesTraditionalOutput = ChineseOutputPreference.usesTraditional
     _ = applyInputScheme()
+    _ = session.setLearningEnabled(DictionaryLearningPreference.enabled)
     view.backgroundColor = MetasequoiaTheme.keyboardBackground
+    skinBackdrop.translatesAutoresizingMaskIntoConstraints = false
+    view.insertSubview(skinBackdrop, at: 0)
+    NSLayoutConstraint.activate([
+      skinBackdrop.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      skinBackdrop.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      skinBackdrop.topAnchor.constraint(equalTo: view.topAnchor),
+      skinBackdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
     installKeyboard()
+    let height = view.heightAnchor.constraint(equalToConstant: 260)
+    height.priority = .init(999)
+    height.identifier = "keyboardHeight"
+    height.isActive = true
+    keyboardHeightConstraint = height
     updateReturnKey()
     // installKeyboard builds the candidate strip before the letter rows exist, so the hints the
     // scheme button gathered there have not reached any key yet.
     updateLetterCaseControls()
     updateCandidateStrip(preedit: "", candidates: [])
+    applyKeyboardSkin()
+    synchronizeInputContext()
+  }
+
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    synchronizeInputContext()
+    prepareKeyFeedback()
+    synchronizePersonalDictionary(force: true)
+    personalDictionaryTimer?.invalidate()
+    personalDictionaryTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated { self?.synchronizePersonalDictionary(force: false) }
+    }
   }
 
   override func viewWillAppear(_ animated: Bool) {
@@ -85,8 +161,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     // UIKit ever skips the delegate pair for one of our own edits: the worst case is that a single
     // host-initiated change is treated as an echo, not a counter that stays raised forever.
     pendingOwnEdits = 0
+    synchronizeInputContext()
     synchronizeInputSchemePreference()
     synchronizeChineseOutputPreference()
+    _ = session.setLearningEnabled(DictionaryLearningPreference.enabled)
+    applyKeyboardSkin()
   }
 
   override func textWillChange(_ textInput: UITextInput?) {
@@ -104,12 +183,18 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   override func textDidChange(_ textInput: UITextInput?) {
     super.textDidChange(textInput)
+    synchronizeInputContext()
     updateReturnKey()
     updateAutomaticCapitalization()
   }
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
+    personalDictionaryTimer?.invalidate()
+    personalDictionaryTimer = nil
+    closeSkinPicker()
+    cursorMovement.cancel()
+    spaceButton?.configuration?.title = "空格"
     // Putting the keyboard away used to drop whatever was composed. macOS commits in
     // prepareForDeactivation: for the same reason: the user typed those letters and never asked to
     // throw them away.
@@ -141,9 +226,52 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       letterRowViews.append(rowView)
       root.addArrangedSubview(rowView)
     }
+    root.addArrangedSubview(makeNineKeyLayout())
+    for row in symbolRows {
+      let rowView = makeSymbolRow(row)
+      rowView.isHidden = true
+      symbolRowViews.append(rowView)
+      root.addArrangedSubview(rowView)
+    }
+    actionRow = makeActionRow()
+    root.addArrangedSubview(actionRow)
+    standardRowHeights = (letterRowViews + symbolRowViews).map {
+      ($0, $0.heightAnchor.constraint(equalTo: actionRow.heightAnchor))
+    }
+    // Keep the three keypad rows the same height as the bottom controls.
+    nineKeyHeight = nineKeyContainer.heightAnchor.constraint(
+      equalTo: actionRow.heightAnchor, multiplier: 3, constant: 14)
+    updateKeyboardLayout()
+  }
+
+  private func makeNineKeyLayout() -> UIView {
     nineKeyContainer.axis = .horizontal
     nineKeyContainer.spacing = 6
-    nineKeyContainer.addArrangedSubview(makeSpellingStrip())
+    let sidebar = UIView()
+    sidebar.accessibilityIdentifier = "nineKeySidebar"
+    sidebar.backgroundColor = KeyboardSkinPreference.selected.keyBackground.withAlphaComponent(0.5)
+    sidebar.layer.cornerRadius = 8
+    punctuationStack.axis = .vertical
+    punctuationStack.distribution = .fillEqually
+    for symbol in ["，", "。", "？", "！"] {
+      let button = makeKey(title: symbol, accessibilityLabel: "符号 \(symbol)") { [weak self] in
+        self?.handleSymbol(symbol)
+      }
+      button.configuration?.background.backgroundColor = .clear
+      punctuationStack.addArrangedSubview(button)
+    }
+    for content in [punctuationStack, makeSpellingStrip()] {
+      content.translatesAutoresizingMaskIntoConstraints = false
+      sidebar.addSubview(content)
+      NSLayoutConstraint.activate([
+        content.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor),
+        content.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor),
+        content.topAnchor.constraint(equalTo: sidebar.topAnchor),
+        content.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor),
+      ])
+    }
+    nineKeyContainer.addArrangedSubview(sidebar)
+    sidebar.widthAnchor.constraint(equalTo: nineKeyContainer.widthAnchor, multiplier: 0.14).isActive = true
     let nineKeyGrid = UIStackView()
     nineKeyGrid.axis = .vertical
     nineKeyGrid.spacing = 7
@@ -155,34 +283,37 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       for (column, letters) in lettersInRow.enumerated() {
         let digit = rowIndex * 3 + column + 1
         let button = makeKey(
-          title: digit == 1 ? "，。？！" : letters,
-          accessibilityLabel: digit == 1 ? "逗号，长按选择标点" : "\(digit) \(letters)"
+          title: digit == 1 ? "分词" : letters,
+          accessibilityLabel: digit == 1 ? "拼音分词" : "\(digit) \(letters)"
         ) { [weak self] in
-          if digit == 1 { self?.handleSymbol(",") }
+          if digit == 1 { self?.handleCharacter("'") }
           else { self?.handleCharacter(String(digit)) }
         }
         button.accessibilityIdentifier = "nineKey\(digit)"
         if var configuration = button.configuration {
-          configuration.contentInsets = .zero
+          configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0)
+          configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = attributes
+            attributes.font = KeyboardSkinPreference.selected.usesMonospacedFont
+              ? .monospacedSystemFont(ofSize: 21, weight: .medium) : .systemFont(ofSize: 21, weight: .medium)
+            return attributes
+          }
           button.configuration = configuration
         }
         button.titleLabel?.adjustsFontSizeToFitWidth = true
         button.titleLabel?.minimumScaleFactor = 0.7
-        if digit == 1 {
-          button.menu = UIMenu(children: [",", ".", "?", "!", "、"].map { symbol in
-            UIAction(title: symbol) { [weak self] _ in self?.handleSymbol(symbol) }
-          })
-        } else {
+        if digit != 1 {
           let number = UILabel()
           number.text = String(digit)
           number.font = .systemFont(ofSize: 10)
-          number.textColor = .secondaryLabel
+          number.textColor = KeyboardSkinPreference.selected.accent
+          number.accessibilityIdentifier = "keyNumberHint"
           number.translatesAutoresizingMaskIntoConstraints = false
           number.isAccessibilityElement = false
           button.addSubview(number)
           NSLayoutConstraint.activate([
             number.topAnchor.constraint(equalTo: button.topAnchor, constant: 3),
-            number.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -5),
+            number.centerXAnchor.constraint(equalTo: button.centerXAnchor),
           ])
         }
         row.addArrangedSubview(button)
@@ -190,26 +321,40 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       nineKeyGrid.addArrangedSubview(row)
       nineKeyRows.append(row)
     }
-    root.addArrangedSubview(nineKeyContainer)
-    for row in symbolRows {
-      let rowView = makeSymbolRow(row)
-      rowView.isHidden = true
-      symbolRowViews.append(rowView)
-      root.addArrangedSubview(rowView)
+    let controls = UIStackView()
+    controls.axis = .vertical
+    controls.spacing = 7
+    controls.distribution = .fillEqually
+    let delete = makeDeleteKey()
+    delete.accessibilityIdentifier = "nineKeyDelete"
+    controls.addArrangedSubview(delete)
+    let clear = makeKey(title: "重输", accessibilityLabel: "清空当前拼音重新输入") { [weak self] in
+      guard let self else { return }
+      self.playInputClick()
+      self.render(self.session.cancel())
     }
-    root.addArrangedSubview(makeActionRow())
-    updateKeyboardLayout()
+    clear.configuration?.contentInsets = .zero
+    clear.accessibilityIdentifier = "nineKeyClear"
+    controls.addArrangedSubview(clear)
+    let zero = makeKey(title: "0", accessibilityLabel: "数字 0") { [weak self] in
+      self?.handleSymbol("0")
+    }
+    controls.addArrangedSubview(zero)
+    nineKeyContainer.addArrangedSubview(controls)
+    controls.widthAnchor.constraint(equalTo: sidebar.widthAnchor).isActive = true
+    return nineKeyContainer
   }
 
   private func makeCandidateStrip() -> UIView {
     let container = UIView()
-    container.backgroundColor = MetasequoiaTheme.keyBackground.withAlphaComponent(0.82)
+    container.accessibilityIdentifier = "candidateStrip"
+    container.backgroundColor = KeyboardSkinPreference.selected.keyBackground.withAlphaComponent(0.82)
     container.layer.cornerRadius = 12
 
     var preeditConfiguration = UIButton.Configuration.plain()
     preeditConfiguration.contentInsets = .zero
     preeditConfiguration.titleLineBreakMode = .byTruncatingHead
-    preeditConfiguration.baseForegroundColor = MetasequoiaTheme.forestUIColor
+    preeditConfiguration.baseForegroundColor = KeyboardSkinPreference.selected.accent
     preeditConfiguration.titleTextAttributesTransformer =
       UIConfigurationTextAttributesTransformer { attributes in
         var attributes = attributes
@@ -224,11 +369,11 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     updateLanguageModeButton()
     languageModeButton.addAction(
       UIAction { [weak self] _ in self?.toggleInputMode() }, for: .primaryActionTriggered)
-    languageModeButton.widthAnchor.constraint(equalToConstant: 36).isActive = true
+
 
     updateSchemeButton()
     schemeButton.showsMenuAsPrimaryAction = true
-    schemeButton.widthAnchor.constraint(equalToConstant: 48).isActive = true
+
 
     candidateStack.axis = .horizontal
     candidateStack.spacing = 6
@@ -254,14 +399,28 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       for: .primaryActionTriggered)
 
     let content = UIStackView(arrangedSubviews: [
-      languageModeButton, schemeButton, preeditButton, candidateScrollView, diagnosticLabel,
-      previousPageButton, nextPageButton,
+      preeditButton, candidateScrollView, diagnosticLabel,
+      candidateEmptySpacer, previousPageButton, nextPageButton, exitLocalModeButton,
     ])
     content.axis = .horizontal
     content.alignment = .center
     content.spacing = 12
     content.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(content)
+    candidateContent = content
+    var exitConfiguration = UIButton.Configuration.plain()
+    exitConfiguration.image = UIImage(systemName: "xmark.circle.fill")
+    exitConfiguration.contentInsets = .zero
+    exitLocalModeButton.configuration = exitConfiguration
+    exitLocalModeButton.accessibilityIdentifier = "exitLocalModeButton"
+    exitLocalModeButton.accessibilityLabel = "退出本地模式"
+    exitLocalModeButton.widthAnchor.constraint(equalToConstant: 38).isActive = true
+    exitLocalModeButton.isHidden = true
+    exitLocalModeButton.addAction(UIAction { [weak self] _ in
+      guard let self else { return }
+      render(session.cancel())
+    }, for: .primaryActionTriggered)
+    installShortcutBar(in: container)
 
     NSLayoutConstraint.activate([
       container.heightAnchor.constraint(equalToConstant: 38),
@@ -283,15 +442,123 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     return container
   }
 
+  private func installShortcutBar(in container: UIView) {
+    shortcutBar.axis = .horizontal
+    shortcutBar.distribution = .fill
+    shortcutBar.spacing = 1
+    shortcutBar.accessibilityIdentifier = "keyboardShortcutBar"
+    shortcutBar.translatesAutoresizingMaskIntoConstraints = false
+    let brand = UIView()
+    let icon = UIImageView()
+    if let path = Bundle(for: KeyboardViewController.self).path(forResource: "KeyboardBrand", ofType: "png") {
+      icon.image = UIImage(contentsOfFile: path)?.preparingThumbnail(of: CGSize(width: 66, height: 66))
+    }
+    icon.accessibilityIdentifier = "keyboardBrandIcon"
+    icon.contentMode = .scaleAspectFit
+    icon.layer.cornerRadius = 5
+    icon.clipsToBounds = true
+    icon.translatesAutoresizingMaskIntoConstraints = false
+    brand.addSubview(icon)
+    shortcutBar.addArrangedSubview(brand)
+    NSLayoutConstraint.activate([
+      brand.widthAnchor.constraint(equalToConstant: 22),
+      icon.widthAnchor.constraint(equalToConstant: 22),
+      icon.heightAnchor.constraint(equalToConstant: 22),
+      icon.centerXAnchor.constraint(equalTo: brand.centerXAnchor),
+      icon.centerYAnchor.constraint(equalTo: brand.centerYAnchor),
+    ])
+    for button in [languageModeButton, schemeButton, scriptShortcut, skinShortcut, moreShortcut, dismissShortcut] {
+      shortcutBar.addArrangedSubview(button)
+      if button !== languageModeButton {
+        button.widthAnchor.constraint(equalTo: languageModeButton.widthAnchor).isActive = true
+      }
+    }
+    container.addSubview(shortcutBar)
+    NSLayoutConstraint.activate([
+      shortcutBar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 4),
+      shortcutBar.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -4),
+      shortcutBar.topAnchor.constraint(equalTo: container.topAnchor),
+      shortcutBar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+    ])
+    scriptShortcut.addAction(UIAction { [weak self] _ in
+      guard let self else { return }
+      usesTraditionalOutput.toggle()
+      ChineseOutputPreference.usesTraditional = usesTraditionalOutput
+      renderCandidateStrip()
+      updateShortcutButtons()
+    }, for: .primaryActionTriggered)
+    skinShortcut.addAction(UIAction { [weak self] _ in self?.showSkinPicker() }, for: .primaryActionTriggered)
+    moreShortcut.showsMenuAsPrimaryAction = true
+    dismissShortcut.addAction(UIAction { [weak self] _ in self?.dismissKeyboard() }, for: .primaryActionTriggered)
+    updateShortcutButtons()
+  }
+
+  private func updateShortcutButtons() {
+    func configure(_ button: UIButton, title: String?, symbol: String?, label: String, id: String) {
+      var configuration = UIButton.Configuration.plain()
+      configuration.title = title
+      configuration.image = symbol.flatMap { UIImage(systemName: $0) }
+      configuration.baseForegroundColor = KeyboardSkinPreference.selected.accent
+      configuration.contentInsets = .zero
+      configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+        var attributes = attributes
+        attributes.font = .systemFont(ofSize: 16, weight: .medium)
+        return attributes
+      }
+      button.configuration = configuration
+      button.accessibilityLabel = label
+      button.accessibilityIdentifier = id
+    }
+    configure(scriptShortcut, title: usesTraditionalOutput ? "繁" : "简", symbol: nil,
+      label: usesTraditionalOutput ? "切换到简体" : "切换到繁体", id: "scriptShortcut")
+    scriptShortcut.isEnabled = !(isChineseMode && inputScheme == .japanese)
+    scriptShortcut.accessibilityValue = scriptShortcut.isEnabled ? (usesTraditionalOutput ? "繁体" : "简体") : "日语不使用简繁转换"
+    configure(skinShortcut, title: nil, symbol: "tshirt", label: "切换皮肤", id: "skinShortcut")
+    skinShortcut.accessibilityValue = KeyboardSkinPreference.selected.title
+    configure(moreShortcut, title: nil, symbol: "ellipsis.circle", label: "更多快捷设置", id: "moreShortcut")
+    moreShortcut.menu = UIMenu(children: [
+      UIMenu(title: "按键反馈", options: .displayInline, children: [
+        UIAction(title: "按键音", image: UIImage(systemName: "speaker.wave.2"),
+          state: KeyboardFeedbackPreference.soundEnabled ? .on : .off) { [weak self] _ in
+          KeyboardFeedbackPreference.defaults.set(!KeyboardFeedbackPreference.soundEnabled, forKey: KeyboardFeedbackPreference.soundKey)
+          if KeyboardFeedbackPreference.soundEnabled { UIDevice.current.playInputClick() }
+          self?.updateShortcutButtons()
+        },
+        UIAction(title: "按键振动", image: UIImage(systemName: "iphone.radiowaves.left.and.right"),
+          state: KeyboardFeedbackPreference.hapticsEnabled ? .on : .off) { [weak self] _ in
+          KeyboardFeedbackPreference.defaults.set(!KeyboardFeedbackPreference.hapticsEnabled, forKey: KeyboardFeedbackPreference.hapticsKey)
+          if KeyboardFeedbackPreference.hapticsEnabled {
+            self?.keyFeedback.impactOccurred(intensity: KeyboardFeedbackPreference.hapticStrength.intensity)
+            self?.prepareKeyFeedback()
+          }
+          self?.updateShortcutButtons()
+        },
+      ]),
+      UIMenu(title: "振动强度", image: UIImage(systemName: "waveform"), children: KeyboardHapticStrength.allCases.map { strength in
+        UIAction(title: strength.title, state: strength == KeyboardFeedbackPreference.hapticStrength ? .on : .off) { [weak self] _ in
+          KeyboardFeedbackPreference.defaults.set(strength.rawValue, forKey: KeyboardFeedbackPreference.strengthKey)
+          if KeyboardFeedbackPreference.hapticsEnabled {
+            self?.keyFeedback.impactOccurred(intensity: strength.intensity)
+            self?.prepareKeyFeedback()
+          }
+          self?.updateShortcutButtons()
+        }
+      }),
+      UIMenu(title: "本地输入", children: Self.localInputModes.map { mode in
+        UIAction(title: mode.title, attributes: supportsLocalTools ? [] : .disabled) { [weak self] _ in
+          self?.openLocalInputMode(mode.trigger)
+        }
+      }),
+    ])
+    configure(dismissShortcut, title: nil, symbol: "keyboard.chevron.compact.down", label: "收起键盘", id: "dismissShortcut")
+  }
+
   private func makeSpellingStrip() -> UIView {
     spellingScrollView.showsVerticalScrollIndicator = false
     spellingStack.axis = .vertical
     spellingStack.spacing = 6
     spellingStack.translatesAutoresizingMaskIntoConstraints = false
     spellingScrollView.addSubview(spellingStack)
-    let width = spellingScrollView.widthAnchor.constraint(equalToConstant: 58)
-    width.priority = .defaultHigh
-    width.isActive = true
     NSLayoutConstraint.activate([
 
       spellingStack.leadingAnchor.constraint(equalTo: spellingScrollView.contentLayoutGuide.leadingAnchor),
@@ -315,7 +582,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         attributes.font = .systemFont(ofSize: 14)
         return attributes
       }
-      configuration.baseForegroundColor = MetasequoiaTheme.forestUIColor
+      configuration.baseForegroundColor = KeyboardSkinPreference.selected.accent
       button.configuration = configuration
       button.accessibilityLabel = "选择拼音 \(spelling)"
       button.accessibilityIdentifier = "nineKeySpelling_\(spelling)"
@@ -337,7 +604,6 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
         self?.toggleLetterCase()
       }
       button.accessibilityIdentifier = "shiftButton"
-      button.isHidden = isChineseMode
       shiftButton = button
       row.addArrangedSubview(button)
     }
@@ -349,6 +615,13 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       letterButtons.append((button: button, lowercase: text, hint: attachHintLabel(to: button)))
       row.addArrangedSubview(button)
     }
+    if letters == letterRows[1] {
+      let key = makeKey(title: ";", accessibilityLabel: "微软双拼 ing") { [weak self] in self?.handleCharacter(";") }
+      key.accessibilityIdentifier = "microsoftFinalKey"
+      microsoftFinalKey = key
+      letterButtons.append((button: key, lowercase: ";", hint: attachHintLabel(to: key)))
+      row.addArrangedSubview(key)
+    }
     return row
   }
 
@@ -358,7 +631,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private func attachHintLabel(to button: UIButton) -> UILabel {
     let label = UILabel()
     label.font = .systemFont(ofSize: 9, weight: .regular)
-    label.textColor = MetasequoiaTheme.forestUIColor.withAlphaComponent(0.8)
+    label.textColor = KeyboardSkinPreference.selected.accent.withAlphaComponent(0.8)
     label.textAlignment = .center
     label.numberOfLines = 1
     label.adjustsFontSizeToFitWidth = true
@@ -413,25 +686,43 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     layoutToggle.titleLabel?.lineBreakMode = .byClipping
     layoutToggle.accessibilityIdentifier = "layoutToggleButton"
     layoutToggleButton = layoutToggle
+    nineKeySymbolsButton = makeKey(title: "符", accessibilityLabel: "常用符号") {}
+    nineKeySymbolsButton.menu = UIMenu(children: [
+      "，", "。", "？", "！", "、", "；", "：", "……", "——", "（", "）", "“", "”", "《", "》", "@",
+    ].map { symbol in
+      UIAction(title: symbol) { [weak self] _ in self?.handleSymbol(symbol) }
+    })
+    nineKeySymbolsButton.showsMenuAsPrimaryAction = true
+    nineKeySymbolsButton.configuration?.contentInsets = .zero
+    row.addArrangedSubview(nineKeySymbolsButton)
     row.addArrangedSubview(layoutToggle)
 
     let globe = makeSymbolKey(symbol: "globe", accessibilityLabel: "选择下一个键盘")
+    globe.accessibilityIdentifier = "inputModeSwitchButton"
     globe.addTarget(
       self, action: #selector(handleInputModeButton(_:event:)), for: .allTouchEvents)
     row.addArrangedSubview(globe)
 
-    let delete = makeSymbolKey(symbol: "delete.left", accessibilityLabel: "删除")
-    delete.addTarget(self, action: #selector(beginBackspacePress), for: .touchDown)
-    delete.addTarget(self, action: #selector(finishBackspacePress), for: .touchUpInside)
-    delete.addTarget(
-      self,
-      action: #selector(cancelBackspacePress),
-      for: [.touchUpOutside, .touchCancel, .touchDragExit])
+    let delete = makeDeleteKey()
+    actionDeleteButton = delete
     row.addArrangedSubview(delete)
 
     let space = makeKey(title: "空格", accessibilityLabel: "空格") { [weak self] in
       self?.handleSpace()
     }
+    space.accessibilityIdentifier = "spaceKey"
+    space.accessibilityHint = "轻点输入空格或选词，左右滑动移动光标"
+    space.accessibilityCustomActions = [
+      UIAccessibilityCustomAction(name: "光标左移") { [weak self] _ in self?.moveCursor(by: -1); return self != nil },
+      UIAccessibilityCustomAction(name: "光标右移") { [weak self] _ in self?.moveCursor(by: 1); return self != nil },
+    ]
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(handleSpacePan(_:)))
+    pan.name = "spaceCursorPan"
+    pan.maximumNumberOfTouches = 1
+    pan.cancelsTouchesInView = true
+    pan.delegate = self
+    space.addGestureRecognizer(pan)
+    spaceButton = space
     row.addArrangedSubview(space)
 
     let enter = makeKey(title: "换行", accessibilityLabel: "换行", emphasized: true) { [weak self] in
@@ -443,14 +734,30 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     enterButton = enter
     row.addArrangedSubview(enter)
 
-    NSLayoutConstraint.activate([
-      layoutToggle.widthAnchor.constraint(equalTo: globe.widthAnchor, multiplier: 1.1),
-      delete.widthAnchor.constraint(equalTo: globe.widthAnchor),
-      space.widthAnchor.constraint(equalTo: globe.widthAnchor, multiplier: 1.8),
-      enter.widthAnchor.constraint(equalTo: globe.widthAnchor, multiplier: 1.35),
-      globe.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
-    ])
+    standardActionWidths = [
+      layoutToggle.widthAnchor.constraint(equalTo: delete.widthAnchor, multiplier: 1.1),
+      space.widthAnchor.constraint(greaterThanOrEqualTo: delete.widthAnchor, multiplier: 1.8),
+      enter.widthAnchor.constraint(equalTo: delete.widthAnchor, multiplier: 1.35),
+      delete.widthAnchor.constraint(equalToConstant: 44),
+    ]
+    nineKeyActionWidths = [
+      nineKeySymbolsButton.widthAnchor.constraint(equalTo: nineKeyContainer.widthAnchor, multiplier: 0.14),
+      layoutToggle.widthAnchor.constraint(equalTo: nineKeySymbolsButton.widthAnchor),
+      enter.widthAnchor.constraint(equalTo: nineKeySymbolsButton.widthAnchor, multiplier: 1.3),
+    ]
+    actionGlobeButton = globe
     return row
+  }
+
+  private func makeDeleteKey() -> UIButton {
+    let delete = makeSymbolKey(symbol: "delete.left", accessibilityLabel: "删除")
+    delete.addTarget(self, action: #selector(beginBackspacePress), for: .touchDown)
+    delete.addTarget(self, action: #selector(finishBackspacePress), for: .touchUpInside)
+    delete.addTarget(
+      self,
+      action: #selector(cancelBackspacePress),
+      for: [.touchUpOutside, .touchCancel, .touchDragExit])
+    return delete
   }
 
   private func makeRow() -> UIStackView {
@@ -468,7 +775,8 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       synchronizeInputSchemePreference()
       // A host setting can change while this view is open. Do not start an alphabetic composition
       // from a stale 26-key tap after switching to nine keys; local utilities still need letters.
-      if inputScheme == .nineKey && !session.isInLocalMode && !("2"..."9").contains(character) {
+      if inputScheme == .nineKey && !session.isInLocalMode
+        && !("2"..."9").contains(character) && character != "'" {
         return
       }
       render(session.handleCharacter(character))
@@ -540,20 +848,45 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     insertOwnText(symbol)
   }
 
+  private func synchronizeInputContext() {
+    guard let document = KeyboardHostContext.documentIdentifier(for: textDocumentProxy) else { return }
+    applyInputContext(keyboardType: textDocumentProxy.keyboardType ?? .default, documentIdentifier: document)
+  }
+
+  // Explicit UIKit-trait boundary also allows layout/state regression tests without a fake engine.
+  func applyInputContext(keyboardType: UIKeyboardType, documentIdentifier: UUID) {
+    guard let chinese = inputContext.languageOverride(for: keyboardType, document: documentIdentifier,
+                                                      isChinese: isChineseMode) else { return }
+    // textWillChange normally finishes in the old field. If UIKit skipped that boundary, never
+    // insert its remaining preedit into the new field while changing the keyboard's presentation.
+    render(session.cancel())
+    isChineseMode = chinese
+    showsSymbols = false
+    letterCaseState = .lowercase
+    isAutomaticShift = false
+    lastShiftTapTime = nil
+    updateLanguageModeButton()
+    updateAutomaticCapitalization()
+    updateCandidateStrip(preedit: "", candidates: [])
+  }
+
   private func toggleInputMode() {
     playInputClick()
     let snapshot = isChineseMode ? session.finishComposition() : session.cancel()
+    render(snapshot)
     isChineseMode.toggle()
     letterCaseState = .lowercase
     isAutomaticShift = false
     lastShiftTapTime = nil
     updateLanguageModeButton()
     updateAutomaticCapitalization()
-    render(snapshot)
   }
 
   private func toggleLetterCase() {
-    guard !isChineseMode else { return }
+    if isChineseMode {
+      toggleInputMode()
+      letterCaseState = .lowercase
+    }
 
     playInputClick()
     isAutomaticShift = false
@@ -582,7 +915,9 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     }
 
     let mode: EnglishCapitalizationMode
-    switch textDocumentProxy.autocapitalizationType ?? .sentences {
+    let capitalization = (inputContext.keyboardType == .URL || inputContext.keyboardType == .emailAddress)
+      ? UITextAutocapitalizationType.none : (textDocumentProxy.autocapitalizationType ?? .sentences)
+    switch capitalization {
     case .none:
       mode = .none
     case .words:
@@ -608,7 +943,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     for (button, lowercase, hintLabel) in letterButtons {
       // A hint only means something while the key feeds a double-pinyin composition, so English
       // mode drops it even though the scheme underneath is unchanged.
-      let hint = isChineseMode ? shuangpinKeyHints[lowercase.uppercased()] : nil
+      let hint = isChineseMode && !session.isInLocalMode ? shuangpinKeyHints[lowercase.uppercased()] : nil
       if var configuration = button.configuration {
         configuration.title = usesUppercase ? lowercase.uppercased() : lowercase
         // The hint sits along the bottom edge, so the letter is lifted clear of it instead of
@@ -625,24 +960,23 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       button.accessibilityValue = hint
     }
 
-    shiftButton?.isHidden = isChineseMode
     guard let button = shiftButton, var configuration = button.configuration else { return }
     switch letterCaseState {
     case .lowercase:
       configuration.image = UIImage(systemName: "shift")
-      configuration.background.backgroundColor = MetasequoiaTheme.keyBackground
-      button.accessibilityLabel = "大写"
+      configuration.background.backgroundColor = KeyboardSkinPreference.selected.keyBackground
+      button.accessibilityLabel = isChineseMode ? "切换到英文大写" : "大写"
       button.accessibilityValue = "关闭"
     case .shifted:
       configuration.image = UIImage(systemName: "shift.fill")
       configuration.background.backgroundColor =
-        MetasequoiaTheme.forestUIColor.withAlphaComponent(0.22)
+        KeyboardSkinPreference.selected.accent.withAlphaComponent(0.22)
       button.accessibilityLabel = "大写"
       button.accessibilityValue = isAutomaticShift ? "自动开启" : "下一字母"
     case .capsLock:
       configuration.image = UIImage(systemName: "capslock.fill")
       configuration.background.backgroundColor =
-        MetasequoiaTheme.forestUIColor.withAlphaComponent(0.32)
+        KeyboardSkinPreference.selected.accent.withAlphaComponent(0.32)
       button.accessibilityLabel = "大写锁定"
       button.accessibilityValue = "开启"
     }
@@ -651,17 +985,18 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   private func updateLanguageModeButton() {
     var configuration = UIButton.Configuration.filled()
-    configuration.title = isChineseMode ? "中" : "英"
-    configuration.baseForegroundColor = .white
-    configuration.baseBackgroundColor = MetasequoiaTheme.forestUIColor
+    configuration.title = isChineseMode ? (inputScheme == .japanese ? "日" : "中") : "英"
+    configuration.baseForegroundColor = KeyboardSkinPreference.selected.actionForeground
+    configuration.baseBackgroundColor = KeyboardSkinPreference.selected.actionBackground
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 3, leading: 5, bottom: 3, trailing: 5)
     configuration.background.cornerRadius = 8
     languageModeButton.configuration = configuration
     languageModeButton.accessibilityIdentifier = "languageModeButton"
     languageModeButton.accessibilityLabel =
-      isChineseMode ? "切换到英文输入" : "切换到中文输入"
-    languageModeButton.accessibilityValue = isChineseMode ? "中文输入" : "英文输入"
+      isChineseMode ? "切换到英文输入" : "切换到所选输入方案"
+    languageModeButton.accessibilityValue = isChineseMode ? (inputScheme == .japanese ? "日语输入" : "中文输入") : "英文输入"
+    updateShortcutButtons()
     updateKeyboardLayout()
   }
 
@@ -700,29 +1035,63 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   }
 
   private func applyInputScheme() -> MetasequoiaInputSnapshot {
-    inputScheme == .nineKey ? session.switchToNineKey()
-      : session.switch(toShuangpin: usesShuangpin)
+    switch inputScheme {
+    case .nineKey: session.switchToNineKey()
+    case .ziranma, .microsoft, .shoudao: session.switch(toShuangpinProfile: inputScheme.rawValue)
+    case .wubi: session.switchToWubi()
+    case .japanese: session.switchToJapanese()
+    case .quanpin, .shuangpin: session.switch(toShuangpin: usesShuangpin)
+    }
   }
 
   private func selectInputScheme(_ scheme: ChineseInputScheme) {
     guard scheme != inputScheme else { return }
     playInputClick()
+    let source = typingSource
     inputScheme = scheme
     let snapshot = applyInputScheme()
     InputSchemePreference.scheme = scheme
     showsSymbols = false
     updateSchemeButton()
-    render(snapshot)
+    updateLanguageModeButton()
+    render(snapshot, source: source)
+  }
+
+  private func synchronizePersonalDictionary(force: Bool) {
+    guard hasFullAccess, !hasComposition, !session.isInLocalMode, !synchronizingPersonalDictionary else { return }
+    let store = PersonalDictionaryStore()
+    do {
+      let state = try store.read()
+      guard force || state.pendingCount > 0 || state.refreshID != state.completedRefreshID else { return }
+      synchronizingPersonalDictionary = true
+      defer { synchronizingPersonalDictionary = false }
+      try store.synchronize(apply: { request in
+        try session.applyPersonalPrevious(request.previous?.bridgeValue, replacement: request.replacement?.bridgeValue,
+                                          requestID: request.id.uuidString)
+      }, page: { offset in
+        let result = try session.personalEntries(atOffset: UInt(offset))
+        guard let rows = result["entries"] as? [[String: Any]], let hasMore = result["hasMore"] as? Bool else {
+          throw PersonalDictionaryStore.StoreError.invalidState
+        }
+        return PersonalWordPage(entries: try rows.map { try PersonalWord(bridgeValue: $0) }, hasMore: hasMore)
+      })
+    } catch PersonalDictionaryStore.StoreError.busy {
+      // Another process owns this short transaction; the timer retries without interrupting typing.
+    } catch {
+      showDiagnostic(error.localizedDescription)
+    }
   }
 
   private func synchronizeInputSchemePreference() {
     guard !hasComposition else { return }
     let sharedValue = InputSchemePreference.scheme
     guard sharedValue != inputScheme else { return }
+    let source = typingSource
     inputScheme = sharedValue
     let snapshot = applyInputScheme()
     updateSchemeButton()
-    render(snapshot)
+    updateLanguageModeButton()
+    render(snapshot, source: source)
   }
 
   // The output script may change in the host app while the keyboard is loaded, so it is re-read on
@@ -739,7 +1108,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   private func configurePageButton(_ button: UIButton, symbol: String, label: String) {
     var configuration = UIButton.Configuration.plain()
     configuration.image = UIImage(systemName: symbol)
-    configuration.baseForegroundColor = MetasequoiaTheme.forestUIColor
+    configuration.baseForegroundColor = KeyboardSkinPreference.selected.accent
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 2, leading: 2, bottom: 2, trailing: 2)
     button.configuration = configuration
@@ -776,17 +1145,25 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     (trigger: "U", title: "Unicode 码点"),
     (trigger: "T", title: "日期时间"),
     (trigger: "J", title: "超级简拼"),
+    (trigger: "K", title: "快捷短语"),
+    (trigger: "Y", title: "英文补全"),
+    (trigger: "E", title: "表情"),
+    (trigger: "M", title: "颜文字"),
+    (trigger: "R", title: "临时日语"),
   ]
 
   private func updatePreeditButton() {
     let idle = visiblePreedit.isEmpty
-    let title = idle ? (isChineseMode ? "水杉输入法" : "英文输入") : visiblePreedit
+    let modeName = Self.localInputModes.first { $0.trigger == localModeTrigger }?.title
+    let title = session.isInLocalMode && visiblePreedit == localModeTrigger
+      ? (modeName ?? visiblePreedit)
+      : (idle ? (isChineseMode ? "水杉输入法" : "英文输入") : visiblePreedit)
     if var configuration = preeditButton.configuration {
       configuration.title = title
       preeditButton.configuration = configuration
     }
 
-    let offersModes = idle && isChineseMode
+    let offersModes = idle && supportsLocalTools
     preeditButton.menu =
       offersModes
       ? UIMenu(
@@ -804,13 +1181,16 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     preeditButton.accessibilityTraits = offersModes ? .button : .staticText
   }
 
-  private func openLocalInputMode(_ trigger: String) {
+  func openLocalInputMode(_ trigger: String) {
     playInputClick()
+    localModeTrigger = trigger
+    showsSymbols = false
     render(session.openLocalMode(trigger))
   }
 
   private func chineseOutput(_ text: String) -> String {
-    ChineseTextConversion.outputString(text, traditional: usesTraditionalOutput)
+    if inputScheme == .japanese || localModeTrigger == "R" { return text }
+    return ChineseTextConversion.outputString(text, traditional: usesTraditionalOutput)
   }
 
   private func updateSchemeButton() {
@@ -820,11 +1200,20 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     updateLetterCaseControls()
 
     var configuration = UIButton.Configuration.plain()
-    configuration.title = inputScheme == .nineKey ? "九键" : (usesShuangpin ? "小鹤" : "全拼")
-    configuration.baseForegroundColor = MetasequoiaTheme.forestUIColor
+    switch inputScheme {
+    case .nineKey: configuration.title = "九键"
+    case .shuangpin: configuration.title = "小鹤"
+    case .quanpin: configuration.title = "全拼"
+    case .ziranma: configuration.title = "自然"
+    case .microsoft: configuration.title = "微软"
+    case .shoudao: configuration.title = "SD"
+    case .wubi: configuration.title = "五笔"
+    case .japanese: configuration.title = "日语"
+    }
+    configuration.baseForegroundColor = KeyboardSkinPreference.selected.accent
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 3, leading: 4, bottom: 3, trailing: 4)
-    configuration.background.strokeColor = MetasequoiaTheme.forestUIColor.withAlphaComponent(0.35)
+    configuration.background.strokeColor = KeyboardSkinPreference.selected.accent.withAlphaComponent(0.35)
     configuration.background.strokeWidth = 1
     configuration.background.cornerRadius = 8
     schemeButton.configuration = configuration
@@ -846,12 +1235,37 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   }
 
   private func updateKeyboardLayout() {
+    standardRowHeights.forEach { $0.1.isActive = false }
+    microsoftFinalKey?.isHidden = !(isChineseMode && inputScheme == .microsoft && !session.isInLocalMode)
     let nineKey = isChineseMode && inputScheme == .nineKey && !session.isInLocalMode
     letterRowViews.forEach { $0.isHidden = showsSymbols || nineKey }
     nineKeyContainer.isHidden = showsSymbols || !nineKey
     nineKeyRows.forEach { $0.isHidden = showsSymbols || !nineKey }
-    spellingScrollView.isHidden = session.nineKeySpellings().isEmpty
+    let hasSpellings = !session.nineKeySpellings().isEmpty
+    spellingScrollView.isHidden = !hasSpellings
+    punctuationStack.isHidden = hasSpellings
+    if actionRow != nil {
+      let usesNineKeyLayout = nineKey && !showsSymbols
+      nineKeyHeight.isActive = usesNineKeyLayout
+      let globeIndex = usesNineKeyLayout ? 4 : 2
+      if actionRow.arrangedSubviews.firstIndex(of: actionGlobeButton) != globeIndex {
+        actionRow.removeArrangedSubview(actionGlobeButton)
+        actionGlobeButton.removeFromSuperview()
+        actionRow.insertArrangedSubview(actionGlobeButton, at: globeIndex)
+      }
+      NSLayoutConstraint.deactivate(standardActionWidths + nineKeyActionWidths)
+      globeWidthConstraint?.isActive = false
+      actionGlobeButton.isHidden = !needsInputModeSwitchKey
+      if needsInputModeSwitchKey {
+        globeWidthConstraint = actionGlobeButton.widthAnchor.constraint(equalToConstant: 44)
+        globeWidthConstraint?.isActive = true
+      }
+      nineKeySymbolsButton.isHidden = !usesNineKeyLayout
+      actionDeleteButton.isHidden = usesNineKeyLayout
+      NSLayoutConstraint.activate(usesNineKeyLayout ? nineKeyActionWidths : standardActionWidths)
+    }
     symbolRowViews.forEach { $0.isHidden = !showsSymbols }
+    for (row, height) in standardRowHeights { height.isActive = !row.isHidden }
     if var configuration = layoutToggleButton?.configuration {
       configuration.title = showsSymbols ? (nineKey ? "九键" : "ABC") : "123"
       layoutToggleButton?.configuration = configuration
@@ -916,6 +1330,45 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     return session.commitCandidate()
   }
 
+  func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    guard gestureRecognizer.name == "spaceCursorPan", let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+    let velocity = pan.velocity(in: view)
+    return abs(velocity.x) > abs(velocity.y)
+  }
+
+  private func moveCursor(by offset: Int) {
+    guard offset != 0 else { return }
+    guard let document = KeyboardHostContext.documentIdentifier(for: textDocumentProxy) else { return }
+    if hasComposition { render(session.finishComposition()) }
+    guard KeyboardHostContext.documentIdentifier(for: textDocumentProxy) == document else { return }
+    textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+  }
+
+  @objc private func handleSpacePan(_ pan: UIPanGestureRecognizer) {
+    guard let document = KeyboardHostContext.documentIdentifier(for: textDocumentProxy) else {
+      cursorMovement.cancel()
+      spaceButton?.configuration?.title = "空格"
+      return
+    }
+    switch pan.state {
+    case .began:
+      cursorMovement.begin(at: pan.translation(in: view).x, document: document)
+      if hasComposition { render(session.finishComposition()) }
+      spaceButton?.configuration?.title = "移动光标"
+      if KeyboardFeedbackPreference.hapticsEnabled {
+        keyFeedback.impactOccurred(intensity: KeyboardFeedbackPreference.hapticStrength.intensity)
+      }
+    case .changed:
+      moveCursor(by: cursorMovement.advance(to: pan.translation(in: view).x,
+                                           document: document))
+      if !cursorMovement.isActive { spaceButton?.configuration?.title = "空格" }
+    case .ended, .cancelled, .failed:
+      cursorMovement.cancel()
+      spaceButton?.configuration?.title = "空格"
+    default: break
+    }
+  }
+
   private func handleSpace() {
     playInputClick()
     let snapshot = commitVisibleCandidate()
@@ -947,9 +1400,17 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
 
   // Every document mutation the keyboard makes goes through here so textWillChange can tell its own
   // echo apart from a genuine host-initiated change.
-  private func insertOwnText(_ text: String) {
+  private var typingSource: TypingSource {
+    if localModeTrigger == "R" { return .japanese }
+    if localModeTrigger != nil { return .local }
+    if !isChineseMode { return .english }
+    return TypingSource(rawValue: inputScheme.rawValue) ?? .unknown
+  }
+
+  private func insertOwnText(_ text: String, source: TypingSource? = nil) {
     pendingOwnEdits += 1
     textDocumentProxy.insertText(text)
+    if hasFullAccess { try? TypingStatisticsStore().record(text, source: source ?? typingSource) }
   }
 
   private func deleteOwnBackward() {
@@ -957,11 +1418,19 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     textDocumentProxy.deleteBackward()
   }
 
-  private func render(_ snapshot: MetasequoiaInputSnapshot) {
+  private func render(_ snapshot: MetasequoiaInputSnapshot, source originalSource: TypingSource? = nil) {
+    candidateRevision &+= 1
+    let source = originalSource ?? typingSource
+    if localModeTrigger != nil && !session.isInLocalMode {
+      localModeTrigger = nil
+      showsSymbols = false
+    }
+    updateLetterCaseControls()
     if let commitText = snapshot.commitText {
-      insertOwnText(chineseOutput(commitText))
+      insertOwnText(source == .japanese ? commitText : chineseOutput(commitText), source: source)
     }
     hasComposition = !snapshot.preedit.isEmpty
+    if !hasComposition { _ = session.setLearningEnabled(DictionaryLearningPreference.enabled) }
     showDiagnostic(snapshot.diagnosticText)
     updateCandidateStrip(preedit: snapshot.preedit, candidates: snapshot.candidates)
     updateSpellingStrip()
@@ -998,6 +1467,10 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   }
 
   private func renderCandidateStrip() {
+    exitLocalModeButton.isHidden = !session.isInLocalMode
+    let showsCandidates = session.isInLocalMode || !visiblePreedit.isEmpty || !visibleCandidates.isEmpty || visibleDiagnostic != nil
+    shortcutBar.isHidden = showsCandidates
+    candidateContent?.isHidden = !showsCandidates
     updatePreeditButton()
     for view in candidateStack.arrangedSubviews {
       candidateStack.removeArrangedSubview(view)
@@ -1016,6 +1489,7 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     diagnosticLabel.accessibilityLabel = visibleDiagnostic.map { "提示：\($0)" }
     diagnosticLabel.isHidden = visibleDiagnostic == nil
     candidateScrollView.isHidden = visibleCandidates.isEmpty || visibleDiagnostic != nil
+    candidateEmptySpacer.isHidden = !visibleCandidates.isEmpty || visibleDiagnostic != nil
   }
 
   // The number is the key the chip answers to on the visible page; the index is the engine position
@@ -1024,15 +1498,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     let display = chineseOutput(candidate)
     var configuration = UIButton.Configuration.plain()
     configuration.title = "\(number)  \(display)"
-    configuration.baseForegroundColor = .label
+    configuration.baseForegroundColor = KeyboardSkinPreference.selected.keyForeground
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 4, leading: 9, bottom: 4, trailing: 9)
-    configuration.background.backgroundColor = MetasequoiaTheme.keyBackground
-    configuration.background.strokeColor = MetasequoiaTheme.forestUIColor.withAlphaComponent(0.22)
+    configuration.background.backgroundColor = KeyboardSkinPreference.selected.keyBackground
+    configuration.background.strokeColor = KeyboardSkinPreference.selected.accent.withAlphaComponent(0.22)
     configuration.background.strokeWidth = 1
     configuration.background.cornerRadius = 9
 
-    let button = UIButton(
+    let button = KeyboardKeyButton(
       configuration: configuration,
       primaryAction: UIAction { [weak self] _ in
         guard let self else { return }
@@ -1041,6 +1515,33 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
       })
     button.accessibilityLabel = "候选词 \(number)：\(display)"
     button.accessibilityIdentifier = "candidate-\(number)"
+    if isChineseMode && inputScheme != .japanese && !session.isInLocalMode {
+      let revision = candidateRevision
+      func action(_ title: String, _ symbol: String, _ operation: MetasequoiaCandidateAction,
+                  destructive: Bool = false) -> UIAction {
+        UIAction(title: title, image: UIImage(systemName: symbol), attributes: destructive ? .destructive : []) { [weak self] _ in
+          guard let self, candidateRevision == revision,
+                visibleCandidates.indices.contains(index), visibleCandidates[index] == candidate else { return }
+          let result = session.editCandidate(at: UInt(index), expectedWord: candidate, action: operation)
+          render(result)
+          if !result.isHandled { showDiagnostic("当前候选不支持此操作") }
+          else if result.diagnosticText == nil {
+            playInputClick()
+            UIAccessibility.post(notification: .announcement, argument: "已\(title)")
+          }
+        }
+      }
+      button.menu = UIMenu(title: display, children: [
+        action("优先显示", "arrow.up", .promote),
+        action("固定到首位", "pin", .fixFirst),
+        action("取消固定", "pin.slash", .clearPosition),
+        UIMenu(title: "删除词条…", image: UIImage(systemName: "trash"), options: .destructive, children: [
+          action("确认删除此词条", "trash", .remove, destructive: true),
+        ]),
+      ])
+      button.accessibilityHint = "轻点输入，长按管理词条"
+    }
+    decorateKey(button)
     return button
   }
 
@@ -1049,14 +1550,15 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
   ) -> UIButton {
     var configuration = UIButton.Configuration.plain()
     configuration.image = UIImage(systemName: symbol)
-    configuration.baseForegroundColor = .label
-    configuration.background.backgroundColor = MetasequoiaTheme.keyBackground
+    configuration.baseForegroundColor = KeyboardSkinPreference.selected.keyForeground
+    configuration.background.backgroundColor = KeyboardSkinPreference.selected.keyBackground
     configuration.background.cornerRadius = 8
-    let button = UIButton(configuration: configuration)
+    let button = KeyboardKeyButton(configuration: configuration)
     if let action {
       button.addAction(UIAction { _ in action() }, for: .primaryActionTriggered)
     }
     button.accessibilityLabel = accessibilityLabel
+    decorateKey(button)
     return button
   }
 
@@ -1069,24 +1571,149 @@ final class KeyboardViewController: UIInputViewController, UIInputViewAudioFeedb
     var configuration = UIButton.Configuration.plain()
     configuration.title = title
     configuration.titleLineBreakMode = .byClipping
-    configuration.baseForegroundColor = emphasized ? .white : .label
+    configuration.baseForegroundColor = emphasized ? KeyboardSkinPreference.selected.actionForeground : KeyboardSkinPreference.selected.keyForeground
     configuration.background.backgroundColor =
       emphasized
-      ? UIColor(red: 167 / 255, green: 103 / 255, blue: 59 / 255, alpha: 1)
-      : MetasequoiaTheme.keyBackground
+      ? KeyboardSkinPreference.selected.actionBackground
+      : KeyboardSkinPreference.selected.keyBackground
     configuration.background.cornerRadius = 8
     configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer {
       attributes in
       var attributes = attributes
-      attributes.font = .preferredFont(forTextStyle: .title3)
+      attributes.font = KeyboardSkinPreference.selected.usesMonospacedFont
+        ? .monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .title3).pointSize, weight: .medium)
+        : .preferredFont(forTextStyle: .title3)
       return attributes
     }
-    let button = UIButton(configuration: configuration, primaryAction: UIAction { _ in action() })
+    let button = KeyboardKeyButton(configuration: configuration, primaryAction: UIAction { _ in action() })
     button.accessibilityLabel = accessibilityLabel
+    decorateKey(button)
     return button
   }
 
+  private func decorateKey(_ button: UIButton) {
+    button.addTarget(self, action: #selector(prepareKeyFeedback), for: .touchDown)
+    let skin = KeyboardSkinPreference.selected
+    guard var configuration = button.configuration else { return }
+    configuration.background.cornerRadius = skin.cornerRadius
+    configuration.background.strokeWidth = skin.borderWidth
+    configuration.background.strokeColor = skin.borderColor
+    button.configuration = configuration
+    button.layer.shadowColor = UIColor.black.cgColor
+    button.layer.shadowOpacity = skin.shadowOpacity
+    button.layer.shadowRadius = skin.shadowRadius
+    button.layer.shadowOffset = CGSize(width: 0, height: skin.shadowOffset)
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    if let globe = actionGlobeButton, globe.isHidden != !needsInputModeSwitchKey {
+      updateKeyboardLayout()
+    }
+    // Use the same viewport for every input layout; content's intrinsic height must not shrink it.
+    let landscape = view.window?.windowScene?.interfaceOrientation.isLandscape
+      ?? (traitCollection.verticalSizeClass == .compact)
+    let height: CGFloat = landscape ? 216 : 260
+    if keyboardHeightConstraint?.constant != height { keyboardHeightConstraint?.constant = height }
+    func updateShadows(_ node: UIView) {
+      if let button = node as? UIButton, button.layer.shadowOpacity > 0 {
+        button.layer.shadowPath = UIBezierPath(roundedRect: button.bounds,
+          cornerRadius: KeyboardSkinPreference.selected.cornerRadius).cgPath
+      }
+      node.subviews.forEach { updateShadows($0) }
+    }
+    updateShadows(view)
+  }
+
+  private func showSkinPicker() {
+    guard skinPicker == nil else { return }
+    let picker = KeyboardSkinPickerView(selected: KeyboardSkinPreference.selected, onSelect: { [weak self] skin in
+      guard let self else { return }
+      KeyboardFeedbackPreference.defaults.set(skin.rawValue, forKey: KeyboardSkinPreference.key)
+      closeSkinPicker()
+      applyKeyboardSkin()
+      playInputClick()
+    }, onClose: { [weak self] in self?.closeSkinPicker() })
+    picker.accessibilityViewIsModal = true
+    picker.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(picker)
+    NSLayoutConstraint.activate([
+      picker.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      picker.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      picker.topAnchor.constraint(equalTo: view.topAnchor),
+      picker.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+    skinPicker = picker
+    UIAccessibility.post(notification: .screenChanged, argument: picker)
+  }
+
+  private func closeSkinPicker() {
+    guard let picker = skinPicker else { return }
+    picker.removeFromSuperview()
+    skinPicker = nil
+    UIAccessibility.post(notification: .screenChanged, argument: skinShortcut)
+  }
+
+  private func applyKeyboardSkin() {
+    let skin = KeyboardSkinPreference.selected
+    view.backgroundColor = skin.background
+    skinBackdrop.skin = skin
+    func recolor(_ node: UIView) {
+      if let button = node as? UIButton, var configuration = button.configuration {
+        if let color = configuration.background.backgroundColor, color.cgColor.alpha > 0 {
+          configuration.background.backgroundColor = skin.keyBackground
+          configuration.baseForegroundColor = skin.keyForeground
+        }
+        if configuration.background.strokeWidth > 0 {
+          configuration.background.strokeColor = skin.accent.withAlphaComponent(0.3)
+        }
+        button.configuration = configuration
+        if let color = configuration.background.backgroundColor, color.cgColor.alpha > 0 { decorateKey(button) }
+      }
+      if node.accessibilityIdentifier == "nineKeySidebar" || node.accessibilityIdentifier == "candidateStrip" {
+        node.backgroundColor = skin.keyBackground.withAlphaComponent(0.6)
+      }
+      if let label = node as? UILabel, label.accessibilityIdentifier == "keyNumberHint" { label.textColor = skin.accent }
+      node.subviews.forEach { recolor($0) }
+    }
+    recolor(view)
+    if var configuration = enterButton?.configuration {
+      configuration.background.backgroundColor = skin.actionBackground
+      configuration.baseForegroundColor = skin.actionForeground
+      enterButton?.configuration = configuration
+    }
+    updateLanguageModeButton()
+    updateSchemeButton()
+    updateShortcutButtons()
+    renderCandidateStrip()
+    updateSpellingStrip()
+    exitLocalModeButton.configuration?.baseForegroundColor = skin.accent
+    preeditButton.configuration?.baseForegroundColor = skin.accent
+    previousPageButton.configuration?.baseForegroundColor = skin.accent
+    nextPageButton.configuration?.baseForegroundColor = skin.accent
+    for (_, _, hint) in letterButtons { hint.textColor = skin.accent }
+    view.tintColor = skin.accent
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    if isViewLoaded, actionRow != nil,
+       previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle {
+      applyKeyboardSkin()
+    }
+  }
+
+  @objc private func prepareKeyFeedback() {
+    if KeyboardFeedbackPreference.hapticsEnabled { keyFeedback.prepare() }
+  }
+
   private func playInputClick() {
-    UIDevice.current.playInputClick()
+    if KeyboardFeedbackPreference.soundEnabled {
+      UIDevice.current.playInputClick()
+    }
+    if KeyboardFeedbackPreference.hapticsEnabled {
+      keyFeedback.impactOccurred(intensity: KeyboardFeedbackPreference.hapticStrength.intensity)
+      keyFeedback.prepare()
+    }
   }
 }

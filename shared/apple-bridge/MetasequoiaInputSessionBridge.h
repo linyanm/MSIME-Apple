@@ -4,6 +4,13 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef NS_ENUM(NSInteger, MetasequoiaCandidateAction) {
+    MetasequoiaCandidateActionPromote,
+    MetasequoiaCandidateActionRemove,
+    MetasequoiaCandidateActionFixFirst,
+    MetasequoiaCandidateActionClearPosition,
+};
+
 @interface MetasequoiaInputSnapshot : NSObject
 
 @property(nonatomic, readonly, getter=isHandled) BOOL handled;
@@ -29,8 +36,21 @@ NS_ASSUME_NONNULL_BEGIN
 - (MetasequoiaInputSnapshot *)commitRaw;
 - (MetasequoiaInputSnapshot *)cancel;
 - (MetasequoiaInputSnapshot *)selectCandidateAtIndex:(NSUInteger)index;
+- (BOOL)setLearningEnabled:(BOOL)enabled;
+- (BOOL)applyPersonalPrevious:(nullable NSDictionary<NSString *, id> *)previous
+                  replacement:(nullable NSDictionary<NSString *, id> *)replacement
+                    requestID:(NSString *)requestID
+                        error:(NSError **)error;
+- (nullable NSDictionary<NSString *, id> *)personalEntriesAtOffset:(NSUInteger)offset error:(NSError **)error;
+
+- (MetasequoiaInputSnapshot *)editCandidateAtIndex:(NSUInteger)index
+                                      expectedWord:(NSString *)word
+                                            action:(MetasequoiaCandidateAction)action;
 - (MetasequoiaInputSnapshot *)switchToShuangpin:(BOOL)usesShuangpin;
 - (MetasequoiaInputSnapshot *)switchToNineKey;
+- (MetasequoiaInputSnapshot *)switchToWubi;
+- (MetasequoiaInputSnapshot *)switchToShuangpinProfile:(NSString *)name;
+- (MetasequoiaInputSnapshot *)switchToJapanese;
 - (MetasequoiaInputSnapshot *)chooseNineKeySpellingAtIndex:(NSUInteger)index;
 - (NSArray<NSString *> *)nineKeySpellings;
 

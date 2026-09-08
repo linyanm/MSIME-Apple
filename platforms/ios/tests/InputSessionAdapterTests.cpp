@@ -1,6 +1,8 @@
 #include "InputSessionAdapter.h"
 #include "ShuangpinKeymap.h"
 
+#include <metasequoia/session.h>
+
 #include "user_dictionary/user_dictionary_journal.h"
 
 #include <sqlite3.h>
@@ -19,6 +21,128 @@ void Require(bool condition, const char *message)
     if (!condition)
     {
         throw std::runtime_error(message);
+    }
+}
+
+void TestRuntimeGenerationUpgrade(const std::filesystem::path &root)
+{
+    using metasequoia::apple::InputSessionAdapter;
+    using metasequoia::apple::InputSnapshot;
+    const auto resources = root / "bundled";
+    const auto user = root / "user";
+    const auto cache = root / "cache";
+    std::filesystem::create_directories(resources);
+    std::filesystem::create_directories(user);
+    sqlite3 *database = nullptr;
+    Require(sqlite3_open((resources / "msime.db").c_str(), &database) == SQLITE_OK, "Cannot create upgrade fixture.");
+    Require(sqlite3_exec(database,
+                         "CREATE TABLE tbl_2_b(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_2_b VALUES('bu''hao','bh','不好',200);"
+                         "INSERT INTO tbl_2_b VALUES('bu''hao','bh','补好',100);",
+                         nullptr, nullptr, nullptr) == SQLITE_OK,
+            "Cannot seed upgrade fixture.");
+    sqlite3_close(database);
+    Require(sqlite3_open((resources / "english.db").c_str(), &database) == SQLITE_OK,
+            "Cannot create English upgrade fixture.");
+    Require(sqlite3_exec(database, "CREATE TABLE fixture(value TEXT);", nullptr, nullptr, nullptr) == SQLITE_OK,
+            "Cannot initialize English upgrade fixture.");
+    sqlite3_close(database);
+    const auto copyBundledMain = [&] {
+        std::filesystem::copy_file(resources / "msime.db", user / "msime.db",
+                                   std::filesystem::copy_options::overwrite_existing);
+    };
+    const auto type = [](InputSessionAdapter &adapter) {
+        InputSnapshot snapshot;
+        for (char c : std::string("buhao"))
+            snapshot = adapter.handle_character(c);
+        return snapshot;
+    };
+    copyBundledMain();
+    // This is the previous private-directory layout. The journal must stay here during migration.
+    const metasequoia::RuntimePaths legacy{user, user, cache, user};
+    {
+        InputSessionAdapter adapter(legacy);
+        Require(adapter.set_learning_enabled(true), "Cannot enable upgrade fixture learning.");
+        Require(type(adapter).candidates.at(1) == "补好", "Unexpected upgrade baseline.");
+        Require(adapter.select_candidate(1).commit == "补好", "Cannot learn upgrade fixture word.");
+    }
+    {
+        InputSessionAdapter adapter(legacy);
+        Require(type(adapter).candidates.at(0) == "补好", "Legacy journal learning did not persist.");
+    }
+    // Reproduce the old installer's file replacement: the journal survives, but ranking is reset.
+    copyBundledMain();
+    {
+        InputSessionAdapter adapter(legacy);
+        Require(type(adapter).candidates.at(0) == "不好", "Replacement did not reproduce ranking reset.");
+    }
+    auto first = metasequoia::prepare_runtime_paths(resources, user, cache, "first");
+    {
+        InputSessionAdapter adapter(first);
+        Require(type(adapter).candidates.at(0) == "补好", "Migration did not replay legacy learning.");
+        adapter.cancel();
+        adapter.switch_to_shuangpin_profile("ziranma");
+        Require(adapter.set_learning_enabled(true), "Cannot update prepared session preferences.");
+        adapter.switch_to_nine_key();
+        InputSnapshot snapshot;
+        for (char c : std::string("28426"))
+            snapshot = adapter.handle_character(c);
+        Require(snapshot.candidates.at(0) == "补好", "Scheme/preference change lost prepared paths.");
+    }
+    auto second = metasequoia::prepare_runtime_paths(resources, user, cache, "second");
+    {
+        InputSessionAdapter adapter(second);
+        Require(type(adapter).candidates.at(0) == "补好", "Upgrade lost learned ranking.");
+        auto removed = adapter.edit_candidate(0, "补好", metasequoia::apple::CandidateAction::Remove);
+        Require(removed.handled && !removed.diagnostic, "Cannot remove upgraded candidate.");
+    }
+    first = metasequoia::prepare_runtime_paths(resources, user, cache, "first");
+    {
+        InputSessionAdapter adapter(first);
+        for (const auto &word : type(adapter).candidates)
+            Require(word != "补好", "Switching back resurrected a deleted candidate.");
+    }
+    // A replay failure must leave prepared generations usable and never publish a ready marker.
+    const auto journal = user / "msime_user.db";
+    std::filesystem::rename(journal, user / "journal.saved");
+    std::filesystem::create_directory(journal);
+    bool failed = false;
+    try
+    {
+        metasequoia::prepare_runtime_paths(resources, user, cache, "broken");
+    }
+    catch (const std::exception &)
+    {
+        failed = true;
+    }
+    Require(failed && !std::filesystem::exists(user / "dictionaries" / "broken") &&
+                !std::filesystem::exists(user / "dictionaries" / "broken.incoming"),
+            "Failed replay published or left an incomplete generation.");
+    std::filesystem::remove(journal);
+    std::filesystem::rename(user / "journal.saved", journal);
+    {
+        InputSessionAdapter adapter(first);
+        Require(type(adapter).candidates.at(0) == "不好", "Failed upgrade damaged the working generation.");
+        adapter.cancel();
+        adapter.switch_to_nine_key();
+        Require(adapter.set_learning_enabled(true), "Cannot configure editor fixture learning.");
+        adapter.handle_character('2');
+        const metasequoia::PersonalDictionaryEntry personal{metasequoia::PersonalDictionaryKind::Pinyin, "bu'hao",
+                                                            "布好", 100000};
+        Require(!adapter.edit_personal_word(std::nullopt, personal, "adapter-add").success,
+                "Personal dictionary edit interrupted a composition.");
+        Require(!adapter.handle_character('8').preedit.empty(), "Rejected edit lost the composition.");
+        adapter.cancel();
+        Require(adapter.edit_personal_word(std::nullopt, personal, "adapter-add").success && adapter.learning_enabled(),
+                "Idle edit failed or lost learning preference.");
+        metasequoia::apple::InputSnapshot snapshot;
+        for (char c : std::string("28426"))
+            snapshot = adapter.handle_character(c);
+        Require(snapshot.candidates.at(0) == "布好", "Personal edit lost nine-key mode or prepared paths.");
+        adapter.cancel();
+        Require(adapter.personal_words(0, 100).entries.size() == 1, "Personal list did not expose the new word.");
+        Require(adapter.edit_personal_word(personal, std::nullopt, "adapter-remove").success,
+                "Cannot remove editor fixture word.");
     }
 }
 
@@ -181,8 +305,8 @@ int RunTest()
                     "A capital typed as a key was taken as a local input mode trigger.");
         }
 
-        // Named explicitly, the three modes this frontend can answer open.
-        for (const char trigger : {'U', 'T', 'J'})
+        // Named explicitly, the modes backed by the packaged resources open.
+        for (const char trigger : {'U', 'T', 'J', 'K', 'E', 'M', 'Y', 'R'})
         {
             const auto opened = adapter.open_local_mode(trigger);
             Require(opened.handled && opened.preedit == std::string(1, trigger),
@@ -196,12 +320,12 @@ int RunTest()
         Require(hexDigit.handled && hexDigit.preedit == "U4", "The Unicode mode rejected a hexadecimal digit.");
         Require(adapter.cancel().handled && !adapter.in_unicode_mode(), "Cancel left the Unicode mode open.");
 
-        // The modes whose data the mobile dictionary product does not carry stay shut even when named.
-        for (const char trigger : {'K', 'E', 'M', 'Y', 'R'})
+        // Unknown mode names remain inert.
+        for (const char trigger : {'B', 'Z'})
         {
             const auto refused = adapter.open_local_mode(trigger);
             Require(!refused.handled && refused.preedit.empty(),
-                    "A local input mode without packaged data opened when it was named.");
+                    "An unknown local input mode opened when it was named.");
         }
 
         // A mode cannot open on top of a composition; the engine guards every trigger on that.
@@ -244,6 +368,86 @@ int RunTest()
         Require(showsUmlaut, "No hint showed a ü final.");
     }
 
+    {
+        sqlite3 *database = nullptr;
+        Require(sqlite3_open((dataDirectory / "msime.db").c_str(), &database) == SQLITE_OK,
+                "Cannot open candidate management fixture.");
+        Require(sqlite3_exec(database, "INSERT INTO tbl_2_s VALUES('shui''lin','sl','水林',1000)", nullptr, nullptr,
+                             nullptr) == SQLITE_OK,
+                "Cannot add management fixture.");
+        sqlite3_close(database);
+        metasequoia::apple::InputSessionAdapter adapter;
+        metasequoia::apple::InputSnapshot snapshot;
+        for (char c : std::string("shuilin"))
+            snapshot = adapter.handle_character(c);
+        Require(!snapshot.candidates.empty() && snapshot.candidates[0] == "水林", "Missing management candidate.");
+        using Action = metasequoia::apple::CandidateAction;
+        const auto stale = adapter.edit_candidate(0, "other", Action::Remove);
+        Require(!stale.handled && stale.candidates == snapshot.candidates && !stale.commit,
+                "A stale candidate action mutated the session.");
+        for (auto action : {Action::Promote, Action::FixFirst, Action::ClearPosition})
+        {
+            const auto edited = adapter.edit_candidate(0, "水林", action);
+            Require(edited.handled && !edited.diagnostic && !edited.commit && !edited.preedit.empty(),
+                    "Candidate management failed or committed text.");
+        }
+        const auto removed = adapter.edit_candidate(0, "水林", Action::Remove);
+        Require(removed.handled && !removed.diagnostic && !removed.commit, "Candidate removal failed.");
+        for (const auto &word : removed.candidates)
+            Require(word != "水林", "Removed candidate remained visible.");
+        adapter.cancel();
+        metasequoia::apple::InputSessionAdapter reopened;
+        for (char c : std::string("shuilin"))
+            snapshot = reopened.handle_character(c);
+        for (const auto &word : snapshot.candidates)
+            Require(word != "水林", "Removal did not persist.");
+    }
+
+    {
+        sqlite3 *database = nullptr;
+        Require(sqlite3_open((dataDirectory / "msime.db").c_str(), &database) == SQLITE_OK,
+                "Cannot open learning fixture.");
+        Require(sqlite3_exec(database,
+                             "CREATE TABLE tbl_2_b(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                             "INSERT INTO tbl_2_b VALUES('bu''hao','bh','不好',200);"
+                             "INSERT INTO tbl_2_b VALUES('bu''hao','bh','补好',100);",
+                             nullptr, nullptr, nullptr) == SQLITE_OK,
+                "Cannot populate learning fixture.");
+        sqlite3_close(database);
+        auto type = [](metasequoia::apple::InputSessionAdapter &adapter) {
+            metasequoia::apple::InputSnapshot snapshot;
+            for (char c : std::string("buhao"))
+                snapshot = adapter.handle_character(c);
+            return snapshot;
+        };
+        metasequoia::apple::InputSessionAdapter adapter;
+        auto initial = type(adapter);
+        Require(initial.candidates.size() >= 2 && initial.candidates[0] == "不好", "Unexpected learning baseline.");
+        Require(!adapter.set_learning_enabled(true) && !adapter.learning_enabled(),
+                "Learning changed during a composition.");
+        Require(adapter.select_candidate(1).commit == "补好", "Selecting with learning disabled failed.");
+        auto unchanged = type(adapter);
+        Require(unchanged.candidates[0] == "不好", "Disabled learning changed candidate order.");
+        adapter.cancel();
+        Require(adapter.set_learning_enabled(true) && adapter.learning_enabled(), "Idle learning change failed.");
+        type(adapter);
+        Require(!adapter.set_learning_enabled(false) && adapter.learning_enabled(),
+                "Disabling interrupted composition.");
+        Require(adapter.select_candidate(1).commit == "补好", "Learning selection failed.");
+        Require(adapter.set_learning_enabled(false), "Learning could not be disabled when idle.");
+        metasequoia::apple::InputSessionAdapter reopened;
+        Require(type(reopened).candidates[0] == "补好", "Learning did not persist across sessions.");
+        adapter.switch_to_shuangpin_profile("ziranma");
+        Require(adapter.set_learning_enabled(true) && adapter.shuangpin_profile_name() == "ziranma" &&
+                    adapter.uses_shuangpin(),
+                "Changing learning lost the double-pinyin profile.");
+        adapter.switch_to_nine_key();
+        Require(adapter.learning_enabled() && adapter.set_learning_enabled(false),
+                "Nine-key lost the learning setting.");
+        Require(adapter.handle_character('7').handled, "Changing learning lost nine-key routing.");
+    }
+
+    TestRuntimeGenerationUpgrade(dataDirectory / "upgrade");
     user_dictionary::close_default_user_database();
     std::filesystem::remove_all(dataDirectory);
     return 0;
