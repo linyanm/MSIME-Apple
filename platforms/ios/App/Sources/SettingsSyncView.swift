@@ -67,7 +67,7 @@ struct SettingsSyncView: View {
     .alert("上传本机设置？", isPresented: $uploading) {
       Button("取消", role: .cancel) { }
       Button("上传") { pending = Task { await upload() } }
-    } message: { Text("更新云端对应设置，保留其他平台专属设置。版本冲突时需刷新后重新确认。") }
+    } message: { Text("更新云端对应设置，包括自定义皮肤的背景图片；保留其他平台专属设置。版本冲突时需刷新后重新确认。") }
     .alert("应用云端设置？", isPresented: $applying) {
       Button("取消", role: .cancel) { }
       Button("应用") {

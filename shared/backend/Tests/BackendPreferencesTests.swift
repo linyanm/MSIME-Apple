@@ -11,6 +11,17 @@ final class BackendPreferencesTests: XCTestCase {
     XCTAssertEqual(merged.settings["input.schema"], .string("wubi"))
     XCTAssertThrowsError(try BackendAccountClient.mergedPreferences(base, replacing: ["platform.ios.nine_key": .boolean(true)], schema: schema))
   }
+  func testPhotoSizedPrivateSettingsStayIntactWithinNegotiatedLimit() throws {
+    let photo = String(repeating: "A", count: 4 * ((512000 + 2) / 3))
+    let json = "{\"photo\":\"" + photo + "\"}"
+    let base = BackendAccountClient.Preferences(revision: 1, settings: [:])
+    let key = "platform.ios.custom_keyboard_skin"
+    let schema = BackendAccountClient.PreferenceSchema(fields: [key: .init(type: "string")], maximum_bytes: 1024 * 1024, update_mode: "replace", revision_required: true)
+    let merged = try BackendAccountClient.mergedPreferences(base, replacing: [key: .string(json)], schema: schema)
+    XCTAssertEqual(merged.settings[key], .string(json))
+    let old = BackendAccountClient.PreferenceSchema(fields: schema.fields, maximum_bytes: 65536, update_mode: "replace", revision_required: true)
+    XCTAssertThrowsError(try BackendAccountClient.mergedPreferences(base, replacing: [key: .string(json)], schema: old))
+  }
   func testUnsupportedCloudValuesFailBeforeAnApplicationPlanExists() throws {
     for settings: [String: BackendPreferenceValue] in [
       ["input.schema": .string("shuangpin"), "input.shuangpin_schema": .string("unsupported")],

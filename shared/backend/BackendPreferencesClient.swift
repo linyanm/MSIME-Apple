@@ -48,7 +48,7 @@ extension BackendAccountClient {
     // Preserve every other platform's fields. A revision conflict is returned to
     // the user, never resolved by an automatic last-writer-wins retry.
     let merged = Preferences(revision: base.revision, settings: base.settings.merging(values) { _, new in new })
-    guard try JSONEncoder().encode(merged).count <= min(schema.maximum_bytes, 65536) else { throw Failure(status: 400) }
+    guard try JSONEncoder().encode(merged).count <= min(schema.maximum_bytes, 1024 * 1024) else { throw Failure(status: 400) }
     return merged
   }
   func putPreferences(_ preferences: Preferences, token: String) async throws -> Preferences {
