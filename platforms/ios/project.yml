@@ -91,6 +91,7 @@ targets:
     platform: iOS
     sources:
       - path: platforms/ios/App/Sources
+      - path: shared/backend/BackendAccountClient.swift
       - path: platforms/ios/App/Services
       - path: vendor/MetasequoiaImeEngine/voice/src/provider_protocol.cpp
       - path: platforms/ios/KeyboardExtension/Resources/dictionary-manifest.json
@@ -251,6 +252,7 @@ targets:
     platform: iOS
     sources:
       - path: platforms/ios/ServiceTests
+      - path: shared/backend/BackendAccountClient.swift
       - path: platforms/ios/App/Services/CustomService.swift
       - path: platforms/ios/App/Services/AppServicesBridge.mm
       - path: vendor/MetasequoiaImeEngine/voice/src/provider_protocol.cpp
