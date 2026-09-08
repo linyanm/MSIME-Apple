@@ -44,3 +44,21 @@ final class KeyboardKeyButton: UIButton {
     }
   }
 }
+
+/// Candidate chips highlight immediately, but a drag still belongs to the strip.
+final class CandidateScrollView: UIScrollView {
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    delaysContentTouches = false
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    delaysContentTouches = false
+  }
+
+  override func touchesShouldCancel(in view: UIView) -> Bool {
+    if view is KeyboardKeyButton { return true }
+    return super.touchesShouldCancel(in: view)
+  }
+}

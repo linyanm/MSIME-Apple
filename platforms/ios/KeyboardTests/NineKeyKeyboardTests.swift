@@ -345,6 +345,9 @@ final class NineKeyKeyboardTests: XCTestCase {
       var ancestor = candidate.superview
       while ancestor != nil && !(ancestor is UIScrollView) { ancestor = ancestor?.superview }
       let scroll = try XCTUnwrap(ancestor as? UIScrollView)
+      XCTAssertFalse(scroll.delaysContentTouches)
+      XCTAssertTrue(scroll.canCancelContentTouches)
+      XCTAssertTrue(scroll.touchesShouldCancel(in: candidate))
       XCTAssertGreaterThan(scroll.contentSize.width, scroll.bounds.width + 40)
       scroll.setContentOffset(CGPoint(x: 40, y: 0), animated: false)
       try type(scheme == .nineKey ? "4" : "i")
