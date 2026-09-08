@@ -561,23 +561,23 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
         if (characters.length == 1)
         {
             const unichar character = [characters characterAtIndex:0];
-            // Only lowercase reaches the session. The engine now treats A-Z during a composition as helpcode input,
-            // which macOS never asked for and does not document; forwarding it would swallow the capital instead of
-            // committing the leading candidate and letting the application insert it.
             if (character >= 'a' && character <= 'z')
             {
                 result = metasequoia::mac::HandleCharacterWithWubiAutoCommit(*_session, static_cast<char>(character),
                                                                              _wubiAutoCommitUniqueEnabled);
             }
-            // Shift and a capital with nothing being composed is how the engine opens a local input
-            // mode. It stays out of the helpcode path above, which only applies during a
-            // composition, and a capital that is not one of the triggers still comes back unhandled
-            // so the application inserts it.
-            else if (_localInputModesEnabled && character >= 'A' && character <= 'Z' &&
-                     _sessionSnapshot.preedit.empty() && (modifiers & NSEventModifierFlagShift) != 0 &&
-                     (modifiers & ~NSEventModifierFlagShift) == 0)
+            else if (character >= 'A' && character <= 'Z')
             {
-                result = _session->character(static_cast<char>(character), true);
+                const bool shiftOnly =
+                    (modifiers & NSEventModifierFlagShift) != 0 && (modifiers & ~NSEventModifierFlagShift) == 0;
+                if (!_sessionSnapshot.preedit.empty())
+                {
+                    result = _session->character(static_cast<char>(character), shiftOnly);
+                }
+                else if (_localInputModesEnabled && shiftOnly)
+                {
+                    result = _session->character(static_cast<char>(character), true);
+                }
             }
             else if (character == '\'' && !_sessionSnapshot.preedit.empty())
             {
