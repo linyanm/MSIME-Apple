@@ -123,7 +123,10 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("SchemeType::Quanpin", scheme_guard)
         self.assertIn("SchemeType::Shuangpin", scheme_guard)
 
-        # The engine consumes A-Z during a composition as helpcode input. macOS does not offer that, so uppercase must not reach the session while something is being composed; it commits the leading candidate and the application inserts the capital. The one capital path that is allowed opens a local input mode, and the engine guards every one of those triggers on there being no composition, so this branch has to carry the same guard. The full-width and keymap-highlight paths elsewhere in this file legitimately look at uppercase, so scope the check to the key-routing branch.
+        # The engine consumes A-Z during a composition as helpcode input. Forward that path so
+        # dual-code shuangpin (mauM) can filter; idle Shift+letter still opens a local mode.
+        # The full-width and keymap-highlight paths elsewhere in this file legitimately look at
+        # uppercase, so scope the check to the key-routing branch.
         character_branch = controller.split("case metasequoia::mac::ControllerKeyAction::Character:", 1)[1].split(
             "if (!result.handled)", 1
         )[0]
@@ -138,9 +141,10 @@ class ReleaseConfigurationTests(unittest.TestCase):
             1,
             "uppercase reaches the session from more than one place in the key-routing branch",
         )
-        uppercase_branch = character_branch.split("character <= 'Z'", 1)[1].split("}", 1)[0]
-        self.assertIn("_sessionSnapshot.preedit.empty()", uppercase_branch)
-        self.assertIn("_localInputModesEnabled", character_branch)
+        uppercase_branch = character_branch.split("character <= 'Z'", 1)[1].split("else if (character == '\\''", 1)[0]
+        self.assertIn("!_sessionSnapshot.preedit.empty()", uppercase_branch)
+        self.assertIn("_session->character(static_cast<char>(character), shiftOnly)", uppercase_branch)
+        self.assertIn("_localInputModesEnabled && shiftOnly", uppercase_branch)
         self.assertIn("NSEventModifierFlagShift", uppercase_branch)
         self.assertIn("character(static_cast<char>(character), true)", uppercase_branch)
 
