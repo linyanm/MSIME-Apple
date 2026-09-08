@@ -16,6 +16,10 @@ struct SkinSettingsView: View {
           Label("设计我的皮肤", systemImage: "slider.horizontal.3")
         }.accessibilityIdentifier("customSkinEditorLink")
       }
+      Section {
+        NavigationLink(destination: SkinCommunityView()) { Label("皮肤社区", systemImage: "person.3.fill") }
+          .accessibilityIdentifier("skinCommunityLink")
+      }
       Section("完整键盘预览") {
         Picker("键盘布局", selection: $previewsNineKey) {
           Text("26 键").tag(false)

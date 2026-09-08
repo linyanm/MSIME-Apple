@@ -1,0 +1,240 @@
+import SwiftUI
+import AuthenticationServices
+
+struct SkinCommunityView: View {
+  @State private var skins: [CommunitySkin] = []
+  @State private var more = false
+  @State private var busy = false
+  @State private var signedIn = false
+  @State private var message: String?
+  @State private var challenge: CommunityChallenge?
+  @State private var search = ""
+  @State private var showPublish = false
+  @State private var confirmDeleteAccount = false
+  private let api = SkinCommunityAPI.shared
+
+  var body: some View {
+    List {
+      Section {
+        if signedIn {
+          Button { showPublish = true } label: { Label("发布我的设计", systemImage: "square.and.arrow.up") }
+            .accessibilityIdentifier("publishCommunitySkin")
+          Menu("账号") {
+            Button("退出登录") { run { try await api.logout(); signedIn = false; await prepareLogin() } }
+            Button("重新登录") { run { try await api.clearExpiredLogin(); signedIn = false; await prepareLogin() } }
+            Button("注销账号", role: .destructive) { confirmDeleteAccount = true }
+          }
+        } else {
+          if let challenge {
+            SignInWithAppleButton(.signIn) { request in
+              request.nonce = challenge.nonce
+              request.state = challenge.challenge_id
+            } onCompletion: { result in
+              switch result {
+              case .success(let authorization):
+                guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                      credential.state == challenge.challenge_id,
+                      let data = credential.identityToken, let token = String(data: data, encoding: .utf8) else {
+                  message = "Apple 登录未返回有效凭据，请重试。"; Task { await prepareLogin() }; return
+                }
+                run {
+                  try await api.login(challenge: challenge.challenge_id, identityToken: token)
+                  signedIn = true
+                  try await load()
+                }
+              case .failure(let error):
+                if (error as? ASAuthorizationError)?.code != .canceled { message = error.localizedDescription }
+                Task { await prepareLogin() }
+              }
+            }.signInWithAppleButtonStyle(.black).frame(height: 44).disabled(busy)
+          } else {
+            Button("准备 Apple 登录") { Task { await prepareLogin() } }.disabled(busy)
+          }
+          Text("浏览无需登录。登录后可发布、下载和评分。").font(.caption).foregroundStyle(.secondary)
+          Button("清除失效登录状态") { run { try await api.clearExpiredLogin(); signedIn = false; await prepareLogin() } }
+            .font(.caption)
+        }
+      }
+      Section {
+        if skins.isEmpty && !busy { Text("暂时没有皮肤，发布你的第一款设计吧。").foregroundStyle(.secondary) }
+        ForEach(skins) { skin in
+          NavigationLink {
+            CommunitySkinDetail(initial: skin)
+          } label: {
+            VStack(alignment: .leading, spacing: 8) {
+              CommunityDesignPreview(design: skin.design, compact: true).frame(height: 95)
+              HStack { Text(skin.name).font(.headline); if skin.owned { Text("我的作品").font(.caption).foregroundStyle(.secondary) } }
+              Text(skin.author).font(.caption).foregroundStyle(.secondary)
+              Label("\(skin.downloads) 人下载 · \(skin.rating_average, specifier: "%.1f") 分（\(skin.rating_count) 人）", systemImage: "star.fill")
+                .font(.caption).foregroundStyle(.secondary)
+            }.padding(.vertical, 5)
+          }
+        }
+        if more { Button("加载更多") { run { try await load(append: true) } }.disabled(busy) }
+      } header: { Text("社区皮肤") }
+      if busy { ProgressView().frame(maxWidth: .infinity) }
+    }
+    .navigationTitle("皮肤社区")
+    .searchable(text: $search, prompt: "搜索皮肤名称")
+    .onSubmit(of: .search) { run { try await load() } }
+    .refreshable { do { try await load() } catch { message = error.localizedDescription } }
+    .task {
+      do { signedIn = try await api.signedIn(); try await load() } catch { message = error.localizedDescription }
+      if !signedIn { await prepareLogin() }
+    }
+    .sheet(isPresented: $showPublish) { CommunityPublishView { run { try await load() } } }
+    .alert("皮肤社区", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
+      Button("好", role: .cancel) {}
+    } message: { Text(message ?? "") }
+    .confirmationDialog("注销账号将删除已发布皮肤、评分及其他云端账号数据，无法撤销。", isPresented: $confirmDeleteAccount, titleVisibility: .visible) {
+      Button("注销账号", role: .destructive) { run { try await api.logout(deleteAccount: true); signedIn = false; try await load(); await prepareLogin() } }
+    }
+  }
+  @MainActor private func prepareLogin() async {
+    challenge = nil
+    do { challenge = try await api.challenge() } catch { message = error.localizedDescription }
+  }
+  @MainActor private func load(append: Bool = false) async throws {
+    let page = try await api.list(offset: append ? skins.count : 0, search: search)
+    if append { let ids = Set(skins.map(\.id)); skins += page.skins.filter { !ids.contains($0.id) } }
+    else { skins = page.skins }
+    more = page.has_more
+  }
+  private func run(_ action: @escaping @MainActor () async throws -> Void) {
+    guard !busy else { return }; busy = true
+    Task { defer { busy = false }; do { try await action() } catch { message = error.localizedDescription } }
+  }
+}
+
+struct CommunitySkinDetail: View {
+  let initial: CommunitySkin
+  @State private var updated: CommunitySkin?
+  @State private var busy = false
+  @State private var message: String?
+  @State private var confirmsRemoval = false
+  @Environment(\.dismiss) private var dismiss
+  private var skin: CommunitySkin { updated ?? initial }
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 16) {
+        CommunityDesignPreview(design: skin.design).frame(height: 235)
+        Text(skin.name).font(.title2.bold())
+        Text(skin.author).foregroundStyle(.secondary)
+        Text(skin.description)
+        Text("\(skin.downloads) 人下载 · \(skin.rating_average, specifier: "%.1f") 分 · \(skin.rating_count) 人评分")
+          .font(.subheadline).foregroundStyle(.secondary)
+        Button { run {
+          let design = try await SkinCommunityAPI.shared.download(skin.id)
+          var library = CustomSkinLibrary.designs
+          let id = UUID(uuidString: skin.id) ?? UUID()
+          if let index = library.firstIndex(where: { $0.id == id }) { library[index].design = design }
+          else {
+            guard library.count < 12 else { throw CommunityFailure(message: "本地皮肤已满，请在「我的设计」删除一款后重试。") }
+            library.append(SavedKeyboardSkin(id: id, name: skin.name, design: design))
+          }
+          guard CustomSkinLibrary.save(library) else { throw CommunityFailure(message: "无法保存皮肤，请检查设备存储。") }
+          CustomKeyboardSkinStore.save(design)
+          KeyboardFeedbackPreference.defaults.set(KeyboardSkin.custom.rawValue, forKey: KeyboardSkinPreference.key)
+          updated = try await SkinCommunityAPI.shared.detail(skin.id)
+          message = "已保存并应用，下次打开键盘即可使用。"
+        } } label: { Label("下载并使用", systemImage: "arrow.down.circle.fill").frame(maxWidth: .infinity) }
+          .buttonStyle(.borderedProminent).disabled(busy).accessibilityIdentifier("downloadCommunitySkin")
+        if !skin.owned {
+          Text("我的评分（下载后可评，可重新选择）").font(.subheadline)
+          HStack {
+            ForEach(1...5, id: \.self) { stars in
+              Button { run {
+                try await SkinCommunityAPI.shared.rate(skin.id, stars: stars)
+                updated = try await SkinCommunityAPI.shared.detail(skin.id)
+              } } label: { Image(systemName: stars <= skin.my_rating ? "star.fill" : "star").frame(width: 44, height: 44) }
+                .accessibilityLabel("评 \(stars) 星").disabled(busy)
+            }
+          }
+        } else {
+          Button("下架这款皮肤", role: .destructive) { confirmsRemoval = true }.disabled(busy)
+        }
+        if busy { ProgressView() }
+      }.padding()
+    }.navigationTitle("皮肤详情").navigationBarTitleDisplayMode(.inline)
+      .task { run { updated = try await SkinCommunityAPI.shared.detail(initial.id) } }
+      .confirmationDialog("下架后其他用户无法再下载，已下载的本地皮肤会保留。", isPresented: $confirmsRemoval, titleVisibility: .visible) {
+        Button("下架", role: .destructive) { run { try await SkinCommunityAPI.shared.unpublish(skin.id); dismiss() } }
+      }
+      .alert("皮肤社区", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) { Button("好", role: .cancel) {} } message: { Text(message ?? "") }
+  }
+  private func run(_ action: @escaping @MainActor () async throws -> Void) {
+    guard !busy else { return }; busy = true
+    Task { defer { busy = false }; do { try await action() } catch { message = error.localizedDescription } }
+  }
+}
+
+struct CommunityPublishView: View {
+  var onPublished: () -> Void
+  @Environment(\.dismiss) private var dismiss
+  @State private var library = CustomSkinLibrary.designs
+  @State private var selected = UUID()
+  @State private var publicationID = UUID().uuidString.lowercased()
+  @State private var name = ""
+  @State private var description = ""
+  @State private var agrees = false
+  @State private var busy = false
+  @State private var message: String?
+  private var design: CustomKeyboardSkin? { library.first { $0.id == selected }?.design }
+  var body: some View {
+    NavigationView {
+      Form {
+        Section("选择已保存的设计") {
+          if library.isEmpty { Text("请先在「设计我的皮肤」保存一款设计。") }
+          Picker("我的皮肤", selection: $selected) { ForEach(library) { Text($0.name).tag($0.id) } }
+            .onChange(of: selected) { id in name = library.first { $0.id == id }?.name ?? "" }
+          if let design { CommunityDesignPreview(design: design).frame(height: 210) }
+        }
+        Section("发布信息") {
+          TextField("皮肤名称（最多 32 字）", text: $name).onChange(of: name) { name = String($0.prefix(32)) }
+          TextField("设计说明（最多 280 字）", text: $description).onChange(of: description) { description = String($0.prefix(280)) }
+          Toggle("我拥有发布所用素材的权利，并同意其他用户免费下载使用", isOn: $agrees)
+          Text("发布后，设计及照片壁纸将上传并公开。请勿包含私人照片或敏感信息。作者可随时下架。").font(.caption).foregroundStyle(.secondary)
+        }
+        Button("发布到社区") {
+          guard let design else { return }; busy = true
+          Task {
+            defer { busy = false }
+            do {
+              try await SkinCommunityAPI.shared.publish(id: publicationID, name: name, description: description, design: design)
+              onPublished(); dismiss()
+            } catch { message = error.localizedDescription }
+          }
+        }.disabled(busy || !agrees || design == nil || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        if busy { ProgressView() }
+      }.disabled(busy)
+        .navigationTitle("发布皮肤")
+        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() }.disabled(busy) } }
+        .onAppear { if let first = library.first { selected = first.id; name = first.name } }
+        .alert("发布失败", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) { Button("好", role: .cancel) {} } message: { Text(message ?? "") }
+    }.interactiveDismissDisabled(busy)
+  }
+}
+
+// A value-based preview must not change the user's active custom skin while browsing.
+struct CommunityDesignPreview: View {
+  let design: CustomKeyboardSkin
+  var compact = false
+  private func color(_ rgb: UInt32) -> Color { Color(uiColor: CustomKeyboardSkin.color(rgb)) }
+  var body: some View {
+    VStack(spacing: compact ? 3 : 6) {
+      if !compact { HStack { Text("你好"); Text("你号"); Spacer(); Text("全拼") }.font(.caption).foregroundStyle(color(design.accent)).frame(height: 26) }
+      ForEach(["QWERTYUIOP", "ASDFGHJKL", "⇧ZXCVBNM⌫"], id: \.self) { row in
+        HStack(spacing: 3) { ForEach(Array(row).map(String.init), id: \.self) { key($0) } }
+      }
+      HStack(spacing: 3) { key("123"); key("，"); key("空格").frame(minWidth: 100); key("↵") }
+    }.padding(compact ? 6 : 10).background {
+      KeyboardSkinBackdrop(skin: .custom, design: design)
+    }.clipShape(RoundedRectangle(cornerRadius: 12)).accessibilityHidden(true)
+  }
+  private func key(_ text: String) -> some View {
+    Text(text).font(.system(size: compact ? 8 : 14, weight: .medium, design: design.monospaced ? .monospaced : .default))
+      .foregroundStyle(color(text == "↵" ? CustomKeyboardSkin.readableText(on: design.actionBackground) : design.keyForeground)).frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(color(text == "↵" ? design.actionBackground : design.keyBackground).opacity(text == "↵" ? 1 : design.keyOpacity ?? 1), in: RoundedRectangle(cornerRadius: min(design.cornerRadius, compact ? 4 : 12)))
+      .overlay(RoundedRectangle(cornerRadius: min(design.cornerRadius, compact ? 4 : 12)).stroke(color(design.customBorderColor ?? design.accent), lineWidth: design.borderWidth))
+  }
+}

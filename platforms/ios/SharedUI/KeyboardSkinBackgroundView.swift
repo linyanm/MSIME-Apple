@@ -4,10 +4,11 @@ import SwiftUI
 final class KeyboardSkinBackgroundView: UIView {
   private var photoData: Data?
   private var photoImage: UIImage?
+  var designOverride: CustomKeyboardSkin?
   var skin: KeyboardSkin = .forest {
     didSet {
-      backgroundColor = skin.background
-      let data = skin == .custom ? CustomKeyboardSkinStore.current.photo : nil
+      backgroundColor = skin == .custom ? CustomKeyboardSkin.color((designOverride ?? CustomKeyboardSkinStore.current).background) : skin.background
+      let data = skin == .custom ? (designOverride ?? CustomKeyboardSkinStore.current).photo : nil
       if data != photoData { photoData = data; photoImage = data.flatMap { UIImage(data: $0) } }
       setNeedsDisplay()
     }
@@ -24,9 +25,9 @@ final class KeyboardSkinBackgroundView: UIView {
 
   override func draw(_ rect: CGRect) {
     guard let context = UIGraphicsGetCurrentContext() else { return }
-    let design = skin == .custom ? CustomKeyboardSkinStore.current : nil
+    let design = skin == .custom ? (designOverride ?? CustomKeyboardSkinStore.current) : nil
     if let end = design?.gradientEnd,
-       let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [skin.background.cgColor, CustomKeyboardSkin.color(end).cgColor] as CFArray, locations: [0, 1]) {
+       let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [CustomKeyboardSkin.color(design!.background).cgColor, CustomKeyboardSkin.color(end).cgColor] as CFArray, locations: [0, 1]) {
       let endPoint = design?.gradientHorizontal == true ? CGPoint(x: bounds.width, y: 0) : CGPoint(x: 0, y: bounds.height)
       context.drawLinearGradient(gradient, start: .zero, end: endPoint, options: [])
     }
@@ -38,12 +39,13 @@ final class KeyboardSkinBackgroundView: UIView {
       UIColor.black.withAlphaComponent(CGFloat(design?.photoShade ?? 0.25)).setFill()
       context.fill(bounds)
     }
-    guard skin.pattern != 0 else { return }
-    let tint = skin.accent.resolvedColor(with: traitCollection).withAlphaComponent(CGFloat(design?.patternOpacity ?? 0.15))
+    let pattern = design?.pattern ?? skin.pattern
+    guard pattern != 0 else { return }
+    let tint = (design.map { CustomKeyboardSkin.color($0.accent) } ?? skin.accent).resolvedColor(with: traitCollection).withAlphaComponent(CGFloat(design?.patternOpacity ?? 0.15))
     context.setStrokeColor(tint.cgColor)
     context.setFillColor(tint.cgColor)
     context.setLineWidth(0.5)
-    switch skin.pattern {
+    switch pattern {
     case 1:
       for y in stride(from: CGFloat(8), to: bounds.height, by: 16) {
         for x in stride(from: CGFloat(8), to: bounds.width, by: 16) {
@@ -78,10 +80,12 @@ final class KeyboardSkinBackgroundView: UIView {
 
 struct KeyboardSkinBackdrop: UIViewRepresentable {
   let skin: KeyboardSkin
+  var design: CustomKeyboardSkin? = nil
   @Environment(\.colorScheme) private var colorScheme
   func makeUIView(context: Context) -> KeyboardSkinBackgroundView { KeyboardSkinBackgroundView() }
   func updateUIView(_ view: KeyboardSkinBackgroundView, context: Context) {
     view.overrideUserInterfaceStyle = colorScheme == .dark ? .dark : .light
+    view.designOverride = design
     view.skin = skin
   }
 }

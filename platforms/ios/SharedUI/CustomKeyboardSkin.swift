@@ -1,7 +1,7 @@
 import UIKit
 import ImageIO
 
-struct CustomKeyboardSkin: Codable, Equatable, Hashable {
+struct CustomKeyboardSkin: Codable, Equatable, Hashable, Sendable {
   var background: UInt32 = 0xE8F0EB
   var keyBackground: UInt32 = 0xFFFFFF
   var keyForeground: UInt32 = 0x17251D

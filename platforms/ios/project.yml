@@ -207,6 +207,7 @@ targets:
     platform: iOS
     sources:
       - path: platforms/ios/KeyboardTests
+      - path: platforms/ios/App/Services/SkinCommunityAPI.swift
       - path: platforms/ios/KeyboardExtension/Sources
       - path: platforms/ios/App/Services/CustomService.swift
       - path: platforms/ios/App/Services/KeyboardAIService.swift
