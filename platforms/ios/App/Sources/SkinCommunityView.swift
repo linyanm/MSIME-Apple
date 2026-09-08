@@ -38,7 +38,8 @@ struct SkinCommunityView: View {
                   message = "Apple 登录未返回有效凭据，请重试。"; Task { await prepareLogin() }; return
                 }
                 run {
-                  try await api.login(challenge: challenge.challenge_id, identityToken: token)
+                  do { try await api.login(challenge: challenge.challenge_id, identityToken: token) }
+                  catch { await prepareLogin(); throw error }
                   signedIn = true
                   try await load()
                 }
@@ -186,12 +187,12 @@ struct CommunityPublishView: View {
         Section("选择已保存的设计") {
           if library.isEmpty { Text("请先在「设计我的皮肤」保存一款设计。") }
           Picker("我的皮肤", selection: $selected) { ForEach(library) { Text($0.name).tag($0.id) } }
-            .onChange(of: selected) { id in name = library.first { $0.id == id }?.name ?? "" }
+            .onChange(of: selected) { id in name = library.first { $0.id == id }?.name ?? ""; publicationID = UUID().uuidString.lowercased() }
           if let design { CommunityDesignPreview(design: design).frame(height: 210) }
         }
         Section("发布信息") {
-          TextField("皮肤名称（最多 32 字）", text: $name).onChange(of: name) { name = String($0.prefix(32)) }
-          TextField("设计说明（最多 280 字）", text: $description).onChange(of: description) { description = String($0.prefix(280)) }
+          TextField("皮肤名称（最多 32 字）", text: $name).onChange(of: name) { name = String($0.prefix(32)); publicationID = UUID().uuidString.lowercased() }
+          TextField("设计说明（最多 280 字）", text: $description).onChange(of: description) { description = String($0.prefix(280)); publicationID = UUID().uuidString.lowercased() }
           Toggle("我拥有发布所用素材的权利，并同意其他用户免费下载使用", isOn: $agrees)
           Text("发布后，设计及照片壁纸将上传并公开。请勿包含私人照片或敏感信息。作者可随时下架。").font(.caption).foregroundStyle(.secondary)
         }
