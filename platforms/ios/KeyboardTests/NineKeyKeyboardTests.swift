@@ -184,6 +184,45 @@ final class NineKeyKeyboardTests: XCTestCase {
     }
   }
 
+  func testSchemeCardsSelectAndKeepKeyboardHeight() throws {
+    let previous = InputSchemePreference.scheme
+    defer { InputSchemePreference.scheme = previous }
+    for width in [320.0, 414.0] {
+      InputSchemePreference.scheme = .nineKey
+      let controller = KeyboardViewController()
+      controller.loadViewIfNeeded()
+      controller.view.frame = CGRect(x: 0, y: 0, width: width, height: 260)
+      controller.view.layoutIfNeeded()
+      try button("schemeButton", in: controller).sendActions(for: .primaryActionTriggered)
+      controller.view.layoutIfNeeded()
+      let picker = try XCTUnwrap(descendants(controller.view).first { $0.accessibilityIdentifier == "keyboardSchemePicker" })
+      XCTAssertEqual(picker.bounds.height, 260)
+      for scheme in ChineseInputScheme.allCases {
+        let card = try button("schemeCard-\(scheme.rawValue)", in: controller)
+        XCTAssertGreaterThan(card.bounds.width, 140)
+        XCTAssertEqual(card.bounds.height, 100)
+      }
+      XCTAssertEqual(try button("schemeCard-nineKey", in: controller).accessibilityValue, "已选中")
+      let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: controller.view.bounds).image { context in
+        controller.view.layer.render(in: context.cgContext)
+      })
+      attachment.name = "Input scheme cards \(Int(width))pt"
+      attachment.lifetime = .keepAlways
+      add(attachment)
+      try button("schemeCard-quanpin", in: controller).sendActions(for: .primaryActionTriggered)
+      XCTAssertNil(picker.superview)
+      XCTAssertEqual(InputSchemePreference.scheme, .quanpin)
+      XCTAssertEqual(try button("schemeButton", in: controller).accessibilityValue, ChineseInputScheme.quanpin.title)
+      controller.view.layoutIfNeeded()
+      XCTAssertEqual(controller.view.constraints.first { $0.identifier == "keyboardHeight" }?.constant, 260)
+      try button("schemeButton", in: controller).sendActions(for: .primaryActionTriggered)
+      XCTAssertEqual(try button("schemeCard-quanpin", in: controller).accessibilityValue, "已选中")
+      try button("closeSchemePicker", in: controller).sendActions(for: .primaryActionTriggered)
+      XCTAssertFalse(descendants(controller.view).contains { $0.accessibilityIdentifier == "keyboardSchemePicker" })
+      XCTAssertEqual(InputSchemePreference.scheme, .quanpin)
+    }
+  }
+
   func testVisibleInputViewReflectsSoundPreference() throws {
     let defaults = KeyboardFeedbackPreference.defaults
     let previous = defaults.object(forKey: KeyboardFeedbackPreference.soundKey)
@@ -618,7 +657,9 @@ final class NineKeyKeyboardTests: XCTestCase {
 
     let nine = try button("nineKey6", in: controller)
     XCTAssertFalse(try XCTUnwrap(nine.superview).isHidden)
-    XCTAssertEqual(try button("schemeButton", in: controller).menu?.children.count, ChineseInputScheme.allCases.count)
+    try button("schemeButton", in: controller).sendActions(for: .primaryActionTriggered)
+    XCTAssertEqual(descendants(controller.view).filter { $0.accessibilityIdentifier?.hasPrefix("schemeCard-") == true }.count, ChineseInputScheme.allCases.count)
+    try button("closeSchemePicker", in: controller).sendActions(for: .primaryActionTriggered)
     for digit in "64426" {
       try button("nineKey\(digit)", in: controller).sendActions(for: .primaryActionTriggered)
     }

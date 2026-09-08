@@ -31,6 +31,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private let skinShortcut = UIButton()
   private var clipboardPanel: KeyboardClipboardView?
   private var skinPicker: KeyboardSkinPickerView?
+  private var schemePicker: KeyboardSchemePickerView?
   private let moreShortcut = UIButton()
   private let dismissShortcut = UIButton()
   private var letterButtons: [(button: UIButton, lowercase: String, hint: UILabel)] = []
@@ -205,7 +206,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     closeKeyboardService()
     personalDictionaryTimer?.invalidate()
     personalDictionaryTimer = nil
-    closeSkinPicker()
+    closeKeyboardPicker()
     cursorMovement.cancel()
     spaceButton?.configuration?.title = "空格"
     // Putting the keyboard away used to drop whatever was composed. macOS commits in
@@ -385,7 +386,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
 
     updateSchemeButton()
-    schemeButton.showsMenuAsPrimaryAction = true
+    schemeButton.addAction(UIAction { [weak self] _ in self?.showSchemePicker() }, for: .primaryActionTriggered)
 
 
     candidateStack.axis = .horizontal
@@ -1112,7 +1113,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
           let selected = textDocumentProxy.selectedText, !selected.isEmpty, selected.count <= 10_000 else {
       showDiagnostic("请先完成输入，再选中要润色的文字（最多一万字）。"); return
     }
-    closeSkinPicker()
+    closeKeyboardPicker()
     closeKeyboardService()
     let selection = KeyboardDocumentContext(document: document, before: textDocumentProxy.documentContextBeforeInput,
                                          selected: selected, after: textDocumentProxy.documentContextAfterInput)
@@ -1146,7 +1147,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       let context = document.map { KeyboardDocumentContext(document: $0,
         before: textDocumentProxy.documentContextBeforeInput, selected: textDocumentProxy.selectedText,
         after: textDocumentProxy.documentContextAfterInput) }
-      closeSkinPicker()
+      closeKeyboardPicker()
       closeKeyboardService()
       let panel = UIHostingController(rootView: KeyboardVoiceView(entry: entry, insert: { [weak self] in
         guard let self, hasFullAccess, servicePanel != nil, let context, let entry,
@@ -1345,11 +1346,6 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     schemeButton.accessibilityIdentifier = "schemeButton"
     schemeButton.accessibilityLabel = "选择输入方案"
     schemeButton.accessibilityValue = inputScheme.title
-    schemeButton.menu = UIMenu(children: ChineseInputScheme.allCases.map { scheme in
-      UIAction(title: scheme.title, state: scheme == inputScheme ? .on : .off) { [weak self] _ in
-        self?.selectInputScheme(scheme)
-      }
-    })
     updateKeyboardLayout()
   }
 
@@ -1772,13 +1768,13 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
   private func showClipboardHistory() {
     closeKeyboardService()
-    closeSkinPicker()
+    closeKeyboardPicker()
     let panel = KeyboardClipboardView(hasFullAccess: hasFullAccess, onInsert: { [weak self] text in
       guard let self else { return }
       render(session.finishComposition())
       insertOwnText(text)
-      closeSkinPicker()
-    }, onClose: { [weak self] in self?.closeSkinPicker() })
+      closeKeyboardPicker()
+    }, onClose: { [weak self] in self?.closeKeyboardPicker() })
     panel.accessibilityViewIsModal = true
     panel.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(panel)
@@ -1792,15 +1788,38 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     UIAccessibility.post(notification: .screenChanged, argument: panel)
   }
 
+  private func showSchemePicker() {
+    closeKeyboardService()
+    closeKeyboardPicker()
+    let picker = KeyboardSchemePickerView(selected: inputScheme, onSelect: { [weak self] scheme in
+      guard let self else { return }
+      closeKeyboardPicker()
+      selectInputScheme(scheme)
+    }, onClose: { [weak self] in self?.closeKeyboardPicker() })
+    picker.accessibilityViewIsModal = true
+    picker.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(picker)
+    NSLayoutConstraint.activate([
+      picker.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      picker.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      picker.topAnchor.constraint(equalTo: view.topAnchor),
+      picker.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
+    schemePicker = picker
+    UIAccessibility.post(notification: .screenChanged, argument: picker)
+  }
+
   private func showSkinPicker() {
     guard skinPicker == nil else { return }
+    closeKeyboardService()
+    closeKeyboardPicker()
     let picker = KeyboardSkinPickerView(selected: KeyboardSkinPreference.selected, onSelect: { [weak self] skin in
       guard let self else { return }
       KeyboardFeedbackPreference.defaults.set(skin.rawValue, forKey: KeyboardSkinPreference.key)
-      closeSkinPicker()
+      closeKeyboardPicker()
       applyKeyboardSkin()
       playInputClick()
-    }, onClose: { [weak self] in self?.closeSkinPicker() })
+    }, onClose: { [weak self] in self?.closeKeyboardPicker() })
     picker.accessibilityViewIsModal = true
     picker.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(picker)
@@ -1814,7 +1833,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     UIAccessibility.post(notification: .screenChanged, argument: picker)
   }
 
-  private func closeSkinPicker() {
+  private func closeKeyboardPicker() {
+    if let picker = schemePicker {
+      picker.removeFromSuperview()
+      schemePicker = nil
+      UIAccessibility.post(notification: .screenChanged, argument: schemeButton)
+    }
     if let panel = clipboardPanel {
       panel.removeFromSuperview()
       clipboardPanel = nil

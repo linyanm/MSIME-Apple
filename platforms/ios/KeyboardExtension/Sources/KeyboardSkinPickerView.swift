@@ -121,9 +121,11 @@ final class KeyboardSkinPickerView: UIView {
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
-private final class KeyboardSkinMiniature: UIView {
+final class KeyboardSkinMiniature: UIView {
   let skin: KeyboardSkin
-  init(skin: KeyboardSkin) {
+  let nineKey: Bool
+  init(skin: KeyboardSkin, nineKey: Bool = false) {
+    self.nineKey = nineKey
     self.skin = skin
     super.init(frame: .zero)
     isOpaque = false
@@ -139,11 +141,13 @@ private final class KeyboardSkinMiniature: UIView {
     let top = "QWERTYUIOP".map { String($0) }
     let middle = "ASDFGHJKL".map { String($0) }
     let bottom = ["⇧"] + "ZXCVBNM".map { String($0) } + ["⌫"]
-    let rows: [[String]] = [top, middle, bottom, ["123", "空格", "↵"]]
+    let rows: [[String]] = nineKey
+      ? [["1", "ABC", "DEF"], ["GHI", "JKL", "MNO"], ["PQRS", "TUV", "WXYZ"], ["123", "空格", "↵"]]
+      : [top, middle, bottom, ["123", "空格", "↵"]]
     let gap: CGFloat = 2
     let height = (bounds.height - gap * 3) / 4
     for (rowIndex, row) in rows.enumerated() {
-      let inset: CGFloat = rowIndex == 1 ? bounds.width * 0.04 : 0
+      let inset: CGFloat = !nineKey && rowIndex == 1 ? bounds.width * 0.04 : 0
       let width = (bounds.width - inset * 2 - gap * CGFloat(row.count - 1)) / CGFloat(row.count)
       for (index, title) in row.enumerated() {
         let key = CGRect(x: inset + CGFloat(index) * (width + gap), y: CGFloat(rowIndex) * (height + gap), width: width, height: height)
