@@ -15,11 +15,59 @@ struct MetasequoiaImeApp: App {
 
   var body: some Scene {
     WindowGroup {
+      #if DEBUG && targetEnvironment(simulator)
+      if ProcessInfo.processInfo.arguments.contains("-keyboardAIPreview") {
+        KeyboardAIView(text: previewText,
+          configuration: CustomServiceConfiguration(endpoint: "https://fixture.invalid/v1/chat/completions", model: "fixture"),
+          canSend: { false }, insert: { _ in false }, close: {})
+          .frame(width: 320, height: previewHeight)
+          .environment(\.sizeCategory, previewSizeCategory)
+      } else if ProcessInfo.processInfo.arguments.contains("-keyboardVoicePreview") {
+        KeyboardVoicePreviewFixture().frame(width: 320, height: previewHeight)
+          .environment(\.sizeCategory, previewSizeCategory)
+      } else { applicationContent }
+      #else
+      applicationContent
+      #endif
+    }
+  }
+
+  #if DEBUG && targetEnvironment(simulator)
+  private var previewHeight: CGFloat {
+    ProcessInfo.processInfo.arguments.contains("-keyboardCompactPreview") ? 216 : 260
+  }
+  private var previewSizeCategory: ContentSizeCategory {
+    ProcessInfo.processInfo.arguments.contains("-keyboardLargeType") ? .accessibilityExtraExtraExtraLarge : .large
+  }
+  private var previewText: String {
+    ProcessInfo.processInfo.arguments.contains("-keyboardLongPreview")
+      ? String(repeating: "用于检测滚动区的测试段落。", count: 50)
+      : "这是一段待润色的测试文字。只有点击发送才会请求服务。"
+  }
+  #endif
+
+  @ViewBuilder private var applicationContent: some View {
       if hasCompletedOnboarding {
         SettingsView()
       } else {
         OnboardingView(onFinish: { hasCompletedOnboarding = true })
       }
+  }
+}
+
+#if DEBUG && targetEnvironment(simulator)
+private struct KeyboardVoicePreviewFixture: View {
+  @State private var entry = try? VoiceTextHandoffStore().read()
+  @State private var inserted = ""
+  @State private var closed = false
+  var body: some View {
+    if closed { Text(inserted.isEmpty ? "已关闭" : "插入验证：" + inserted) }
+    else {
+      KeyboardVoiceView(entry: entry, insert: {
+        guard let entry else { throw VoiceTextHandoffStore.Failure.stale }
+        inserted = try VoiceTextHandoffStore().consume(entry.id)
+      }, close: { closed = true })
     }
   }
 }
+#endif

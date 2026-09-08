@@ -2,6 +2,122 @@ import XCTest
 
 final class OnboardingUITests: XCTestCase {
   @MainActor
+  func testKeyboardAICompactLargeTextKeepsControlsReachable() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-keyboardAIPreview", "-keyboardCompactPreview", "-keyboardLargeType", "-keyboardLongPreview"]
+    app.launch()
+    let send = app.buttons["keyboardAISend"]
+    let close = app.buttons["keyboardServiceClose"]
+    XCTAssertTrue(send.waitForExistence(timeout: 5))
+    XCTAssertTrue(send.isHittable)
+    XCTAssertTrue(close.isHittable)
+    XCTAssertGreaterThanOrEqual(send.frame.height, 44)
+    XCTAssertGreaterThanOrEqual(close.frame.height, 44)
+    XCTAssertLessThanOrEqual(send.frame.maxY - close.frame.minY, 216.5)
+    let scroll = app.scrollViews["keyboardAIScroll"]
+    XCTAssertGreaterThan(scroll.frame.height, 60)
+    // Error notifications must scroll back into view, including the same error on retry.
+    for _ in 0..<2 {
+      scroll.swipeUp()
+      send.tap()
+      let error = app.staticTexts["keyboardAIStatus"]
+      XCTAssertTrue(error.waitForExistence(timeout: 5))
+      XCTAssertGreaterThanOrEqual(error.frame.minY, scroll.frame.minY - 1)
+      XCTAssertLessThan(error.frame.minY, send.frame.minY)
+    }
+    let screenshot = XCTAttachment(screenshot: app.screenshot())
+    screenshot.name = "Keyboard AI compact accessibility text"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+  }
+
+  @MainActor
+  func testVoiceResultIsExplicitlyTransferredAndClaimedOnce() {
+    let app = XCUIApplication()
+    let isolation = ["-voiceHandoffTestID", UUID().uuidString]
+    app.launchArguments = isolation + ["-hasCompletedOnboarding", "YES", "-voiceResultFixture"]
+    app.launch()
+    app.buttons["voiceSettingsLink"].tap()
+    XCTAssertFalse(app.staticTexts["等待键盘插入"].exists)
+    for _ in 0..<8 {
+      if app.buttons["sendVoiceToKeyboard"].isHittable { break }
+      app.swipeUp()
+    }
+    app.buttons["sendVoiceToKeyboard"].tap()
+    XCTAssertTrue(app.staticTexts["等待键盘插入"].waitForExistence(timeout: 5))
+    app.terminate()
+    app.launchArguments = isolation + ["-keyboardVoicePreview"]
+    app.launch()
+    XCTAssertTrue(app.staticTexts["语音交接测试。"].waitForExistence(timeout: 5))
+    let screenshot = XCTAttachment(screenshot: app.screenshot())
+    screenshot.name = "Keyboard voice result preview"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+    XCTAssertGreaterThanOrEqual(app.buttons["keyboardVoiceInsert"].frame.height, 44)
+    app.buttons["keyboardVoiceInsert"].tap()
+    XCTAssertTrue(app.staticTexts["插入验证：语音交接测试。"].waitForExistence(timeout: 5))
+    app.terminate()
+    app.launch()
+    XCTAssertTrue(app.staticTexts["请在水杉 App 的“语音设置”中录音识别，点击“发送到键盘”，再返回这里插入。"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["keyboardVoiceInsert"].exists)
+  }
+
+  @MainActor
+  func testKeyboardAIShowsSelectedTextAndRejectsStaleInput() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-keyboardAIPreview"]
+    app.launch()
+    XCTAssertTrue(app.staticTexts["这是一段待润色的测试文字。只有点击发送才会请求服务。"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.staticTexts["输入位置或 AI 配置已变化，请关闭后重试。"].exists)
+    let screenshot = XCTAttachment(screenshot: app.screenshot())
+    screenshot.name = "Keyboard AI narrow panel"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+    XCTAssertGreaterThanOrEqual(app.buttons["keyboardAISend"].frame.height, 44)
+    app.buttons["keyboardAISend"].tap()
+    XCTAssertTrue(app.staticTexts["输入位置或 AI 配置已变化，请关闭后重试。"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["keyboardAIInsert"].exists)
+  }
+
+  @MainActor
+  func testKeyboardAIOptInCanBeSavedAndRevoked() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-hasCompletedOnboarding", "YES", "-service.ai.provider", "custom",
+      "-service.ai.endpoint", "https://keyboard-ai-fixture.invalid/v1/chat/completions",
+      "-service.ai.model", "fixture"]
+    func openAI() {
+      app.buttons["aiSettingsLink"].tap()
+      for _ in 0..<6 {
+        if app.switches["keyboardAIEnabled"].isHittable { break }
+        app.swipeUp()
+      }
+    }
+    app.launch()
+    openAI()
+    let toggle = app.switches["keyboardAIEnabled"]
+    if toggle.value as? String == "1" { toggle.switches.firstMatch.tap() }
+    toggle.switches.firstMatch.tap()
+    for _ in 0..<6 {
+      if app.buttons["saveServiceConfiguration"].isHittable { break }
+      app.swipeDown()
+    }
+    app.buttons["saveServiceConfiguration"].tap()
+    app.terminate()
+    app.launch()
+    openAI()
+    XCTAssertEqual(toggle.value as? String, "1")
+    let screenshot = XCTAttachment(screenshot: app.screenshot())
+    screenshot.name = "Keyboard AI settings enabled"
+    screenshot.lifetime = .keepAlways
+    add(screenshot)
+    toggle.switches.firstMatch.tap()
+    app.terminate()
+    app.launch()
+    openAI()
+    XCTAssertEqual(toggle.value as? String, "0")
+  }
+
+  @MainActor
   func testPersonalDictionaryValidatesBeforeQueueing() {
     let app = XCUIApplication()
     app.launchArguments = ["-hasCompletedOnboarding", "YES", "-personalDictionaryTestID", UUID().uuidString]
