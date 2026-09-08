@@ -318,6 +318,48 @@ final class NineKeyKeyboardTests: XCTestCase {
     }
   }
 
+  func testNewCandidatesAndPagesReturnToLeadingCandidate() throws {
+    let previous = InputSchemePreference.scheme
+    defer { InputSchemePreference.scheme = previous }
+    for scheme in [ChineseInputScheme.nineKey, .quanpin] {
+      InputSchemePreference.scheme = scheme
+      let controller = KeyboardViewController()
+      controller.loadViewIfNeeded()
+      controller.view.frame = CGRect(x: 0, y: 0, width: 320, height: 260)
+      func type(_ text: String) throws {
+        for character in text {
+          let key: UIButton
+          if scheme == .nineKey {
+            key = try button("nineKey\(character)", in: controller)
+          } else {
+            key = try XCTUnwrap(descendants(controller.view).first {
+              $0.accessibilityLabel == "字母 \(String(character).uppercased())"
+            } as? UIButton)
+          }
+          key.sendActions(for: .primaryActionTriggered)
+        }
+        controller.view.layoutIfNeeded()
+      }
+      try type(scheme == .nineKey ? "6" : "n")
+      let candidate = try button("candidate-1", in: controller)
+      var ancestor = candidate.superview
+      while ancestor != nil && !(ancestor is UIScrollView) { ancestor = ancestor?.superview }
+      let scroll = try XCTUnwrap(ancestor as? UIScrollView)
+      XCTAssertGreaterThan(scroll.contentSize.width, scroll.bounds.width + 40)
+      scroll.setContentOffset(CGPoint(x: 40, y: 0), animated: false)
+      try type(scheme == .nineKey ? "4" : "i")
+      XCTAssertEqual(scroll.contentOffset.x, 0, accuracy: 0.5)
+      let next = try button("nextCandidatePage", in: controller)
+      XCTAssertFalse(next.isHidden)
+      scroll.setContentOffset(CGPoint(x: 40, y: 0), animated: false)
+      next.sendActions(for: .primaryActionTriggered)
+      controller.view.layoutIfNeeded()
+      XCTAssertEqual(scroll.contentOffset.x, 0, accuracy: 0.5)
+      let leading = try button("candidate-1", in: controller)
+      XCTAssertGreaterThanOrEqual(leading.convert(leading.bounds, to: scroll).minX, 0)
+    }
+  }
+
   func testAllLayoutsKeepNineKeyHeight() throws {
     let previous = InputSchemePreference.scheme
     defer { InputSchemePreference.scheme = previous }

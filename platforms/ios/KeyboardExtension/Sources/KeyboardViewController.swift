@@ -1212,6 +1212,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
     playInputClick()
     candidatePageStart = target
+    candidateScrollView.setContentOffset(.zero, animated: false)
     renderCandidateStrip()
   }
 
@@ -1556,6 +1557,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     // Any new candidate list is a different composition or a different set of matches, so the page
     // it was showing no longer describes anything.
     candidatePageStart = 0
+    // A horizontal offset belongs to the previous matches, just like the page index.
+    // Cancel deceleration as well so it cannot hide the new leading candidate.
+    candidateScrollView.setContentOffset(.zero, animated: false)
     renderCandidateStrip()
   }
 
