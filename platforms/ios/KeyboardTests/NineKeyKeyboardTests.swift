@@ -336,10 +336,31 @@ final class NineKeyKeyboardTests: XCTestCase {
           controller.view.layoutIfNeeded()
           XCTAssertEqual(try button("returnKey", in: controller).bounds.height, reference, accuracy: 0.5)
           XCTAssertEqual(controller.view.constraints.first { $0.identifier == "keyboardHeight" }?.constant, 260)
+          if !symbols && [.nineKey, .quanpin].contains(scheme) {
+            let selector = try button("schemeButton", in: controller)
+            XCTAssertGreaterThanOrEqual(selector.bounds.width, 50)
+            let label = try XCTUnwrap(selector.titleLabel)
+            let insets = try XCTUnwrap(selector.configuration).contentInsets
+            XCTAssertLessThanOrEqual(label.intrinsicContentSize.width + insets.leading + insets.trailing, selector.bounds.width)
+            for id in ["languageModeButton", "scriptShortcut", "skinShortcut", "moreShortcut", "dismissShortcut"] {
+              XCTAssertGreaterThanOrEqual(try button(id, in: controller).bounds.width, 44)
+            }
+            if width == 320 {
+              let attachment = XCTAttachment(image: UIGraphicsImageRenderer(bounds: controller.view.bounds).image { context in
+                controller.view.layer.render(in: context.cgContext)
+              })
+              attachment.name = "Narrow \(scheme.rawValue) keyboard and toolbar"
+              attachment.lifetime = .keepAlways
+              add(attachment)
+            }
+          }
           if !symbols && scheme != .nineKey {
-            for label in ["Q", "A", "Z"] {
+            for label in ["Q", "A", "Z", "P", "L", "M"] {
               let key = try XCTUnwrap(descendants(controller.view).first { $0.accessibilityLabel == "字母 \(label)" } as? UIButton)
               XCTAssertEqual(key.bounds.height, reference, accuracy: 0.5)
+              let frame = key.convert(key.bounds, to: controller.view)
+              XCTAssertGreaterThanOrEqual(frame.minX, 4.5)
+              XCTAssertLessThanOrEqual(frame.maxX, controller.view.bounds.width - 4.5, "\(scheme) \(label) frame \(frame)")
             }
           }
           if symbols { try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered) }
@@ -360,7 +381,7 @@ final class NineKeyKeyboardTests: XCTestCase {
         controller.openLocalInputMode(trigger)
         controller.view.layoutIfNeeded()
         let returnKey = try button("returnKey", in: controller)
-        for label in ["Q", "A", "Z"] {
+        for label in ["Q", "A", "Z", "P", "L", "M"] {
           let key = try XCTUnwrap(descendants(controller.view).first { $0.accessibilityLabel == "字母 \(label)" } as? UIButton)
           XCTAssertEqual(key.bounds.height, returnKey.bounds.height, accuracy: 0.5)
           XCTAssertGreaterThanOrEqual(key.bounds.height, 44)

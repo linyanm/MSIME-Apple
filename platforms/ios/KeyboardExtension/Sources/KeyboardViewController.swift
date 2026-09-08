@@ -479,13 +479,13 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     for button in [languageModeButton, schemeButton, scriptShortcut, skinShortcut, moreShortcut, dismissShortcut] {
       shortcutBar.addArrangedSubview(button)
       if button !== languageModeButton {
-        button.widthAnchor.constraint(equalTo: languageModeButton.widthAnchor).isActive = true
+        button.widthAnchor.constraint(equalTo: languageModeButton.widthAnchor, constant: button === schemeButton ? 6 : 0).isActive = true
       }
     }
     container.addSubview(shortcutBar)
     NSLayoutConstraint.activate([
-      shortcutBar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 4),
-      shortcutBar.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -4),
+      shortcutBar.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 2),
+      shortcutBar.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -2),
       shortcutBar.topAnchor.constraint(equalTo: container.topAnchor),
       shortcutBar.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
@@ -1303,6 +1303,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     configuration.background.strokeColor = KeyboardSkinPreference.selected.accent.withAlphaComponent(0.35)
     configuration.background.strokeWidth = 1
     configuration.background.cornerRadius = 8
+    configuration.background.backgroundInsets = NSDirectionalEdgeInsets(top: 3, leading: 2, bottom: 3, trailing: 2)
+    configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+      var attributes = attributes
+      attributes.font = .systemFont(ofSize: 16, weight: .medium)
+      return attributes
+    }
     schemeButton.configuration = configuration
     schemeButton.accessibilityIdentifier = "schemeButton"
     schemeButton.accessibilityLabel = "选择输入方案"
