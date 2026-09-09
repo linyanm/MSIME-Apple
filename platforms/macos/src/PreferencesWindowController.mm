@@ -41,6 +41,7 @@ NSToolbarItemIdentifier const kSkinToolbarItemIdentifier = @"MetasequoiaPreferen
 NSToolbarItemIdentifier const kDataToolbarItemIdentifier = @"MetasequoiaPreferencesData";
 NSToolbarItemIdentifier const kUpdatesToolbarItemIdentifier = @"MetasequoiaPreferencesUpdates";
 NSString *const kSchemePreferenceKey = @"MetasequoiaImeInputScheme";
+NSString *const kShuangpinSchemaPreferenceKey = @"MetasequoiaImeShuangpinSchema";
 NSString *const kAutocorrectPreferenceKey = @"MetasequoiaImeQuanpinAutocorrect";
 NSString *const kHelpcodePreferenceKey = @"MetasequoiaImeHelpcodeEnabled";
 NSString *const kQuanpinHelpcodeSchemaPreferenceKey = @"MetasequoiaImeQuanpinHelpcodeSchema";
@@ -491,6 +492,21 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                         object:@(normalizedScheme)];
 }
 
++ (NSString *)storedShuangpinSchema
+{
+    NSString *value = [[NSUserDefaults standardUserDefaults] stringForKey:kShuangpinSchemaPreferenceKey];
+    return @(metasequoia::mac::NormalizeShuangpinSchema(value.UTF8String != nullptr ? value.UTF8String : ""));
+}
+
++ (void)setShuangpinSchema:(NSString *)schema
+{
+    NSString *normalized =
+        @(metasequoia::mac::NormalizeShuangpinSchema(schema.UTF8String != nullptr ? schema.UTF8String : ""));
+    [[NSUserDefaults standardUserDefaults] setObject:normalized forKey:kShuangpinSchemaPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaShuangpinSchemaDidChangeNotification"
+                                                        object:normalized];
+}
+
 + (BOOL)storedAutocorrectEnabled
 {
     id value = [[NSUserDefaults standardUserDefaults] objectForKey:kAutocorrectPreferenceKey];
@@ -847,15 +863,22 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSMutableArray<NSView *> *schemeRows = [NSMutableArray arrayWithObject:CardHeader(@"输入方式")];
     [schemeRows addObject:CardSeparator()];
     _shuangpinSchemeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
-    [_shuangpinSchemeButton addItemWithTitle:@"小鹤双拼"];
+    for (const char *identifier : metasequoia::mac::kShuangpinSchemaIdentifiers)
+    {
+        [_shuangpinSchemeButton addItemWithTitle:@(metasequoia::mac::ShuangpinSchemaTitle(identifier))];
+        [_shuangpinSchemeButton itemAtIndex:_shuangpinSchemeButton.numberOfItems - 1].representedObject =
+            @(identifier);
+    }
+    _shuangpinSchemeButton.target = self;
+    _shuangpinSchemeButton.action = @selector(shuangpinSchemaChanged:);
     _shuangpinSchemeButton.accessibilityLabel = @"双拼方案";
     _wubiSchemeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     [_wubiSchemeButton addItemWithTitle:@"86 五笔"];
     _wubiSchemeButton.accessibilityLabel = @"五笔方案";
-    _shuangpinKeymapButton = [NSButton checkboxWithTitle:@"显示小鹤双拼键位提示"
+    _shuangpinKeymapButton = [NSButton checkboxWithTitle:@"显示双拼键位提示"
                                                   target:self
                                                   action:@selector(shuangpinKeymapChanged:)];
-    _shuangpinKeymapButton.accessibilityLabel = @"显示小鹤双拼键位提示";
+    _shuangpinKeymapButton.accessibilityLabel = @"显示双拼键位提示";
     _shuangpinKeymapRow = PreferenceRow(@"双拼初学者", _shuangpinKeymapButton);
     _shuangpinKeymapRow.accessibilityLabel = @"双拼键位提示行";
     _shuangpinKeymapSeparator = CardSeparator();
@@ -1315,6 +1338,15 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         _schemeButtons[index].state = index == storedScheme ? NSControlStateValueOn : NSControlStateValueOff;
     }
     _shuangpinSchemeButton.enabled = storedScheme == 1;
+    NSString *storedShuangpinSchema = [MetasequoiaPreferencesWindowController storedShuangpinSchema];
+    for (NSMenuItem *item in _shuangpinSchemeButton.itemArray)
+    {
+        if ([item.representedObject isEqualToString:storedShuangpinSchema])
+        {
+            [_shuangpinSchemeButton selectItem:item];
+            break;
+        }
+    }
     _wubiSchemeButton.enabled = storedScheme == 2;
     _shuangpinKeymapRow.hidden = storedScheme != 1;
     _shuangpinKeymapSeparator.hidden = storedScheme != 1;
@@ -1482,6 +1514,12 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [self refreshControls];
 }
 
+- (void)shuangpinSchemaChanged:(id)sender
+{
+    NSPopUpButton *schemaButton = (NSPopUpButton *)sender;
+    [MetasequoiaPreferencesWindowController setShuangpinSchema:schemaButton.selectedItem.representedObject];
+}
+
 - (void)candidatePanelStyleChanged:(id)sender
 {
     NSPopUpButton *styleButton = (NSPopUpButton *)sender;
@@ -1624,6 +1662,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     for (NSString *key in @[
              kSchemePreferenceKey,
+             kShuangpinSchemaPreferenceKey,
              kAutocorrectPreferenceKey,
              kHelpcodePreferenceKey,
              kQuanpinHelpcodeSchemaPreferenceKey,
@@ -1651,6 +1690,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSNotificationCenter *notifications = [NSNotificationCenter defaultCenter];
     [notifications postNotificationName:@"MetasequoiaInputSchemeDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedScheme])];
+    [notifications postNotificationName:@"MetasequoiaShuangpinSchemaDidChangeNotification"
+                                 object:[MetasequoiaPreferencesWindowController storedShuangpinSchema]];
     [notifications postNotificationName:@"MetasequoiaQuanpinAutocorrectDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedAutocorrectEnabled])];
     [notifications postNotificationName:@"MetasequoiaHelpcodeDidChangeNotification"

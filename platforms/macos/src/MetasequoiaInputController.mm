@@ -40,6 +40,7 @@ constexpr NSTimeInterval kDictionaryRetryDelay = 2.0;
 struct SessionPreferences
 {
     SchemeType scheme;
+    std::string shuangpinSchema;
     bool autocorrectEnabled;
     bool helpcodeEnabled;
     std::string helpcodeSchema;
@@ -59,8 +60,10 @@ SessionPreferences ReadSessionPreferences()
     const NSInteger helpcodeSchema = scheme == SchemeType::Shuangpin
                                          ? [MetasequoiaPreferencesWindowController storedShuangpinHelpcodeSchema]
                                          : [MetasequoiaPreferencesWindowController storedQuanpinHelpcodeSchema];
+    const std::string shuangpinSchema = [MetasequoiaPreferencesWindowController storedShuangpinSchema].UTF8String;
     return {
         scheme,
+        shuangpinSchema,
         [MetasequoiaPreferencesWindowController storedAutocorrectEnabled] == YES,
         [MetasequoiaPreferencesWindowController storedHelpcodeEnabled] == YES,
         metasequoia::mac::HelpcodeSchemaIdentifier(static_cast<int>(helpcodeSchema)),
@@ -87,12 +90,13 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 {
     const bool helpcodeMatches =
         !SchemeUsesHelpcodes(preferences.scheme) || options.helpcode == preferences.helpcodeEnabled;
-    // Mixed pinyin only affects Wubi, so the mirror of the helpcode rule holds: changing it must not
-    // rebuild a pinyin session. Switching to Wubi rebuilds on the scheme itself and reads it then.
+    const bool shuangpinMatches =
+        preferences.scheme != SchemeType::Shuangpin || options.shuangpin_profile.name == preferences.shuangpinSchema;
     const bool wubiMixedPinyinMatches =
         preferences.scheme != SchemeType::Wubi || options.wubi.mixed_pinyin == preferences.wubiMixedPinyinEnabled;
-    return options.scheme == preferences.scheme && options.autocorrect == preferences.autocorrectEnabled &&
-           helpcodeMatches && options.chinese_punctuation == preferences.chinesePunctuationEnabled &&
+    return options.scheme == preferences.scheme && shuangpinMatches &&
+           options.autocorrect == preferences.autocorrectEnabled && helpcodeMatches &&
+           options.chinese_punctuation == preferences.chinesePunctuationEnabled &&
            options.learning == preferences.candidateLearningEnabled && wubiMixedPinyinMatches;
 }
 } // namespace
@@ -277,6 +281,7 @@ static NSHashTable *LiveDictionaryControllers()
     metasequoia::SessionOptions options;
     options.paths = paths;
     options.scheme = preferences.scheme;
+    options.shuangpin_profile = GetShuangpinProfile(preferences.shuangpinSchema);
     options.autocorrect = preferences.autocorrectEnabled;
     options.helpcode = preferences.helpcodeEnabled;
     options.helpcode_schema = preferences.helpcodeSchema;
@@ -629,6 +634,16 @@ static NSHashTable *LiveDictionaryControllers()
             {
                 result = _session->character(static_cast<char>(character));
             }
+            else if (metasequoia::mac::ShouldRouteSemicolonAsShuangpinInput(_sessionSnapshot.scheme,
+                                                                           _sessionOptions.shuangpin_profile.name) &&
+                     character == ';')
+            {
+                result = _session->character(static_cast<char>(character));
+                if (!result.handled)
+                {
+                    result = _session->punctuation(static_cast<char>(character));
+                }
+            }
             // Unicode mode reads a hex code point, so while it is open its digits and its optional
             // "+" are input rather than candidate numbers. Every other local mode takes letters
             // only and leaves the digits to selection, which is what they already did.
@@ -761,6 +776,7 @@ static NSHashTable *LiveDictionaryControllers()
         [_shuangpinKeymapPanel orderOut:nil];
         return;
     }
+    [_shuangpinKeymapPanel setProfileName:@(_sessionOptions.shuangpin_profile.name.c_str())];
 
     NSRect caretRect = NSZeroRect;
     [client attributesForCharacterIndex:0 lineHeightRectangle:&caretRect];
@@ -776,7 +792,7 @@ static NSHashTable *LiveDictionaryControllers()
     if (preedit.length > 0)
     {
         const unichar character = [preedit characterAtIndex:preedit.length - 1];
-        if ((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z'))
+        if ((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || character == ';')
         {
             highlightedKey = [NSString stringWithCharacters:&character length:1];
         }

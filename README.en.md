@@ -28,7 +28,7 @@ The iOS target builds and is exercised in CI on the simulator, but **it is not d
 
 ## What it does
 
-- Chinese input: full pinyin, double pinyin, Wubi 86
+- Chinese input: full pinyin, double pinyin (Xiaohe, Ziranma, Shoudao, Microsoft), Wubi 86
 - Japanese input: romaji, as a scheme and as a temporary mode
 - Helpcode (形码) filtering on pinyin schemes
 - Mixed Chinese-English input, emoji and kaomoji candidates

@@ -9,6 +9,7 @@
 #include "../src/HelpcodeSchemaPreference.h"
 #include "../src/InputSchemePreference.h"
 #include "../src/WubiCommitPolicy.h"
+#include "../../../vendor/MetasequoiaImeEngine/contracts/punctuation/policy.h"
 
 #import <InputMethodKit/InputMethodKit.h>
 
@@ -21,6 +22,7 @@
 #include <initializer_list>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace
@@ -92,6 +94,25 @@ int main()
                 EngineSchemeForStoredPreference(1) == SchemeType::Shuangpin &&
                 EngineSchemeForStoredPreference(2) == SchemeType::Wubi,
             "A stored input scheme did not map to the matching engine scheme.");
+    using metasequoia::mac::NormalizeShuangpinSchema;
+    using metasequoia::mac::ShuangpinSchemaTitle;
+    using metasequoia::mac::ShouldRouteSemicolonAsShuangpinInput;
+    require(std::string_view(NormalizeShuangpinSchema("ziranma")) == "ziranma" &&
+                std::string_view(NormalizeShuangpinSchema("shoudao")) == "shoudao" &&
+                std::string_view(NormalizeShuangpinSchema("microsoft")) == "microsoft" &&
+                std::string_view(NormalizeShuangpinSchema("bogus")) == "xiaohe" &&
+                std::string_view(NormalizeShuangpinSchema("")) == "xiaohe",
+            "A stored Shuangpin schema was not normalized to an engine profile name.");
+    require(std::string_view(ShuangpinSchemaTitle("xiaohe")) == "小鹤双拼" &&
+                std::string_view(ShuangpinSchemaTitle("ziranma")) == "自然码双拼" &&
+                std::string_view(ShuangpinSchemaTitle("shoudao")) == "首道双拼" &&
+                std::string_view(ShuangpinSchemaTitle("microsoft")) == "微软双拼",
+            "A Shuangpin schema did not expose its product title.");
+    require(metasequoia::punctuation_contract::is_supported(';') &&
+                ShouldRouteSemicolonAsShuangpinInput(SchemeType::Shuangpin, "microsoft") &&
+                !ShouldRouteSemicolonAsShuangpinInput(SchemeType::Shuangpin, "xiaohe") &&
+                !ShouldRouteSemicolonAsShuangpinInput(SchemeType::Quanpin, "microsoft"),
+            "Microsoft Shuangpin ing would be swallowed as punctuation without host routing.");
     require(metasequoia::mac::ShouldAutoCommitUniqueWubiCandidate(true, SchemeType::Wubi, 4, 1, false),
             "The enabled four-code unique Wubi policy did not auto-commit.");
     require(!metasequoia::mac::ShouldAutoCommitUniqueWubiCandidate(false, SchemeType::Wubi, 4, 1, false) &&

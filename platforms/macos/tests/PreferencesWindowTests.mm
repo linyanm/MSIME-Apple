@@ -197,6 +197,12 @@ int main()
         [MetasequoiaPreferencesWindowController setStoredScheme:99];
         require([MetasequoiaPreferencesWindowController storedScheme] == 0,
                 "An unsupported input scheme preference was not normalized safely.");
+        [MetasequoiaPreferencesWindowController setShuangpinSchema:@"microsoft"];
+        require([[MetasequoiaPreferencesWindowController storedShuangpinSchema] isEqualToString:@"microsoft"],
+                "The Microsoft Shuangpin schema preference was not stored.");
+        [MetasequoiaPreferencesWindowController setShuangpinSchema:@"bogus"];
+        require([[MetasequoiaPreferencesWindowController storedShuangpinSchema] isEqualToString:@"xiaohe"],
+                "An unsupported Shuangpin schema preference was not normalized safely.");
         [MetasequoiaPreferencesWindowController setStoredScheme:2];
         require([MetasequoiaPreferencesWindowController storedCandidatePanelStyle] == 1,
                 "The vertical candidate layout preference was not stored.");
@@ -331,8 +337,11 @@ int main()
         NSView *shuangpinSchemeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"双拼方案");
         NSView *wubiSchemeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"五笔方案");
         require([shuangpinSchemeView isKindOfClass:[NSPopUpButton class]] &&
-                    ((NSPopUpButton *)shuangpinSchemeView).numberOfItems == 1 &&
+                    ((NSPopUpButton *)shuangpinSchemeView).numberOfItems == 4 &&
                     [[((NSPopUpButton *)shuangpinSchemeView) itemTitleAtIndex:0] isEqualToString:@"小鹤双拼"] &&
+                    [[((NSPopUpButton *)shuangpinSchemeView) itemTitleAtIndex:1] isEqualToString:@"自然码双拼"] &&
+                    [[((NSPopUpButton *)shuangpinSchemeView) itemTitleAtIndex:2] isEqualToString:@"首道双拼"] &&
+                    [[((NSPopUpButton *)shuangpinSchemeView) itemTitleAtIndex:3] isEqualToString:@"微软双拼"] &&
                     [wubiSchemeView isKindOfClass:[NSPopUpButton class]] &&
                     ((NSPopUpButton *)wubiSchemeView).numberOfItems == 1 &&
                     [[((NSPopUpButton *)wubiSchemeView) itemTitleAtIndex:0] isEqualToString:@"86 五笔"],
@@ -340,7 +349,7 @@ int main()
         NSView *wubiSettingsRow = FindViewWithAccessibilityLabel(controller.window.contentView, @"五笔功能行");
         NSView *shuangpinKeymapRow = FindViewWithAccessibilityLabel(controller.window.contentView, @"双拼键位提示行");
         NSView *shuangpinKeymapView =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"显示小鹤双拼键位提示");
+            FindViewWithAccessibilityLabel(controller.window.contentView, @"显示双拼键位提示");
         require(wubiSettingsRow != nil && !wubiSettingsRow.hidden,
                 "The selected Wubi scheme did not reveal its settings row.");
         require(shuangpinKeymapRow != nil && shuangpinKeymapRow.hidden &&
@@ -360,6 +369,14 @@ int main()
         require(wubiSettingsRow.hidden, "The Wubi settings row remained visible after another scheme was selected.");
         require(!shuangpinKeymapRow.hidden && ((NSButton *)shuangpinKeymapView).state == NSControlStateValueOn,
                 "Selecting Shuangpin did not reveal the stored beginner keymap option.");
+        NSPopUpButton *shuangpinSchemaButton = (NSPopUpButton *)shuangpinSchemeView;
+        require(shuangpinSchemaButton.enabled, "Selecting Shuangpin left the schema menu disabled.");
+        [shuangpinSchemaButton selectItemAtIndex:3];
+        require([NSApp sendAction:shuangpinSchemaButton.action
+                               to:shuangpinSchemaButton.target
+                             from:shuangpinSchemaButton] &&
+                    [[MetasequoiaPreferencesWindowController storedShuangpinSchema] isEqualToString:@"microsoft"],
+                "The Shuangpin schema menu did not persist the Microsoft profile.");
         ((NSButton *)shuangpinKeymapView).state = NSControlStateValueOff;
         require([NSApp sendAction:((NSButton *)shuangpinKeymapView).action
                                to:((NSButton *)shuangpinKeymapView).target
@@ -820,10 +837,12 @@ int main()
                     ![MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled] &&
                     ![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled] &&
                     ![MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled] &&
-                    ![[NSUserDefaults standardUserDefaults] boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"],
+                    ![[NSUserDefaults standardUserDefaults] boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"] &&
+                    [[MetasequoiaPreferencesWindowController storedShuangpinSchema] isEqualToString:@"xiaohe"],
                 "Restoring defaults did not restore every visible setting.");
         NSArray<NSString *> *preferenceKeys = @[
             @"MetasequoiaImeInputScheme",
+            @"MetasequoiaImeShuangpinSchema",
             @"MetasequoiaImeQuanpinAutocorrect",
             @"MetasequoiaImeHelpcodeEnabled",
             @"MetasequoiaImeQuanpinHelpcodeSchema",
