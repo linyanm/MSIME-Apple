@@ -48,17 +48,6 @@ def verify_contents(destination: Path) -> None:
             "SELECT value FROM wubi86 WHERE key = ? ORDER BY weight DESC LIMIT 1", ("aaaa",)
         ).fetchone()
 
-    english_db = destination / "english.db"
-    english_gloss = None
-    if english_db.is_file():
-        with sqlite3.connect(english_db) as database:
-            english_integrity = database.execute("PRAGMA integrity_check").fetchone()
-            english_gloss = database.execute(
-                "SELECT english_gloss FROM zh_en_glosses WHERE chinese = ?", ("水杉",)
-            ).fetchone()
-        if english_integrity != ("ok",) or english_gloss is None:
-            raise SystemExit("Downloaded english.db failed integrity or gloss verification.")
-
     if (
         integrity != ("ok",)
         or candidate is None
@@ -67,18 +56,23 @@ def verify_contents(destination: Path) -> None:
     ):
         raise SystemExit("Downloaded dictionary failed integrity or candidate verification.")
 
-    with sqlite3.connect(destination / "english.db") as database:
+    english_db = destination / "english.db"
+    with sqlite3.connect(english_db) as database:
         if database.execute("PRAGMA integrity_check").fetchone() != ("ok",):
             raise SystemExit("英文词库完整性检查失败。")
         if database.execute("SELECT word, display, weight FROM english_words LIMIT 1").fetchone() is None:
             raise SystemExit("英文词库没有有效词条。")
+        english_gloss = database.execute(
+            "SELECT english_gloss FROM zh_en_glosses WHERE chinese = ?", ("你好",)
+        ).fetchone()
+        if english_gloss is None:
+            raise SystemExit("Downloaded english.db failed gloss verification.")
 
     print(
         f"{main_db.name} ({main_db.stat().st_size} bytes), "
         f"ni'hao -> {candidate[0]}, yyds -> {quick_phrase[0]}, aaaa -> {wubi_candidate[0]}"
     )
-    if english_gloss is not None:
-        print(f"{english_db.name} ({english_db.stat().st_size} bytes), 水杉 -> {english_gloss[0]}")
+    print(f"{english_db.name} ({english_db.stat().st_size} bytes), 你好 -> {english_gloss[0]}")
 
 
 def main() -> None:

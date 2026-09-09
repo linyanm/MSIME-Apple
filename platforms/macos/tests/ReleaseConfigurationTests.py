@@ -964,6 +964,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
         # removed build_dictionary.py never ran, so a database missing it looked perfectly valid.
         self.assertIn("quick_parases", source)
         self.assertIn("PRAGMA integrity_check", source)
+        self.assertIn("zh_en_glosses", source)
+        self.assertIn('"你好"', source)
 
         # Every path that produces a build has to go through it, including the iOS variant, which
         # slices the same database rather than generating its own.
