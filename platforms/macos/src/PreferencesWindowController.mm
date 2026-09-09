@@ -6,6 +6,7 @@ extern "C" void MSIMEShowBackendAccount(void);
 #include "CandidatePageSize.h"
 #include "CandidatePanelStyle.h"
 #include "CandidateSkin.h"
+#include "FrequencyAdjustmentPreference.h"
 #include "HelpcodeSchemaPreference.h"
 #include "InputControllerKeyRouting.h"
 #include "InputSchemePreference.h"
@@ -51,6 +52,9 @@ NSString *const kCandidatePageSizePreferenceKey = @"MetasequoiaImeCandidatePageS
 NSString *const kCandidateFontSizePreferenceKey = @"MetasequoiaImeCandidateFontSize";
 NSString *const kCandidatePageShortcutPreferenceKey = @"MetasequoiaImeCandidatePageShortcut";
 NSString *const kCandidateLearningPreferenceKey = @"MetasequoiaImeCandidateLearning";
+NSString *const kFrequencyAdjustmentModePreferenceKey = @"MetasequoiaImeFrequencyAdjustmentMode";
+NSString *const kFrequencyTriggerCountPreferenceKey = @"MetasequoiaImeFrequencyTriggerCount";
+NSString *const kFrequencyLinearStepPreferenceKey = @"MetasequoiaImeFrequencyLinearStep";
 NSString *const kEnglishInputModePreferenceKey = @"MetasequoiaImeEnglishInputMode";
 NSString *const kInputModeShortcutPreferenceKey = @"MetasequoiaImeInputModeShortcutEnabled";
 NSString *const kFullWidthInputPreferenceKey = @"MetasequoiaImeFullWidthInputEnabled";
@@ -216,6 +220,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 } // namespace
 
 @interface MetasequoiaPreferencesWindowController () <NSToolbarDelegate>
+- (void)updateFrequencyControlEnabled;
 @end
 
 @implementation MetasequoiaPreferencesWindowController
@@ -240,6 +245,9 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     MetasequoiaCandidatePreviewView *_candidatePreview;
     MetasequoiaSkinSettingsView *_skinSettings;
     NSButton *_candidateLearningButton;
+    NSPopUpButton *_frequencyModeButton;
+    NSPopUpButton *_frequencyTriggerCountButton;
+    NSPopUpButton *_frequencyLinearStepButton;
     NSButton *_inputModeShortcutButton;
     NSButton *_fullWidthInputButton;
     NSButton *_floatingToolbarButton;
@@ -642,6 +650,48 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                         object:@(enabled)];
 }
 
++ (NSString *)storedFrequencyAdjustmentMode
+{
+    NSString *value = [[NSUserDefaults standardUserDefaults] stringForKey:kFrequencyAdjustmentModePreferenceKey];
+    return @(metasequoia::mac::NormalizeFrequencyAdjustmentMode(value.UTF8String));
+}
+
++ (void)setFrequencyAdjustmentMode:(NSString *)mode
+{
+    NSString *normalized = @(metasequoia::mac::NormalizeFrequencyAdjustmentMode(mode.UTF8String));
+    [[NSUserDefaults standardUserDefaults] setObject:normalized forKey:kFrequencyAdjustmentModePreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaFrequencyAdjustmentDidChangeNotification"
+                                                        object:normalized];
+}
+
++ (NSInteger)storedFrequencyTriggerCount
+{
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:kFrequencyTriggerCountPreferenceKey];
+    return metasequoia::mac::NormalizeFrequencyAdjustmentCount(value == nil ? 1 : [value integerValue]);
+}
+
++ (void)setFrequencyTriggerCount:(NSInteger)count
+{
+    const NSInteger normalized = metasequoia::mac::NormalizeFrequencyAdjustmentCount(static_cast<int>(count));
+    [[NSUserDefaults standardUserDefaults] setInteger:normalized forKey:kFrequencyTriggerCountPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaFrequencyAdjustmentDidChangeNotification"
+                                                        object:@(normalized)];
+}
+
++ (NSInteger)storedFrequencyLinearStep
+{
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:kFrequencyLinearStepPreferenceKey];
+    return metasequoia::mac::NormalizeFrequencyAdjustmentCount(value == nil ? 1 : [value integerValue]);
+}
+
++ (void)setFrequencyLinearStep:(NSInteger)step
+{
+    const NSInteger normalized = metasequoia::mac::NormalizeFrequencyAdjustmentCount(static_cast<int>(step));
+    [[NSUserDefaults standardUserDefaults] setInteger:normalized forKey:kFrequencyLinearStepPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaFrequencyAdjustmentDidChangeNotification"
+                                                        object:@(normalized)];
+}
+
 + (BOOL)storedEnglishInputMode
 {
     return [[NSUserDefaults standardUserDefaults] boolForKey:kEnglishInputModePreferenceKey];
@@ -1015,6 +1065,21 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _candidateLearningButton = [NSButton checkboxWithTitle:@"记住候选词频"
                                                     target:self
                                                     action:@selector(candidateLearningChanged:)];
+    _frequencyModeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_frequencyModeButton addItemsWithTitles:@[ @"一次置顶", @"折半调频", @"线性调频", @"一次置前" ]];
+    _frequencyModeButton.target = self;
+    _frequencyModeButton.action = @selector(frequencyModeChanged:);
+    _frequencyModeButton.accessibilityLabel = @"调频方式";
+    _frequencyTriggerCountButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_frequencyTriggerCountButton addItemsWithTitles:@[ @"1", @"2", @"3", @"4", @"5", @"6" ]];
+    _frequencyTriggerCountButton.target = self;
+    _frequencyTriggerCountButton.action = @selector(frequencyTriggerCountChanged:);
+    _frequencyTriggerCountButton.accessibilityLabel = @"触发频次";
+    _frequencyLinearStepButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_frequencyLinearStepButton addItemsWithTitles:@[ @"1", @"2", @"3", @"4", @"5", @"6" ]];
+    _frequencyLinearStepButton.target = self;
+    _frequencyLinearStepButton.action = @selector(frequencyLinearStepChanged:);
+    _frequencyLinearStepButton.accessibilityLabel = @"线性调频步长";
 
     _statusLabel = [NSTextField labelWithString:@"检查词库状态…"];
     _statusLabel.accessibilityLabel = @"词库状态";
@@ -1032,7 +1097,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         @[
             _helpcodeButton, PreferenceRow(@"全拼辅助码方案", _quanpinHelpcodeSchemaButton),
             PreferenceRow(@"双拼辅助码方案", _shuangpinHelpcodeSchemaButton), _candidateLearningButton,
-            _localInputModesButton
+            PreferenceRow(@"调频方式", _frequencyModeButton), PreferenceRow(@"触发频次", _frequencyTriggerCountButton),
+            PreferenceRow(@"线性调频步长", _frequencyLinearStepButton), _localInputModesButton
         ],
         9.0);
     NSBox *dictionaryCard = CardWithViews(@[ _statusLabel ], 0.0);
@@ -1355,6 +1421,14 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _candidateLearningButton.state = [MetasequoiaPreferencesWindowController storedCandidateLearningEnabled]
                                          ? NSControlStateValueOn
                                          : NSControlStateValueOff;
+    [_frequencyModeButton
+        selectItemAtIndex:metasequoia::mac::FrequencyAdjustmentModeOptionIndex(
+                              [MetasequoiaPreferencesWindowController storedFrequencyAdjustmentMode].UTF8String)];
+    [_frequencyTriggerCountButton
+        selectItemAtIndex:[MetasequoiaPreferencesWindowController storedFrequencyTriggerCount] - 1];
+    [_frequencyLinearStepButton
+        selectItemAtIndex:[MetasequoiaPreferencesWindowController storedFrequencyLinearStep] - 1];
+    [self updateFrequencyControlEnabled];
     _inputModeShortcutButton.state = [MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled]
                                          ? NSControlStateValueOn
                                          : NSControlStateValueOff;
@@ -1529,6 +1603,36 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 {
     NSButton *button = (NSButton *)sender;
     [MetasequoiaPreferencesWindowController setCandidateLearningEnabled:button.state == NSControlStateValueOn];
+    [self updateFrequencyControlEnabled];
+}
+
+- (void)updateFrequencyControlEnabled
+{
+    const BOOL learning = _candidateLearningButton.state == NSControlStateValueOn;
+    _frequencyModeButton.enabled = learning;
+    _frequencyTriggerCountButton.enabled = learning;
+    _frequencyLinearStepButton.enabled = learning && _frequencyModeButton.indexOfSelectedItem == 2;
+}
+
+- (void)frequencyModeChanged:(id)sender
+{
+    NSPopUpButton *modeButton = (NSPopUpButton *)sender;
+    [MetasequoiaPreferencesWindowController
+        setFrequencyAdjustmentMode:@(metasequoia::mac::FrequencyAdjustmentModeForOptionIndex(
+                                       static_cast<int>(modeButton.indexOfSelectedItem)))];
+    [self updateFrequencyControlEnabled];
+}
+
+- (void)frequencyTriggerCountChanged:(id)sender
+{
+    NSPopUpButton *countButton = (NSPopUpButton *)sender;
+    [MetasequoiaPreferencesWindowController setFrequencyTriggerCount:countButton.indexOfSelectedItem + 1];
+}
+
+- (void)frequencyLinearStepChanged:(id)sender
+{
+    NSPopUpButton *stepButton = (NSPopUpButton *)sender;
+    [MetasequoiaPreferencesWindowController setFrequencyLinearStep:stepButton.indexOfSelectedItem + 1];
 }
 
 - (void)candidatePageShortcutChanged:(id)sender
@@ -1635,6 +1739,9 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
              kCandidateFontSizePreferenceKey,
              kCandidatePageShortcutPreferenceKey,
              kCandidateLearningPreferenceKey,
+             kFrequencyAdjustmentModePreferenceKey,
+             kFrequencyTriggerCountPreferenceKey,
+             kFrequencyLinearStepPreferenceKey,
              kInputModeShortcutPreferenceKey,
              kWubiAutoCommitUniquePreferenceKey,
              kWubiMixedPinyinPreferenceKey,
@@ -1673,6 +1780,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                  object:@([MetasequoiaPreferencesWindowController storedCandidatePageShortcut])];
     [notifications postNotificationName:@"MetasequoiaCandidateLearningDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedCandidateLearningEnabled])];
+    [notifications postNotificationName:@"MetasequoiaFrequencyAdjustmentDidChangeNotification"
+                                 object:[MetasequoiaPreferencesWindowController storedFrequencyAdjustmentMode]];
     [notifications postNotificationName:@"MetasequoiaInputModeShortcutDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled])];
     [notifications postNotificationName:@"MetasequoiaWubiMixedPinyinDidChangeNotification"

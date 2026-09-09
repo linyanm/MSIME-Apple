@@ -168,6 +168,23 @@ class ReleaseConfigurationTests(unittest.TestCase):
         # handle_character's second parameter is what routes Shift+letter into the English and local modes.
         self.assertIn("_session->character(static_cast<char>(character))", controller)
 
+    def test_macos_session_forwards_windows_frequency_adjustment(self):
+        controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
+        preferences = (MACOS_ROOT / "src/FrequencyAdjustmentPreference.h").read_text()
+        cmake = (PROJECT_ROOT / "CMakeLists.txt").read_text()
+
+        self.assertIn('#include "FrequencyAdjustmentPreference.h"', controller)
+        self.assertIn("EngineFrequencyOptions(", controller)
+        self.assertIn("options.frequency = preferences.frequency", controller)
+        self.assertIn("options.frequency.mode == preferences.frequency.mode", controller)
+        self.assertIn("options.frequency.trigger_count == preferences.frequency.trigger_count", controller)
+        self.assertIn("options.frequency.linear_step == preferences.frequency.linear_step", controller)
+        self.assertIn('return "pin"', preferences)
+        self.assertIn('return "halve"', preferences)
+        self.assertIn('return "linear"', preferences)
+        self.assertIn('return "promote"', preferences)
+        self.assertIn("FrequencyAdjustmentPreferenceTests.cpp", cmake)
+
     def test_input_controller_owns_a_native_floating_status_toolbar(self):
         cmake = (PROJECT_ROOT / "CMakeLists.txt").read_text()
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()

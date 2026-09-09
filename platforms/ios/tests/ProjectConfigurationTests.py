@@ -157,6 +157,41 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
             )
             subprocess.run([str(executable)], check=True)
 
+    def test_frequency_adjustment_preference(self):
+        preference = IOS_ROOT / "SharedUI/FrequencyAdjustmentPreference.swift"
+        scheme = IOS_ROOT / "SharedUI/InputSchemePreference.swift"
+        tests = IOS_ROOT / "tests/FrequencyAdjustmentPreferenceTests.swift"
+        settings = (IOS_ROOT / "App/Sources/FeatureSettingsViews.swift").read_text()
+        controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
+        bridge = (IOS_ROOT.parents[1] / "shared/apple-bridge/MetasequoiaInputSessionBridge.h").read_text()
+
+        self.assertIn('static let modeKey = "frequencyAdjustmentMode"', preference.read_text())
+        self.assertIn("UserDefaults(suiteName: InputSchemePreference.appGroupIdentifier)", preference.read_text())
+        self.assertIn('Picker("调频方式", selection: $frequencyMode)', settings)
+        self.assertIn('.accessibilityIdentifier("frequencyAdjustmentModePicker")', settings)
+        self.assertIn('.accessibilityIdentifier("frequencyAdjustmentTriggerPicker")', settings)
+        self.assertIn('.accessibilityIdentifier("frequencyAdjustmentLinearStepPicker")', settings)
+        self.assertIn("applyLearningPreferences()", controller)
+        self.assertIn("setFrequencyAdjustmentMode", controller)
+        self.assertIn("FrequencyAdjustmentPreference.mode", controller)
+        apply = controller.split("private func applyLearningPreferences()", 1)[1].split(
+            "private func applyInputScheme()", 1
+        )[0]
+        self.assertLess(
+            apply.index("setFrequencyAdjustmentMode"),
+            apply.index("setLearningEnabled"),
+        )
+        self.assertIn("MetasequoiaFrequencyAdjustmentMode", bridge)
+        self.assertIn("setFrequencyAdjustmentMode", bridge)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            executable = Path(temporary_directory) / "FrequencyAdjustmentPreferenceTests"
+            subprocess.run(
+                ["swiftc", str(preference), str(scheme), str(tests), "-o", str(executable)],
+                check=True,
+            )
+            subprocess.run([str(executable)], check=True)
+
     def test_host_and_keyboard_share_the_chinese_output_script(self):
         preference = (IOS_ROOT / "SharedUI/ChineseOutputPreference.swift").read_text()
         onboarding = (IOS_ROOT / "App/Sources/OnboardingView.swift").read_text()

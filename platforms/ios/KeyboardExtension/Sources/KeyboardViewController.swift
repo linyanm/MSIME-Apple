@@ -155,9 +155,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     inputScheme = InputSchemePreference.scheme
     usesTraditionalOutput = ChineseOutputPreference.usesTraditional
     _ = applyInputScheme()
-    _ = session.setLearningEnabled(DictionaryLearningPreference.enabled)
-    _ = session.setFuzzyPinyinRules(FuzzyPinyinPreference.activeRules)
-    session.setWubiMixedPinyin(WubiMixedPinyinPreference.isEnabled)
+    applyLearningPreferences()
     view.backgroundColor = MetasequoiaTheme.keyboardBackground
     skinBackdrop.translatesAutoresizingMaskIntoConstraints = false
     view.insertSubview(skinBackdrop, at: 0)
@@ -212,9 +210,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     synchronizeInputContext()
     synchronizeInputSchemePreference()
     synchronizeChineseOutputPreference()
-    _ = session.setLearningEnabled(DictionaryLearningPreference.enabled)
-    _ = session.setFuzzyPinyinRules(FuzzyPinyinPreference.activeRules)
-    session.setWubiMixedPinyin(WubiMixedPinyinPreference.isEnabled)
+    applyLearningPreferences()
     applyKeyboardSkin()
     synchronizeReplyKeyboard()
   }
@@ -1210,6 +1206,22 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     enterButton?.accessibilityLabel = title
   }
 
+  private func applyLearningPreferences() {
+    let mode: MetasequoiaFrequencyAdjustmentMode
+    switch FrequencyAdjustmentPreference.mode {
+    case .pin: mode = .pin
+    case .halve: mode = .halve
+    case .linear: mode = .linear
+    case .promote: mode = .promote
+    }
+    _ = session.setFrequencyAdjustmentMode(
+      mode, triggerCount: FrequencyAdjustmentPreference.triggerCount,
+      linearStep: FrequencyAdjustmentPreference.linearStep)
+    _ = session.setLearningEnabled(DictionaryLearningPreference.enabled)
+    _ = session.setFuzzyPinyinRules(FuzzyPinyinPreference.activeRules)
+    session.setWubiMixedPinyin(WubiMixedPinyinPreference.isEnabled)
+  }
+
   private func applyInputScheme() -> MetasequoiaInputSnapshot {
     switch inputScheme {
     case .nineKey: session.switchToNineKey()
@@ -1838,11 +1850,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       insertOwnText(source == .japanese ? commitText : chineseOutput(commitText), source: source)
     }
     hasComposition = !snapshot.preedit.isEmpty
-    if !hasComposition {
-      _ = session.setLearningEnabled(DictionaryLearningPreference.enabled)
-      _ = session.setFuzzyPinyinRules(FuzzyPinyinPreference.activeRules)
-      session.setWubiMixedPinyin(WubiMixedPinyinPreference.isEnabled)
-    }
+    if !hasComposition { applyLearningPreferences() }
     showDiagnostic(snapshot.diagnosticText)
     updateCandidateStrip(preedit: snapshot.preedit, candidates: snapshot.candidates)
     updateSpellingStrip()

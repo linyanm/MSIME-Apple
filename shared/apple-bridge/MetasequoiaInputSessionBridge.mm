@@ -433,6 +433,35 @@ metasequoia::apple::DictionaryInstallation ConfigureDataDirectory(bool refresh =
     return _adapter->set_learning_enabled(enabled);
 }
 
+- (BOOL)setFrequencyAdjustmentMode:(MetasequoiaFrequencyAdjustmentMode)mode
+                      triggerCount:(NSInteger)triggerCount
+                        linearStep:(NSInteger)linearStep
+{
+    using metasequoia::FrequencyAdjustmentMode;
+    using metasequoia::FrequencyAdjustmentOptions;
+    FrequencyAdjustmentOptions options;
+    switch (mode)
+    {
+    case MetasequoiaFrequencyAdjustmentModePin:
+        options.mode = FrequencyAdjustmentMode::Pin;
+        break;
+    case MetasequoiaFrequencyAdjustmentModeHalve:
+        options.mode = FrequencyAdjustmentMode::Halve;
+        break;
+    case MetasequoiaFrequencyAdjustmentModeLinear:
+        options.mode = FrequencyAdjustmentMode::Linear;
+        break;
+    case MetasequoiaFrequencyAdjustmentModePromote:
+        options.mode = FrequencyAdjustmentMode::Promote;
+        break;
+    default:
+        return NO;
+    }
+    options.trigger_count = static_cast<int>(triggerCount);
+    options.linear_step = static_cast<int>(linearStep);
+    return _adapter->set_frequency_adjustment(options);
+}
+
 - (MetasequoiaInputSnapshot *)editCandidateAtIndex:(NSUInteger)index
                                       expectedWord:(NSString *)word
                                             action:(MetasequoiaCandidateAction)action
