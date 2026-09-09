@@ -57,6 +57,10 @@ NSString *const kFullWidthInputPreferenceKey = @"MetasequoiaImeFullWidthInputEna
 NSString *const kFloatingToolbarPreferenceKey = @"MetasequoiaImeFloatingToolbarEnabled";
 NSString *const kTraditionalChineseOutputPreferenceKey = @"MetasequoiaImeTraditionalChineseOutput";
 NSString *const kWubiAutoCommitUniquePreferenceKey = @"MetasequoiaImeWubiAutoCommitUnique";
+// Deliberately absent from the cloud snapshot until the backend schema declares it:
+// mergedPreferences rejects the whole upload with 503 for any key the schema does not
+// know, and the download side refuses a snapshot whose key count does not match, so
+// syncing this early would break settings sync entirely rather than just this option.
 NSString *const kWubiMixedPinyinPreferenceKey = @"MetasequoiaImeWubiMixedPinyin";
 NSString *const kShuangpinKeymapPreferenceKey = @"MetasequoiaImeShuangpinKeymapEnabled";
 NSString *const kLocalInputModesPreferenceKey = @"MetasequoiaImeLocalInputModesEnabled";
@@ -288,7 +292,6 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         @"platform.macos.floating_toolbar" : @([self storedFloatingToolbarEnabled]),
         @"platform.macos.traditional_chinese_output" : @([self storedTraditionalChineseOutputEnabled]),
         @"platform.macos.wubi_auto_commit_unique" : @([self storedWubiAutoCommitUniqueEnabled]),
-        @"platform.macos.wubi_mixed_pinyin" : @([self storedWubiMixedPinyinEnabled]),
         @"platform.macos.shuangpin_keymap" : @([self storedShuangpinKeymapEnabled]),
         @"platform.macos.local_input_modes" : @([self storedLocalInputModesEnabled]),
     };
@@ -296,7 +299,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
 + (NSNumber *)validateCloudSettingsSnapshot:(NSDictionary<NSString *, id> *)values
 {
-    if (![NSThread isMainThread] || ![values isKindOfClass:[NSDictionary class]] || values.count != 21)
+    if (![NSThread isMainThread] || ![values isKindOfClass:[NSDictionary class]] || values.count != 20)
         return @NO;
     NSString *skin = values[@"platform.macos.candidate_skin"];
     if (![skin isKindOfClass:NSString.class] || skin.UTF8String == nullptr ||
@@ -430,13 +433,6 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
             return @NO;
     }
     {
-        NSNumber *value = values[@"platform.macos.wubi_mixed_pinyin"];
-        if (![value isKindOfClass:[NSNumber class]])
-            return @NO;
-        if (CFGetTypeID((__bridge CFTypeRef)value) != CFBooleanGetTypeID())
-            return @NO;
-    }
-    {
         NSNumber *value = values[@"platform.macos.shuangpin_keymap"];
         if (![value isKindOfClass:[NSNumber class]])
             return @NO;
@@ -476,7 +472,6 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [self setFloatingToolbarEnabled:[values[@"platform.macos.floating_toolbar"] boolValue]];
     [self setTraditionalChineseOutputEnabled:[values[@"platform.macos.traditional_chinese_output"] boolValue]];
     [self setWubiAutoCommitUniqueEnabled:[values[@"platform.macos.wubi_auto_commit_unique"] boolValue]];
-    [self setWubiMixedPinyinEnabled:[values[@"platform.macos.wubi_mixed_pinyin"] boolValue]];
     [self setShuangpinKeymapEnabled:[values[@"platform.macos.shuangpin_keymap"] boolValue]];
     [self setLocalInputModesEnabled:[values[@"platform.macos.local_input_modes"] boolValue]];
     return @YES;

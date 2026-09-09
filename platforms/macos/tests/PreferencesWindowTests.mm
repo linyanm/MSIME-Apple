@@ -799,6 +799,7 @@ int main()
         [MetasequoiaPreferencesWindowController setTraditionalChineseOutputEnabled:YES];
         [MetasequoiaPreferencesWindowController setEnglishInputMode:YES];
         [MetasequoiaPreferencesWindowController setWubiAutoCommitUniqueEnabled:YES];
+        [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:YES];
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MetasequoiaImeShuangpinKeymapEnabled"];
         NSButton *restoreDefaultsButton = FindButtonWithTitle(controller.window.contentView, @"恢复默认设置");
         require(restoreDefaultsButton != nil, "The settings window did not expose the restore-defaults button.");
@@ -818,6 +819,7 @@ int main()
                     [MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled] &&
                     ![MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled] &&
                     ![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled] &&
+                    ![MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled] &&
                     ![[NSUserDefaults standardUserDefaults] boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"],
                 "Restoring defaults did not restore every visible setting.");
         NSArray<NSString *> *preferenceKeys = @[
@@ -838,6 +840,7 @@ int main()
             @"MetasequoiaImeFloatingToolbarEnabled",
             @"MetasequoiaImeTraditionalChineseOutput",
             @"MetasequoiaImeWubiAutoCommitUnique",
+            @"MetasequoiaImeWubiMixedPinyin",
             @"MetasequoiaImeShuangpinKeymapEnabled",
         ];
         for (NSString *key in preferenceKeys)
@@ -877,7 +880,7 @@ int main()
                 "Closing standalone settings did not finish or request application termination.");
         [[NSNotificationCenter defaultCenter] removeObserver:standaloneCloseObserver];
         NSDictionary *originalCloudSettings = [MetasequoiaPreferencesWindowController cloudSettingsSnapshot];
-        require(originalCloudSettings.count == 21, "The cloud snapshot missed a native setting.");
+        require(originalCloudSettings.count == 20, "The cloud snapshot missed a native setting.");
         NSMutableDictionary *invalidSkinSettings = [originalCloudSettings mutableCopy];
         invalidSkinSettings[@"platform.macos.candidate_skin"] = @"../private";
         require(![[MetasequoiaPreferencesWindowController applyCloudSettingsSnapshot:invalidSkinSettings] boolValue],

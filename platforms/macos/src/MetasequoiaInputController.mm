@@ -87,10 +87,13 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
 {
     const bool helpcodeMatches =
         !SchemeUsesHelpcodes(preferences.scheme) || options.helpcode == preferences.helpcodeEnabled;
+    // Mixed pinyin only affects Wubi, so the mirror of the helpcode rule holds: changing it must not
+    // rebuild a pinyin session. Switching to Wubi rebuilds on the scheme itself and reads it then.
+    const bool wubiMixedPinyinMatches =
+        preferences.scheme != SchemeType::Wubi || options.wubi.mixed_pinyin == preferences.wubiMixedPinyinEnabled;
     return options.scheme == preferences.scheme && options.autocorrect == preferences.autocorrectEnabled &&
            helpcodeMatches && options.chinese_punctuation == preferences.chinesePunctuationEnabled &&
-           options.learning == preferences.candidateLearningEnabled &&
-           options.wubi.mixed_pinyin == preferences.wubiMixedPinyinEnabled;
+           options.learning == preferences.candidateLearningEnabled && wubiMixedPinyinMatches;
 }
 } // namespace
 
