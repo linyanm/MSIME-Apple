@@ -57,6 +57,7 @@ NSString *const kFullWidthInputPreferenceKey = @"MetasequoiaImeFullWidthInputEna
 NSString *const kFloatingToolbarPreferenceKey = @"MetasequoiaImeFloatingToolbarEnabled";
 NSString *const kTraditionalChineseOutputPreferenceKey = @"MetasequoiaImeTraditionalChineseOutput";
 NSString *const kWubiAutoCommitUniquePreferenceKey = @"MetasequoiaImeWubiAutoCommitUnique";
+NSString *const kWubiMixedPinyinPreferenceKey = @"MetasequoiaImeWubiMixedPinyin";
 NSString *const kShuangpinKeymapPreferenceKey = @"MetasequoiaImeShuangpinKeymapEnabled";
 NSString *const kLocalInputModesPreferenceKey = @"MetasequoiaImeLocalInputModesEnabled";
 
@@ -239,6 +240,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSButton *_fullWidthInputButton;
     NSButton *_floatingToolbarButton;
     NSButton *_wubiAutoCommitButton;
+    NSButton *_wubiMixedPinyinButton;
     NSButton *_resetLearningButton;
     NSTextField *_statusLabel;
     NSTextField *_versionLabel;
@@ -286,6 +288,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         @"platform.macos.floating_toolbar" : @([self storedFloatingToolbarEnabled]),
         @"platform.macos.traditional_chinese_output" : @([self storedTraditionalChineseOutputEnabled]),
         @"platform.macos.wubi_auto_commit_unique" : @([self storedWubiAutoCommitUniqueEnabled]),
+        @"platform.macos.wubi_mixed_pinyin" : @([self storedWubiMixedPinyinEnabled]),
         @"platform.macos.shuangpin_keymap" : @([self storedShuangpinKeymapEnabled]),
         @"platform.macos.local_input_modes" : @([self storedLocalInputModesEnabled]),
     };
@@ -293,7 +296,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
 + (NSNumber *)validateCloudSettingsSnapshot:(NSDictionary<NSString *, id> *)values
 {
-    if (![NSThread isMainThread] || ![values isKindOfClass:[NSDictionary class]] || values.count != 20)
+    if (![NSThread isMainThread] || ![values isKindOfClass:[NSDictionary class]] || values.count != 21)
         return @NO;
     NSString *skin = values[@"platform.macos.candidate_skin"];
     if (![skin isKindOfClass:NSString.class] || skin.UTF8String == nullptr ||
@@ -427,6 +430,13 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
             return @NO;
     }
     {
+        NSNumber *value = values[@"platform.macos.wubi_mixed_pinyin"];
+        if (![value isKindOfClass:[NSNumber class]])
+            return @NO;
+        if (CFGetTypeID((__bridge CFTypeRef)value) != CFBooleanGetTypeID())
+            return @NO;
+    }
+    {
         NSNumber *value = values[@"platform.macos.shuangpin_keymap"];
         if (![value isKindOfClass:[NSNumber class]])
             return @NO;
@@ -466,6 +476,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [self setFloatingToolbarEnabled:[values[@"platform.macos.floating_toolbar"] boolValue]];
     [self setTraditionalChineseOutputEnabled:[values[@"platform.macos.traditional_chinese_output"] boolValue]];
     [self setWubiAutoCommitUniqueEnabled:[values[@"platform.macos.wubi_auto_commit_unique"] boolValue]];
+    [self setWubiMixedPinyinEnabled:[values[@"platform.macos.wubi_mixed_pinyin"] boolValue]];
     [self setShuangpinKeymapEnabled:[values[@"platform.macos.shuangpin_keymap"] boolValue]];
     [self setLocalInputModesEnabled:[values[@"platform.macos.local_input_modes"] boolValue]];
     return @YES;
@@ -703,6 +714,18 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                         object:@(enabled)];
 }
 
++ (BOOL)storedWubiMixedPinyinEnabled
+{
+    return [[NSUserDefaults standardUserDefaults] boolForKey:kWubiMixedPinyinPreferenceKey];
+}
+
++ (void)setWubiMixedPinyinEnabled:(BOOL)enabled
+{
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kWubiMixedPinyinPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaWubiMixedPinyinDidChangeNotification"
+                                                        object:@(enabled)];
+}
+
 + (BOOL)storedWubiAutoCommitUniqueEnabled
 {
     return [[NSUserDefaults standardUserDefaults] boolForKey:kWubiAutoCommitUniquePreferenceKey];
@@ -921,10 +944,16 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                  target:self
                                                  action:@selector(wubiAutoCommitUniqueChanged:)];
     _wubiAutoCommitButton.accessibilityLabel = @"四码唯一候选自动上屏";
+    _wubiMixedPinyinButton = [NSButton checkboxWithTitle:@"编码打不出时用拼音候选"
+                                                  target:self
+                                                  action:@selector(wubiMixedPinyinChanged:)];
+    _wubiMixedPinyinButton.accessibilityLabel = @"编码打不出时用拼音候选";
+    _wubiMixedPinyinButton.toolTip = @"五笔词库答不上当前编码时，用同一串字母查全拼。词库答得上的编码不受影响。";
     NSTextField *wubiSchemeLabel = [NSTextField labelWithString:@"86 五笔"];
     wubiSchemeLabel.textColor = [NSColor secondaryLabelColor];
     NSBox *wubiOptionsCard =
-        CardWithViews(@[ PreferenceRow(@"编码方案", wubiSchemeLabel), _wubiAutoCommitButton ], 8.0);
+        CardWithViews(@[ PreferenceRow(@"编码方案", wubiSchemeLabel), _wubiAutoCommitButton, _wubiMixedPinyinButton ],
+                      8.0);
     wubiOptionsCard.accessibilityLabel = @"五笔选项卡片";
     NSView *wubiPage = PreferencesPage(@"五笔设置", @"调整 86 五笔的输入与上屏行为。",
                                        @[ backToKeyboardButton, SectionLabel(@"输入行为"), wubiOptionsCard ]);
@@ -1341,6 +1370,9 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _floatingToolbarButton.state = [MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled]
                                        ? NSControlStateValueOn
                                        : NSControlStateValueOff;
+    _wubiMixedPinyinButton.state = [MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled]
+                                       ? NSControlStateValueOn
+                                       : NSControlStateValueOff;
     _wubiAutoCommitButton.state = [MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled]
                                       ? NSControlStateValueOn
                                       : NSControlStateValueOff;
@@ -1529,6 +1561,12 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [MetasequoiaPreferencesWindowController setFloatingToolbarEnabled:button.state == NSControlStateValueOn];
 }
 
+- (void)wubiMixedPinyinChanged:(id)sender
+{
+    NSButton *button = sender;
+    [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:button.state == NSControlStateValueOn];
+}
+
 - (void)wubiAutoCommitUniqueChanged:(id)sender
 {
     NSButton *button = (NSButton *)sender;
@@ -1605,6 +1643,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
              kCandidateLearningPreferenceKey,
              kInputModeShortcutPreferenceKey,
              kWubiAutoCommitUniquePreferenceKey,
+             kWubiMixedPinyinPreferenceKey,
              kShuangpinKeymapPreferenceKey,
              kLocalInputModesPreferenceKey,
              kFullWidthInputPreferenceKey,
@@ -1642,6 +1681,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                  object:@([MetasequoiaPreferencesWindowController storedCandidateLearningEnabled])];
     [notifications postNotificationName:@"MetasequoiaInputModeShortcutDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled])];
+    [notifications postNotificationName:@"MetasequoiaWubiMixedPinyinDidChangeNotification"
+                                 object:@([MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled])];
     [notifications postNotificationName:@"MetasequoiaWubiAutoCommitUniqueDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled])];
     [notifications postNotificationName:@"MetasequoiaShuangpinKeymapDidChangeNotification"

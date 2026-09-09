@@ -186,6 +186,7 @@ int main()
         [MetasequoiaPreferencesWindowController setInputModeShortcutEnabled:NO];
         [MetasequoiaPreferencesWindowController setFullWidthInputEnabled:NO];
         [MetasequoiaPreferencesWindowController setWubiAutoCommitUniqueEnabled:NO];
+        [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:NO];
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MetasequoiaImeShuangpinKeymapEnabled"];
         [MetasequoiaPreferencesWindowController setHelpcodeEnabled:YES];
         [[NSUserDefaults standardUserDefaults] setInteger:1 forKey:@"MetasequoiaImeQuanpinHelpcodeSchema"];
@@ -213,6 +214,8 @@ int main()
                 "The disabled input-mode shortcut preference was not stored.");
         require(![MetasequoiaPreferencesWindowController storedFullWidthInputEnabled],
                 "The disabled full-width input preference was not stored.");
+        require(![MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled],
+                "Mixed wubi input was on before anyone asked for it.");
         require(![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled],
                 "The disabled Wubi auto-commit preference was not stored.");
 
@@ -395,6 +398,20 @@ int main()
                              from:wubiAutoCommitButton] &&
                     [MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled],
                 "The Wubi auto-commit option did not persist its enabled state.");
+        NSView *wubiMixedPinyinView =
+            FindViewWithAccessibilityLabel(controller.window.contentView, @"编码打不出时用拼音候选");
+        require([wubiMixedPinyinView isKindOfClass:[NSButton class]] &&
+                    ((NSButton *)wubiMixedPinyinView).state == NSControlStateValueOff,
+                "The Wubi detail page did not reflect the stored mixed-pinyin preference.");
+        NSButton *wubiMixedPinyinButton = (NSButton *)wubiMixedPinyinView;
+        wubiMixedPinyinButton.state = NSControlStateValueOn;
+        require([NSApp sendAction:wubiMixedPinyinButton.action
+                               to:wubiMixedPinyinButton.target
+                             from:wubiMixedPinyinButton] &&
+                    [MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled],
+                "The Wubi mixed-pinyin option did not persist its enabled state.");
+        [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:NO];
+
         NSButton *backToKeyboardButton = FindButtonWithTitle(controller.window.contentView, @"返回键盘输入");
         [backToKeyboardButton performClick:nil];
         require(!generalPage.hidden && wubiPage.hidden &&
@@ -860,7 +877,7 @@ int main()
                 "Closing standalone settings did not finish or request application termination.");
         [[NSNotificationCenter defaultCenter] removeObserver:standaloneCloseObserver];
         NSDictionary *originalCloudSettings = [MetasequoiaPreferencesWindowController cloudSettingsSnapshot];
-        require(originalCloudSettings.count == 20, "The cloud snapshot missed a native setting.");
+        require(originalCloudSettings.count == 21, "The cloud snapshot missed a native setting.");
         NSMutableDictionary *invalidSkinSettings = [originalCloudSettings mutableCopy];
         invalidSkinSettings[@"platform.macos.candidate_skin"] = @"../private";
         require(![[MetasequoiaPreferencesWindowController applyCloudSettingsSnapshot:invalidSkinSettings] boolValue],
