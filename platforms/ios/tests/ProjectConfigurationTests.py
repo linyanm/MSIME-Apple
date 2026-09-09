@@ -1,6 +1,7 @@
 import os
 import json
 import plistlib
+import re
 import struct
 import subprocess
 import tempfile
@@ -709,6 +710,36 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
             self.assertIn('CURRENT_PROJECT_VERSION="$build_number"', script, name)
             self.assertNotIn('CURRENT_PROJECT_VERSION="$version"', script, name)
             self.assertIn('MARKETING_VERSION="$version"', script, name)
+
+        # Assert the number the scripts produce, not the shape of the line producing it. A previous
+        # change truncated the marketing version to x.y and rewrote the assertions above to match, so
+        # the suite stayed green while iOS shipped 0.48 against a 0.48.6 product version -- which
+        # sorts below it in TestFlight. Replay each script's own derivation and compare the result
+        # with the version the project spec declares.
+        spec_version = re.search(r"MARKETING_VERSION:\s*(\S+)", (IOS_ROOT / "project.yml").read_text())
+        self.assertIsNotNone(spec_version, "project.yml must declare MARKETING_VERSION")
+        product_version = spec_version.group(1)
+        for name, script in scripts.items():
+            setting = re.search(r'MARKETING_VERSION="\$(\w+)"', script)
+            self.assertIsNotNone(setting, name)
+            # Walk back from the variable the archive is given, collecting the assignments it is
+            # built from. tag_name is the input and comes from the environment below.
+            wanted, collected = {setting.group(1)}, []
+            for line in reversed(script.splitlines()):
+                assignment = re.match(r"^(\w+)=(.*)$", line)
+                if not assignment or assignment.group(1) in {"tag_name"}:
+                    continue
+                if assignment.group(1) in wanted:
+                    collected.append(line)
+                    wanted |= set(re.findall(r"\$\{?(\w+)", assignment.group(2)))
+            derivation = "\n".join(reversed(collected))
+            archived = subprocess.run(
+                ["bash", "-eu", "-c", derivation + f'\nprintf "%s" "${setting.group(1)}"'],
+                env=dict(os.environ, tag_name=f"v{product_version}-build.1002.57.1"),
+                text=True, capture_output=True,
+            )
+            self.assertEqual(archived.returncode, 0, archived.stderr)
+            self.assertEqual(archived.stdout, product_version, name)
 
         start = 'if ! git -C "$project_root" rev-parse --git-dir'
         end = 'build_number=$(git -C "$project_root" rev-list --count HEAD)'
