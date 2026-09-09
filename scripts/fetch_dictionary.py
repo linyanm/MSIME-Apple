@@ -3,7 +3,7 @@
 
 This used to be built here, by platforms/macos/scripts/build_dictionary.py, which ran two of the four MSIME-Dict stages that write into msime.db. The bundle therefore shipped a database without the quick-phrase and Japanese lexicon tables that MSIME-Windows and MSIME-Linux ship, from a submodule pin that was five commits behind the released tag, with no digest to catch either. Nothing reported it, because a smaller database is still a valid one.
 
-MSIME-Engine publishes msime.db and SHA256SUMS.txt as release assets and both other platforms already take them from there, so take them here too. That is what makes the claim in MSIME-Linux/scripts/fetch_dictionary.py true: all three platforms ship a byte-identical msime.db.
+MSIME-Engine publishes msime.db, english.db and SHA256SUMS.txt as release assets and both other platforms already take them from there, so take them here too. That is what makes the claim in MSIME-Linux/scripts/fetch_dictionary.py true: all three platforms ship a byte-identical msime.db. english.db is the same published gloss table; this bundle opens it read-only for candidate translations.
 
 The release tag cannot be overridden from the command line. product-lock.json names it and records the SHA256 of every asset, so a retagged release or a replaced database fails the build instead of shipping: rewriting the upstream SHA256SUMS.txt along with the data does not help, because that file is verified against a committed digest too. Move to a new release with `python3 scripts/product_lock.py refresh --dictionary-tag dict-vMAJOR.MINOR.PATCH` and review the resulting diff.
 
@@ -48,6 +48,17 @@ def verify_contents(destination: Path) -> None:
             "SELECT value FROM wubi86 WHERE key = ? ORDER BY weight DESC LIMIT 1", ("aaaa",)
         ).fetchone()
 
+    english_db = destination / "english.db"
+    english_gloss = None
+    if english_db.is_file():
+        with sqlite3.connect(english_db) as database:
+            english_integrity = database.execute("PRAGMA integrity_check").fetchone()
+            english_gloss = database.execute(
+                "SELECT english_gloss FROM zh_en_glosses WHERE chinese = ?", ("水杉",)
+            ).fetchone()
+        if english_integrity != ("ok",) or english_gloss is None:
+            raise SystemExit("Downloaded english.db failed integrity or gloss verification.")
+
     if (
         integrity != ("ok",)
         or candidate is None
@@ -66,6 +77,8 @@ def verify_contents(destination: Path) -> None:
         f"{main_db.name} ({main_db.stat().st_size} bytes), "
         f"ni'hao -> {candidate[0]}, yyds -> {quick_phrase[0]}, aaaa -> {wubi_candidate[0]}"
     )
+    if english_gloss is not None:
+        print(f"{english_db.name} ({english_db.stat().st_size} bytes), 水杉 -> {english_gloss[0]}")
 
 
 def main() -> None:
