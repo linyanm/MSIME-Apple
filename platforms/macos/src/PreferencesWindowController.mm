@@ -946,9 +946,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _wubiMixedPinyinButton.toolTip = @"五笔词库答不上当前编码时，用同一串字母查全拼。词库答得上的编码不受影响。";
     NSTextField *wubiSchemeLabel = [NSTextField labelWithString:@"86 五笔"];
     wubiSchemeLabel.textColor = [NSColor secondaryLabelColor];
-    NSBox *wubiOptionsCard =
-        CardWithViews(@[ PreferenceRow(@"编码方案", wubiSchemeLabel), _wubiAutoCommitButton, _wubiMixedPinyinButton ],
-                      8.0);
+    NSBox *wubiOptionsCard = CardWithViews(
+        @[ PreferenceRow(@"编码方案", wubiSchemeLabel), _wubiAutoCommitButton, _wubiMixedPinyinButton ], 8.0);
     wubiOptionsCard.accessibilityLabel = @"五笔选项卡片";
     NSView *wubiPage = PreferencesPage(@"五笔设置", @"调整 86 五笔的输入与上屏行为。",
                                        @[ backToKeyboardButton, SectionLabel(@"输入行为"), wubiOptionsCard ]);

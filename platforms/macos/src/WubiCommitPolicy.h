@@ -12,8 +12,7 @@ inline bool ShouldAutoCommitUniqueWubiCandidate(bool enabled, SchemeType scheme,
     // A code answered by the mixed-pinyin fallback is not a unique four-code wubi candidate, however
     // much it looks like one. Committing it would take away the fifth letter the fallback exists to
     // allow, which is the whole point for spellings like nihao, women and zhongguo.
-    return enabled && scheme == SchemeType::Wubi && !answeredByPinyinFallback && codeLength == 4 &&
-           candidateCount == 1;
+    return enabled && scheme == SchemeType::Wubi && !answeredByPinyinFallback && codeLength == 4 && candidateCount == 1;
 }
 
 inline KeyResult HandleCharacterWithWubiAutoCommit(Session &session, char character, bool enabled)
