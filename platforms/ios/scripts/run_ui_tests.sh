@@ -48,6 +48,26 @@ xcrun simctl shutdown "${test_device_id}" >/dev/null 2>&1 || true
 xcrun simctl boot "${test_device_id}"
 xcrun simctl bootstatus "${test_device_id}" -b
 
+scope_arguments=()
+if [[ "${MSIME_TEST_SCOPE:-all}" == "pr" ]]; then
+  # The unit suites in full, plus interface cases covering the surfaces a change is most likely to
+  # break: first launch, tab navigation, the keyboard home, scheme visibility and the account tab.
+  # A case is listed here for what it reaches rather than what it asserts, and the whole suite still
+  # runs on every merge, so a gap costs a later signal rather than no signal.
+  scope_arguments=(
+    -only-testing:MetasequoiaKeyboardTests
+    -only-testing:MetasequoiaServiceTests
+    -only-testing:MetasequoiaImeIOSUITests/OnboardingUITests/testBrandedLaunchScreenResource
+    -only-testing:MetasequoiaImeIOSUITests/OnboardingUITests/testMainTabsKeepIndependentNavigation
+    -only-testing:MetasequoiaImeIOSUITests/OnboardingUITests/testKeyboardHomePrioritizesTryoutAndQuickAdjustments
+    -only-testing:MetasequoiaImeIOSUITests/OnboardingUITests/testInputSchemeVisibilityPersistsAndFallsBack
+    -only-testing:MetasequoiaImeIOSUITests/OnboardingUITests/testAccountEntryExplainsExplicitDataSharing
+  )
+elif [[ "${MSIME_TEST_SCOPE:-all}" != "all" ]]; then
+  echo "Unknown MSIME_TEST_SCOPE: ${MSIME_TEST_SCOPE} (expected all or pr)" >&2
+  exit 1
+fi
+
 xcodebuild \
   -workspace "${project_path}" \
   -scheme MetasequoiaImeIOS \
@@ -55,4 +75,5 @@ xcodebuild \
   -destination "platform=iOS Simulator,id=${test_device_id},arch=x86_64" \
   -derivedDataPath "${derived_data_path}" \
   BREW_PREFIX="$(brew --prefix)" \
+  ${scope_arguments[@]+"${scope_arguments[@]}"} \
   test
