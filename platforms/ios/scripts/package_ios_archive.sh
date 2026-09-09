@@ -62,13 +62,6 @@ else
     build_number=$(git -C "$project_root" rev-list --count HEAD)
 fi
 
-# TestFlight groups builds by CFBundleShortVersionString and reviews each group on its own, so
-# carrying the patch digit here bought a fresh Beta App Review for every release. iOS ships x.y and
-# lets the build number carry the rest; only a minor bump opens a new group now. This archive has to
-# agree with the signed path, or a maintainer uploading it from Organizer would open a second group
-# for the same release. The release artifacts still take their names from the full tag.
-marketing_version=${version%.*}
-
 spec="$project_root/platforms/ios/project.yml"
 if [[ ! -f "$spec" ]]; then
     printf 'iOS project spec not found at %s\n' "$spec" >&2
@@ -94,8 +87,8 @@ mkdir -p "$build_root" "$output_dir"
 xcodegen generate --spec "$spec" --project "$build_root" --project-root "$project_root"
 MSIME_IOS_BUILD_ROOT="$build_root" pod install --deployment --project-directory="$project_root/platforms/ios"
 
-# The version settings are passed on the command line as well as being bumped in project.yml, so the
-# archive follows the tag being built even when the spec is momentarily behind it.
+# MARKETING_VERSION is passed on the command line as well as being bumped in project.yml, so the
+# archive carries the release version even when the spec is momentarily behind the tag being built.
 xcodebuild archive \
     -workspace "$build_root/MetasequoiaImeIOS.xcworkspace" \
     -scheme MetasequoiaImeIOS \
@@ -103,7 +96,7 @@ xcodebuild archive \
     -destination 'generic/platform=iOS' \
     -archivePath "$archive_path" \
     -derivedDataPath "$build_root/derived" \
-    MARKETING_VERSION="$marketing_version" \
+    MARKETING_VERSION="$version" \
     CURRENT_PROJECT_VERSION="$build_number" \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGNING_REQUIRED=NO \
@@ -131,16 +124,16 @@ fi
 for bundle in "$archive_path/Products/Applications/MetasequoiaIME.app" \
     "$archive_path/Products/Applications/MetasequoiaIME.app/PlugIns/MetasequoiaKeyboard.appex"; do
     test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$bundle/Info.plist")" = "$build_number"
-    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$bundle/Info.plist")" = "$marketing_version"
+    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$bundle/Info.plist")" = "$version"
 done
 
 archive_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$application/Info.plist")
-if [[ "$archive_version" != "$marketing_version" ]]; then
+if [[ "$archive_version" != "$version" ]]; then
     printf 'Archive version %s does not match tag %s.\n' "$archive_version" "$tag_name" >&2
     exit 1
 fi
 extension_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$extension/Info.plist")
-if [[ "$extension_version" != "$marketing_version" ]]; then
+if [[ "$extension_version" != "$version" ]]; then
     printf 'Keyboard extension version %s does not match tag %s.\n' "$extension_version" "$tag_name" >&2
     exit 1
 fi
