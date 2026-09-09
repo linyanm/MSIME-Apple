@@ -5,6 +5,9 @@ Reads the JSON produced by `xcodebuild -enumerate-tests -test-enumeration-format
 the cases out one runner at a time in identifier order. Neighbouring identifiers share a prefix and
 usually exercise the same screen, so dealing them to different runners keeps the expensive screens
 away from a single slice.
+
+The target is filtered here rather than trusted to `-only-testing`. Xcode 26.3 enumerates the whole
+scheme regardless of that flag, which handed every slice a mix of interface and unit cases.
 """
 
 import json
@@ -12,13 +15,14 @@ import os
 import sys
 
 
-def identifiers(payload):
+def identifiers(payload, target):
+    prefix = target + "/"
     found = []
 
     def walk(node):
         if isinstance(node, dict):
             identifier = node.get("identifier")
-            if isinstance(identifier, str) and identifier.endswith("()"):
+            if isinstance(identifier, str) and identifier.endswith("()") and identifier.startswith(prefix):
                 found.append(identifier)
             for value in node.values():
                 walk(value)
@@ -31,8 +35,8 @@ def identifiers(payload):
 
 
 def main():
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: select_ui_test_shard.py <enumeration.json>")
+    if len(sys.argv) != 3:
+        raise SystemExit("usage: select_ui_test_shard.py <enumeration.json> <test-target>")
 
     index = int(os.environ.get("MSIME_UI_SHARD_INDEX", "1"))
     count = int(os.environ.get("MSIME_UI_SHARD_COUNT", "1"))
@@ -42,9 +46,10 @@ def main():
     with open(sys.argv[1], encoding="utf-8") as handle:
         payload = json.load(handle)
 
-    cases = identifiers(payload)
+    target = sys.argv[2]
+    cases = identifiers(payload, target)
     if not cases:
-        raise SystemExit("The enumeration listed no test cases; the suite would run empty")
+        raise SystemExit(f"The enumeration listed no {target} cases; the slice would run empty")
     if len(cases) < count:
         raise SystemExit(f"{len(cases)} cases cannot fill {count} slices")
 

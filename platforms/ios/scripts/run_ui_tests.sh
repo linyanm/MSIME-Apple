@@ -111,7 +111,7 @@ while IFS= read -r argument; do
 done < <(
   MSIME_UI_SHARD_INDEX="${ui_shard_index}" \
   MSIME_UI_SHARD_COUNT="${ui_shard_count}" \
-  python3 "$(dirname "$0")/select_ui_test_shard.py" "${enumerated}"
+  python3 "$(dirname "$0")/select_ui_test_shard.py" "${enumerated}" "${ui_target}"
 )
 
 echo "Interface slice ${ui_shard_index}/${ui_shard_count}: ${#shard_arguments[@]} cases"
