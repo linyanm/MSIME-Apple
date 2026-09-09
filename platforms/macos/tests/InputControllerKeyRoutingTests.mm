@@ -95,8 +95,8 @@ int main()
                 EngineSchemeForStoredPreference(2) == SchemeType::Wubi,
             "A stored input scheme did not map to the matching engine scheme.");
     using metasequoia::mac::NormalizeShuangpinSchema;
-    using metasequoia::mac::ShuangpinSchemaTitle;
     using metasequoia::mac::ShouldRouteSemicolonAsShuangpinInput;
+    using metasequoia::mac::ShuangpinSchemaTitle;
     require(std::string_view(NormalizeShuangpinSchema("ziranma")) == "ziranma" &&
                 std::string_view(NormalizeShuangpinSchema("shoudao")) == "shoudao" &&
                 std::string_view(NormalizeShuangpinSchema("microsoft")) == "microsoft" &&

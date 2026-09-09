@@ -866,8 +866,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     for (const char *identifier : metasequoia::mac::kShuangpinSchemaIdentifiers)
     {
         [_shuangpinSchemeButton addItemWithTitle:@(metasequoia::mac::ShuangpinSchemaTitle(identifier))];
-        [_shuangpinSchemeButton itemAtIndex:_shuangpinSchemeButton.numberOfItems - 1].representedObject =
-            @(identifier);
+        [_shuangpinSchemeButton itemAtIndex:_shuangpinSchemeButton.numberOfItems - 1].representedObject = @(identifier);
     }
     _shuangpinSchemeButton.target = self;
     _shuangpinSchemeButton.action = @selector(shuangpinSchemaChanged:);

@@ -26,7 +26,7 @@ constexpr SchemeType EngineSchemeForStoredPreference(int scheme)
 }
 
 inline constexpr std::array<const char *, 4> kShuangpinSchemaIdentifiers = {"xiaohe", "ziranma", "shoudao",
-                                                                           "microsoft"};
+                                                                            "microsoft"};
 
 inline const char *NormalizeShuangpinSchema(std::string_view name)
 {

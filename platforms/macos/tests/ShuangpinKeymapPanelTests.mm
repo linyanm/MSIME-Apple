@@ -93,8 +93,8 @@ void RequireProfileRows(NSString *profileName, const ShuangpinProfile &profile, 
     Require(profile.zero_initials.size() > 0, "A Shuangpin profile stopped carrying zero-initial syllables.");
     for (const auto &entry : profile.zero_initials)
     {
-        NSString *pair = [NSString stringWithFormat:@"%@=%@", DisplayUnit(entry.first),
-                                                    [NSString stringWithUTF8String:entry.second.c_str()]];
+        NSString *pair = [NSString
+            stringWithFormat:@"%@=%@", DisplayUnit(entry.first), [NSString stringWithUTF8String:entry.second.c_str()]];
         Require([zeroInitialText containsString:pair],
                 "The keymap hint dropped a zero-initial syllable from the engine profile.");
     }

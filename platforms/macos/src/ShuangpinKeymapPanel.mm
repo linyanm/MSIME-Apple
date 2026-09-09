@@ -206,8 +206,8 @@ NSString *AccessibleKeymapDescription(NSArray<MetasequoiaShuangpinKeyView *> *ke
 
 NSArray<NSArray<NSDictionary<NSString *, NSString *> *> *> *MetasequoiaShuangpinKeymapRows(NSString *profileName)
 {
-    const ShuangpinProfile &profile = GetShuangpinProfile(metasequoia::mac::NormalizeShuangpinSchema(
-        profileName.UTF8String != nullptr ? profileName.UTF8String : ""));
+    const ShuangpinProfile &profile = GetShuangpinProfile(
+        metasequoia::mac::NormalizeShuangpinSchema(profileName.UTF8String != nullptr ? profileName.UTF8String : ""));
     NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *initialsByKey = [NSMutableDictionary dictionary];
     NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *finalsByKey = [NSMutableDictionary dictionary];
     AppendProfileUnits(profile.initials, initialsByKey);
@@ -226,8 +226,8 @@ NSArray<NSArray<NSDictionary<NSString *, NSString *> *> *> *MetasequoiaShuangpin
 
 NSString *MetasequoiaShuangpinZeroInitialText(NSString *profileName)
 {
-    const ShuangpinProfile &profile = GetShuangpinProfile(metasequoia::mac::NormalizeShuangpinSchema(
-        profileName.UTF8String != nullptr ? profileName.UTF8String : ""));
+    const ShuangpinProfile &profile = GetShuangpinProfile(
+        metasequoia::mac::NormalizeShuangpinSchema(profileName.UTF8String != nullptr ? profileName.UTF8String : ""));
     NSMutableArray<NSString *> *entries = [NSMutableArray arrayWithCapacity:profile.zero_initials.size()];
     for (const auto &entry : profile.zero_initials)
     {
@@ -309,8 +309,8 @@ NSRect MetasequoiaShuangpinKeymapPanelFrame(NSRect caretRect, NSSize panelSize, 
     background.layer.cornerRadius = 13.0;
     background.layer.masksToBounds = YES;
     background.accessibilityRole = NSAccessibilityGroupRole;
-    NSString *schemaTitle = @(
-        metasequoia::mac::ShuangpinSchemaTitle(_profileName.UTF8String != nullptr ? _profileName.UTF8String : ""));
+    NSString *schemaTitle =
+        @(metasequoia::mac::ShuangpinSchemaTitle(_profileName.UTF8String != nullptr ? _profileName.UTF8String : ""));
     background.accessibilityLabel = [schemaTitle stringByAppendingString:@"键位提示"];
 
     NSTextField *title = [NSTextField labelWithString:[schemaTitle stringByAppendingString:@"键位"]];

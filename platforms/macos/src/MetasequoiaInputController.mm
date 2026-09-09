@@ -635,7 +635,7 @@ static NSHashTable *LiveDictionaryControllers()
                 result = _session->character(static_cast<char>(character));
             }
             else if (metasequoia::mac::ShouldRouteSemicolonAsShuangpinInput(_sessionSnapshot.scheme,
-                                                                           _sessionOptions.shuangpin_profile.name) &&
+                                                                            _sessionOptions.shuangpin_profile.name) &&
                      character == ';')
             {
                 result = _session->character(static_cast<char>(character));
