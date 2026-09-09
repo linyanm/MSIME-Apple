@@ -82,7 +82,9 @@ class BuildNumberTests(unittest.TestCase):
         for name in ("package_ios_archive.sh", "package_ios_testflight.sh"):
             script = (root / "platforms/ios/scripts" / name).read_text()
             fragment = script.split("# CI supplies the shared build.", 1)[1]
-            fragment = "# CI supplies the shared build." + fragment.split("marketing_version=", 1)[0]
+            # The block closes on the only unindented fi. Everything past it needs a real checkout,
+            # and the two scripts diverge there, so neither offers a shared name to cut on.
+            fragment = "# CI supplies the shared build." + fragment.split("\nfi\n", 1)[0] + "\nfi"
             for tag, supplied, expected in [
                 ("v0.48.6-build.1001.23.1", "1001.23.1", "1001.23.1"),
                 ("v0.48.6", "1001.24.1", "1001.24.1"),

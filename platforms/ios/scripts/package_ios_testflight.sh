@@ -80,12 +80,6 @@ else
     build_number=$(git -C "$project_root" rev-list --count HEAD)
 fi
 
-# TestFlight groups builds by CFBundleShortVersionString and reviews each group on its own, so
-# carrying the patch digit here bought a fresh Beta App Review for every release. iOS ships x.y and
-# lets the build number carry the rest; only a minor bump opens a new group now. The release
-# artifacts still take their names from the full tag.
-marketing_version=${version%.*}
-
 build_root="$project_root/build/ios-testflight"
 archive_path="$build_root/MetasequoiaIME.xcarchive"
 export_path="$build_root/export"
@@ -118,7 +112,7 @@ xcodebuild archive \
     -destination 'generic/platform=iOS' \
     -archivePath "$archive_path" \
     -derivedDataPath "$build_root/derived" \
-    MARKETING_VERSION="$marketing_version" \
+    MARKETING_VERSION="$version" \
     CURRENT_PROJECT_VERSION="$build_number" \
     CODE_SIGNING_ALLOWED=YES \
     CODE_SIGNING_REQUIRED=YES \
@@ -146,7 +140,7 @@ fi
 for bundle in "$archive_path/Products/Applications/MetasequoiaIME.app" \
     "$archive_path/Products/Applications/MetasequoiaIME.app/PlugIns/MetasequoiaKeyboard.appex"; do
     test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$bundle/Info.plist")" = "$build_number"
-    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$bundle/Info.plist")" = "$marketing_version"
+    test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$bundle/Info.plist")" = "$version"
 done
 
 export_options="$build_root/ExportOptions.plist"
