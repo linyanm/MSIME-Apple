@@ -420,12 +420,46 @@ metasequoia::apple::DictionaryInstallation ConfigureDataDirectory(bool refresh =
     return _adapter->set_fuzzy_pinyin_rules(rules);
 }
 
+- (void)setWubiMixedPinyin:(BOOL)enabled
+{
+    _adapter->set_wubi_mixed_pinyin(enabled);
+}
+
 - (BOOL)setLearningEnabled:(BOOL)enabled
 {
     _requestedLearning = enabled;
     if (enabled && !_sessionLease)
         return NO;
     return _adapter->set_learning_enabled(enabled);
+}
+
+- (BOOL)setFrequencyAdjustmentMode:(MetasequoiaFrequencyAdjustmentMode)mode
+                      triggerCount:(NSInteger)triggerCount
+                        linearStep:(NSInteger)linearStep
+{
+    using metasequoia::FrequencyAdjustmentMode;
+    using metasequoia::FrequencyAdjustmentOptions;
+    FrequencyAdjustmentOptions options;
+    switch (mode)
+    {
+    case MetasequoiaFrequencyAdjustmentModePin:
+        options.mode = FrequencyAdjustmentMode::Pin;
+        break;
+    case MetasequoiaFrequencyAdjustmentModeHalve:
+        options.mode = FrequencyAdjustmentMode::Halve;
+        break;
+    case MetasequoiaFrequencyAdjustmentModeLinear:
+        options.mode = FrequencyAdjustmentMode::Linear;
+        break;
+    case MetasequoiaFrequencyAdjustmentModePromote:
+        options.mode = FrequencyAdjustmentMode::Promote;
+        break;
+    default:
+        return NO;
+    }
+    options.trigger_count = static_cast<int>(triggerCount);
+    options.linear_step = static_cast<int>(linearStep);
+    return _adapter->set_frequency_adjustment(options);
 }
 
 - (MetasequoiaInputSnapshot *)editCandidateAtIndex:(NSUInteger)index

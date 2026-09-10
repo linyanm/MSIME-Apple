@@ -1,6 +1,7 @@
 #pragma once
 
 #include <metasequoia/personal_dictionary.h>
+#include <metasequoia/session.h>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -68,6 +69,9 @@ class InputSessionAdapter
     bool set_learning_enabled(bool enabled);
     bool learning_enabled() const;
     bool set_fuzzy_pinyin_rules(std::uint32_t rules);
+    bool set_frequency_adjustment(FrequencyAdjustmentOptions options);
+    FrequencyAdjustmentOptions frequency_adjustment() const;
+    void set_wubi_mixed_pinyin(bool enabled);
     RuntimePaths runtime_paths() const;
     bool idle() const;
     PersonalDictionaryEditResult edit_personal_word(const std::optional<PersonalDictionaryEntry> &previous,
@@ -92,8 +96,11 @@ class InputSessionAdapter
 
   private:
     class Impl;
-    std::unique_ptr<Impl> impl_;
+    void replace_session(SchemeType scheme, std::string profile, bool nine_key);
     bool learning_enabled_ = false;
     std::uint32_t fuzzy_pinyin_rules_ = 0;
+    FrequencyAdjustmentOptions frequency_{FrequencyAdjustmentMode::Promote, 1, 1};
+    bool wubi_mixed_pinyin_ = false;
+    std::unique_ptr<Impl> impl_;
 };
 } // namespace metasequoia::apple

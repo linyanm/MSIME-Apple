@@ -6,6 +6,7 @@ extern "C" void MSIMEShowBackendAccount(void);
 #include "CandidatePageSize.h"
 #include "CandidatePanelStyle.h"
 #include "CandidateSkin.h"
+#include "FrequencyAdjustmentPreference.h"
 #include "HelpcodeSchemaPreference.h"
 #include "InputControllerKeyRouting.h"
 #include "InputSchemePreference.h"
@@ -41,6 +42,7 @@ NSToolbarItemIdentifier const kSkinToolbarItemIdentifier = @"MetasequoiaPreferen
 NSToolbarItemIdentifier const kDataToolbarItemIdentifier = @"MetasequoiaPreferencesData";
 NSToolbarItemIdentifier const kUpdatesToolbarItemIdentifier = @"MetasequoiaPreferencesUpdates";
 NSString *const kSchemePreferenceKey = @"MetasequoiaImeInputScheme";
+NSString *const kShuangpinSchemaPreferenceKey = @"MetasequoiaImeShuangpinSchema";
 NSString *const kAutocorrectPreferenceKey = @"MetasequoiaImeQuanpinAutocorrect";
 NSString *const kHelpcodePreferenceKey = @"MetasequoiaImeHelpcodeEnabled";
 NSString *const kQuanpinHelpcodeSchemaPreferenceKey = @"MetasequoiaImeQuanpinHelpcodeSchema";
@@ -51,12 +53,20 @@ NSString *const kCandidatePageSizePreferenceKey = @"MetasequoiaImeCandidatePageS
 NSString *const kCandidateFontSizePreferenceKey = @"MetasequoiaImeCandidateFontSize";
 NSString *const kCandidatePageShortcutPreferenceKey = @"MetasequoiaImeCandidatePageShortcut";
 NSString *const kCandidateLearningPreferenceKey = @"MetasequoiaImeCandidateLearning";
+NSString *const kFrequencyAdjustmentModePreferenceKey = @"MetasequoiaImeFrequencyAdjustmentMode";
+NSString *const kFrequencyTriggerCountPreferenceKey = @"MetasequoiaImeFrequencyTriggerCount";
+NSString *const kFrequencyLinearStepPreferenceKey = @"MetasequoiaImeFrequencyLinearStep";
 NSString *const kEnglishInputModePreferenceKey = @"MetasequoiaImeEnglishInputMode";
 NSString *const kInputModeShortcutPreferenceKey = @"MetasequoiaImeInputModeShortcutEnabled";
 NSString *const kFullWidthInputPreferenceKey = @"MetasequoiaImeFullWidthInputEnabled";
 NSString *const kFloatingToolbarPreferenceKey = @"MetasequoiaImeFloatingToolbarEnabled";
 NSString *const kTraditionalChineseOutputPreferenceKey = @"MetasequoiaImeTraditionalChineseOutput";
 NSString *const kWubiAutoCommitUniquePreferenceKey = @"MetasequoiaImeWubiAutoCommitUnique";
+// Deliberately absent from the cloud snapshot until the backend schema declares it:
+// mergedPreferences rejects the whole upload with 503 for any key the schema does not
+// know, and the download side refuses a snapshot whose key count does not match, so
+// syncing this early would break settings sync entirely rather than just this option.
+NSString *const kWubiMixedPinyinPreferenceKey = @"MetasequoiaImeWubiMixedPinyin";
 NSString *const kShuangpinKeymapPreferenceKey = @"MetasequoiaImeShuangpinKeymapEnabled";
 NSString *const kLocalInputModesPreferenceKey = @"MetasequoiaImeLocalInputModesEnabled";
 
@@ -211,6 +221,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 } // namespace
 
 @interface MetasequoiaPreferencesWindowController () <NSToolbarDelegate>
+- (void)updateFrequencyControlEnabled;
 @end
 
 @implementation MetasequoiaPreferencesWindowController
@@ -235,10 +246,14 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     MetasequoiaCandidatePreviewView *_candidatePreview;
     MetasequoiaSkinSettingsView *_skinSettings;
     NSButton *_candidateLearningButton;
+    NSPopUpButton *_frequencyModeButton;
+    NSPopUpButton *_frequencyTriggerCountButton;
+    NSPopUpButton *_frequencyLinearStepButton;
     NSButton *_inputModeShortcutButton;
     NSButton *_fullWidthInputButton;
     NSButton *_floatingToolbarButton;
     NSButton *_wubiAutoCommitButton;
+    NSButton *_wubiMixedPinyinButton;
     NSButton *_resetLearningButton;
     NSTextField *_statusLabel;
     NSTextField *_versionLabel;
@@ -485,6 +500,21 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                         object:@(normalizedScheme)];
 }
 
++ (NSString *)storedShuangpinSchema
+{
+    NSString *value = [[NSUserDefaults standardUserDefaults] stringForKey:kShuangpinSchemaPreferenceKey];
+    return @(metasequoia::mac::NormalizeShuangpinSchema(value.UTF8String != nullptr ? value.UTF8String : ""));
+}
+
++ (void)setShuangpinSchema:(NSString *)schema
+{
+    NSString *normalized =
+        @(metasequoia::mac::NormalizeShuangpinSchema(schema.UTF8String != nullptr ? schema.UTF8String : ""));
+    [[NSUserDefaults standardUserDefaults] setObject:normalized forKey:kShuangpinSchemaPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaShuangpinSchemaDidChangeNotification"
+                                                        object:normalized];
+}
+
 + (BOOL)storedAutocorrectEnabled
 {
     id value = [[NSUserDefaults standardUserDefaults] objectForKey:kAutocorrectPreferenceKey];
@@ -636,6 +666,48 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                         object:@(enabled)];
 }
 
++ (NSString *)storedFrequencyAdjustmentMode
+{
+    NSString *value = [[NSUserDefaults standardUserDefaults] stringForKey:kFrequencyAdjustmentModePreferenceKey];
+    return @(metasequoia::mac::NormalizeFrequencyAdjustmentMode(value.UTF8String));
+}
+
++ (void)setFrequencyAdjustmentMode:(NSString *)mode
+{
+    NSString *normalized = @(metasequoia::mac::NormalizeFrequencyAdjustmentMode(mode.UTF8String));
+    [[NSUserDefaults standardUserDefaults] setObject:normalized forKey:kFrequencyAdjustmentModePreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaFrequencyAdjustmentDidChangeNotification"
+                                                        object:normalized];
+}
+
++ (NSInteger)storedFrequencyTriggerCount
+{
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:kFrequencyTriggerCountPreferenceKey];
+    return metasequoia::mac::NormalizeFrequencyAdjustmentCount(value == nil ? 1 : [value integerValue]);
+}
+
++ (void)setFrequencyTriggerCount:(NSInteger)count
+{
+    const NSInteger normalized = metasequoia::mac::NormalizeFrequencyAdjustmentCount(static_cast<int>(count));
+    [[NSUserDefaults standardUserDefaults] setInteger:normalized forKey:kFrequencyTriggerCountPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaFrequencyAdjustmentDidChangeNotification"
+                                                        object:@(normalized)];
+}
+
++ (NSInteger)storedFrequencyLinearStep
+{
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:kFrequencyLinearStepPreferenceKey];
+    return metasequoia::mac::NormalizeFrequencyAdjustmentCount(value == nil ? 1 : [value integerValue]);
+}
+
++ (void)setFrequencyLinearStep:(NSInteger)step
+{
+    const NSInteger normalized = metasequoia::mac::NormalizeFrequencyAdjustmentCount(static_cast<int>(step));
+    [[NSUserDefaults standardUserDefaults] setInteger:normalized forKey:kFrequencyLinearStepPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaFrequencyAdjustmentDidChangeNotification"
+                                                        object:@(normalized)];
+}
+
 + (BOOL)storedEnglishInputMode
 {
     return [[NSUserDefaults standardUserDefaults] boolForKey:kEnglishInputModePreferenceKey];
@@ -700,6 +772,18 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     }
     [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kTraditionalChineseOutputPreferenceKey];
     [[NSNotificationCenter defaultCenter] postNotificationName:MetasequoiaTraditionalChineseOutputDidChangeNotification
+                                                        object:@(enabled)];
+}
+
++ (BOOL)storedWubiMixedPinyinEnabled
+{
+    return [[NSUserDefaults standardUserDefaults] boolForKey:kWubiMixedPinyinPreferenceKey];
+}
+
++ (void)setWubiMixedPinyinEnabled:(BOOL)enabled
+{
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kWubiMixedPinyinPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaWubiMixedPinyinDidChangeNotification"
                                                         object:@(enabled)];
 }
 
@@ -829,15 +913,21 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSMutableArray<NSView *> *schemeRows = [NSMutableArray arrayWithObject:CardHeader(@"输入方式")];
     [schemeRows addObject:CardSeparator()];
     _shuangpinSchemeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
-    [_shuangpinSchemeButton addItemWithTitle:@"小鹤双拼"];
+    for (const char *identifier : metasequoia::mac::kShuangpinSchemaIdentifiers)
+    {
+        [_shuangpinSchemeButton addItemWithTitle:@(metasequoia::mac::ShuangpinSchemaTitle(identifier))];
+        [_shuangpinSchemeButton itemAtIndex:_shuangpinSchemeButton.numberOfItems - 1].representedObject = @(identifier);
+    }
+    _shuangpinSchemeButton.target = self;
+    _shuangpinSchemeButton.action = @selector(shuangpinSchemaChanged:);
     _shuangpinSchemeButton.accessibilityLabel = @"双拼方案";
     _wubiSchemeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
     [_wubiSchemeButton addItemWithTitle:@"86 五笔"];
     _wubiSchemeButton.accessibilityLabel = @"五笔方案";
-    _shuangpinKeymapButton = [NSButton checkboxWithTitle:@"显示小鹤双拼键位提示"
+    _shuangpinKeymapButton = [NSButton checkboxWithTitle:@"显示双拼键位提示"
                                                   target:self
                                                   action:@selector(shuangpinKeymapChanged:)];
-    _shuangpinKeymapButton.accessibilityLabel = @"显示小鹤双拼键位提示";
+    _shuangpinKeymapButton.accessibilityLabel = @"显示双拼键位提示";
     _shuangpinKeymapRow = PreferenceRow(@"双拼初学者", _shuangpinKeymapButton);
     _shuangpinKeymapRow.accessibilityLabel = @"双拼键位提示行";
     _shuangpinKeymapSeparator = CardSeparator();
@@ -921,10 +1011,15 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                  target:self
                                                  action:@selector(wubiAutoCommitUniqueChanged:)];
     _wubiAutoCommitButton.accessibilityLabel = @"四码唯一候选自动上屏";
+    _wubiMixedPinyinButton = [NSButton checkboxWithTitle:@"编码打不出时用拼音候选"
+                                                  target:self
+                                                  action:@selector(wubiMixedPinyinChanged:)];
+    _wubiMixedPinyinButton.accessibilityLabel = @"编码打不出时用拼音候选";
+    _wubiMixedPinyinButton.toolTip = @"五笔词库答不上当前编码时，用同一串字母查全拼。词库答得上的编码不受影响。";
     NSTextField *wubiSchemeLabel = [NSTextField labelWithString:@"86 五笔"];
     wubiSchemeLabel.textColor = [NSColor secondaryLabelColor];
-    NSBox *wubiOptionsCard =
-        CardWithViews(@[ PreferenceRow(@"编码方案", wubiSchemeLabel), _wubiAutoCommitButton ], 8.0);
+    NSBox *wubiOptionsCard = CardWithViews(
+        @[ PreferenceRow(@"编码方案", wubiSchemeLabel), _wubiAutoCommitButton, _wubiMixedPinyinButton ], 8.0);
     wubiOptionsCard.accessibilityLabel = @"五笔选项卡片";
     NSView *wubiPage = PreferencesPage(@"五笔设置", @"调整 86 五笔的输入与上屏行为。",
                                        @[ backToKeyboardButton, SectionLabel(@"输入行为"), wubiOptionsCard ]);
@@ -992,6 +1087,21 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _candidateLearningButton = [NSButton checkboxWithTitle:@"记住候选词频"
                                                     target:self
                                                     action:@selector(candidateLearningChanged:)];
+    _frequencyModeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_frequencyModeButton addItemsWithTitles:@[ @"一次置顶", @"折半调频", @"线性调频", @"一次置前" ]];
+    _frequencyModeButton.target = self;
+    _frequencyModeButton.action = @selector(frequencyModeChanged:);
+    _frequencyModeButton.accessibilityLabel = @"调频方式";
+    _frequencyTriggerCountButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_frequencyTriggerCountButton addItemsWithTitles:@[ @"1", @"2", @"3", @"4", @"5", @"6" ]];
+    _frequencyTriggerCountButton.target = self;
+    _frequencyTriggerCountButton.action = @selector(frequencyTriggerCountChanged:);
+    _frequencyTriggerCountButton.accessibilityLabel = @"触发频次";
+    _frequencyLinearStepButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_frequencyLinearStepButton addItemsWithTitles:@[ @"1", @"2", @"3", @"4", @"5", @"6" ]];
+    _frequencyLinearStepButton.target = self;
+    _frequencyLinearStepButton.action = @selector(frequencyLinearStepChanged:);
+    _frequencyLinearStepButton.accessibilityLabel = @"线性调频步长";
 
     _statusLabel = [NSTextField labelWithString:@"检查词库状态…"];
     _statusLabel.accessibilityLabel = @"词库状态";
@@ -1009,7 +1119,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         @[
             _helpcodeButton, PreferenceRow(@"全拼辅助码方案", _quanpinHelpcodeSchemaButton),
             PreferenceRow(@"双拼辅助码方案", _shuangpinHelpcodeSchemaButton), _candidateLearningButton,
-            _localInputModesButton
+            PreferenceRow(@"调频方式", _frequencyModeButton), PreferenceRow(@"触发频次", _frequencyTriggerCountButton),
+            PreferenceRow(@"线性调频步长", _frequencyLinearStepButton), _localInputModesButton
         ],
         9.0);
     NSBox *dictionaryCard = CardWithViews(@[ _statusLabel ], 0.0);
@@ -1292,6 +1403,15 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         _schemeButtons[index].state = index == storedScheme ? NSControlStateValueOn : NSControlStateValueOff;
     }
     _shuangpinSchemeButton.enabled = storedScheme == 1;
+    NSString *storedShuangpinSchema = [MetasequoiaPreferencesWindowController storedShuangpinSchema];
+    for (NSMenuItem *item in _shuangpinSchemeButton.itemArray)
+    {
+        if ([item.representedObject isEqualToString:storedShuangpinSchema])
+        {
+            [_shuangpinSchemeButton selectItem:item];
+            break;
+        }
+    }
     _wubiSchemeButton.enabled = storedScheme == 2;
     _shuangpinKeymapRow.hidden = storedScheme != 1;
     _shuangpinKeymapSeparator.hidden = storedScheme != 1;
@@ -1332,6 +1452,14 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _candidateLearningButton.state = [MetasequoiaPreferencesWindowController storedCandidateLearningEnabled]
                                          ? NSControlStateValueOn
                                          : NSControlStateValueOff;
+    [_frequencyModeButton
+        selectItemAtIndex:metasequoia::mac::FrequencyAdjustmentModeOptionIndex(
+                              [MetasequoiaPreferencesWindowController storedFrequencyAdjustmentMode].UTF8String)];
+    [_frequencyTriggerCountButton
+        selectItemAtIndex:[MetasequoiaPreferencesWindowController storedFrequencyTriggerCount] - 1];
+    [_frequencyLinearStepButton
+        selectItemAtIndex:[MetasequoiaPreferencesWindowController storedFrequencyLinearStep] - 1];
+    [self updateFrequencyControlEnabled];
     _inputModeShortcutButton.state = [MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled]
                                          ? NSControlStateValueOn
                                          : NSControlStateValueOff;
@@ -1339,6 +1467,9 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                       ? NSControlStateValueOn
                                       : NSControlStateValueOff;
     _floatingToolbarButton.state = [MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled]
+                                       ? NSControlStateValueOn
+                                       : NSControlStateValueOff;
+    _wubiMixedPinyinButton.state = [MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled]
                                        ? NSControlStateValueOn
                                        : NSControlStateValueOff;
     _wubiAutoCommitButton.state = [MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled]
@@ -1456,6 +1587,12 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [self refreshControls];
 }
 
+- (void)shuangpinSchemaChanged:(id)sender
+{
+    NSPopUpButton *schemaButton = (NSPopUpButton *)sender;
+    [MetasequoiaPreferencesWindowController setShuangpinSchema:schemaButton.selectedItem.representedObject];
+}
+
 - (void)candidatePanelStyleChanged:(id)sender
 {
     NSPopUpButton *styleButton = (NSPopUpButton *)sender;
@@ -1503,6 +1640,36 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 {
     NSButton *button = (NSButton *)sender;
     [MetasequoiaPreferencesWindowController setCandidateLearningEnabled:button.state == NSControlStateValueOn];
+    [self updateFrequencyControlEnabled];
+}
+
+- (void)updateFrequencyControlEnabled
+{
+    const BOOL learning = _candidateLearningButton.state == NSControlStateValueOn;
+    _frequencyModeButton.enabled = learning;
+    _frequencyTriggerCountButton.enabled = learning;
+    _frequencyLinearStepButton.enabled = learning && _frequencyModeButton.indexOfSelectedItem == 2;
+}
+
+- (void)frequencyModeChanged:(id)sender
+{
+    NSPopUpButton *modeButton = (NSPopUpButton *)sender;
+    [MetasequoiaPreferencesWindowController
+        setFrequencyAdjustmentMode:@(metasequoia::mac::FrequencyAdjustmentModeForOptionIndex(
+                                       static_cast<int>(modeButton.indexOfSelectedItem)))];
+    [self updateFrequencyControlEnabled];
+}
+
+- (void)frequencyTriggerCountChanged:(id)sender
+{
+    NSPopUpButton *countButton = (NSPopUpButton *)sender;
+    [MetasequoiaPreferencesWindowController setFrequencyTriggerCount:countButton.indexOfSelectedItem + 1];
+}
+
+- (void)frequencyLinearStepChanged:(id)sender
+{
+    NSPopUpButton *stepButton = (NSPopUpButton *)sender;
+    [MetasequoiaPreferencesWindowController setFrequencyLinearStep:stepButton.indexOfSelectedItem + 1];
 }
 
 - (void)candidatePageShortcutChanged:(id)sender
@@ -1527,6 +1694,12 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 {
     NSButton *button = (NSButton *)sender;
     [MetasequoiaPreferencesWindowController setFloatingToolbarEnabled:button.state == NSControlStateValueOn];
+}
+
+- (void)wubiMixedPinyinChanged:(id)sender
+{
+    NSButton *button = sender;
+    [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:button.state == NSControlStateValueOn];
 }
 
 - (void)wubiAutoCommitUniqueChanged:(id)sender
@@ -1592,6 +1765,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     for (NSString *key in @[
              kSchemePreferenceKey,
+             kShuangpinSchemaPreferenceKey,
              kAutocorrectPreferenceKey,
              kHelpcodePreferenceKey,
              kQuanpinHelpcodeSchemaPreferenceKey,
@@ -1603,8 +1777,12 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
              kCandidateFontSizePreferenceKey,
              kCandidatePageShortcutPreferenceKey,
              kCandidateLearningPreferenceKey,
+             kFrequencyAdjustmentModePreferenceKey,
+             kFrequencyTriggerCountPreferenceKey,
+             kFrequencyLinearStepPreferenceKey,
              kInputModeShortcutPreferenceKey,
              kWubiAutoCommitUniquePreferenceKey,
+             kWubiMixedPinyinPreferenceKey,
              kShuangpinKeymapPreferenceKey,
              kLocalInputModesPreferenceKey,
              kFullWidthInputPreferenceKey,
@@ -1618,6 +1796,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSNotificationCenter *notifications = [NSNotificationCenter defaultCenter];
     [notifications postNotificationName:@"MetasequoiaInputSchemeDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedScheme])];
+    [notifications postNotificationName:@"MetasequoiaShuangpinSchemaDidChangeNotification"
+                                 object:[MetasequoiaPreferencesWindowController storedShuangpinSchema]];
     [notifications postNotificationName:@"MetasequoiaQuanpinAutocorrectDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedAutocorrectEnabled])];
     [notifications postNotificationName:@"MetasequoiaHelpcodeDidChangeNotification"
@@ -1640,8 +1820,12 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                  object:@([MetasequoiaPreferencesWindowController storedCandidatePageShortcut])];
     [notifications postNotificationName:@"MetasequoiaCandidateLearningDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedCandidateLearningEnabled])];
+    [notifications postNotificationName:@"MetasequoiaFrequencyAdjustmentDidChangeNotification"
+                                 object:[MetasequoiaPreferencesWindowController storedFrequencyAdjustmentMode]];
     [notifications postNotificationName:@"MetasequoiaInputModeShortcutDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled])];
+    [notifications postNotificationName:@"MetasequoiaWubiMixedPinyinDidChangeNotification"
+                                 object:@([MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled])];
     [notifications postNotificationName:@"MetasequoiaWubiAutoCommitUniqueDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled])];
     [notifications postNotificationName:@"MetasequoiaShuangpinKeymapDidChangeNotification"

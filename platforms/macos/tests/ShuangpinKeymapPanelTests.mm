@@ -18,9 +18,10 @@ void Require(bool condition, const char *message)
     }
 }
 
-NSDictionary<NSString *, NSString *> *KeyDefinition(NSString *key)
+NSDictionary<NSString *, NSString *> *KeyDefinition(NSArray<NSArray<NSDictionary<NSString *, NSString *> *> *> *rows,
+                                                    NSString *key)
 {
-    for (NSArray<NSDictionary<NSString *, NSString *> *> *row in MetasequoiaXiaoheKeymapRows())
+    for (NSArray<NSDictionary<NSString *, NSString *> *> *row in rows)
     {
         for (NSDictionary<NSString *, NSString *> *definition in row)
         {
@@ -47,10 +48,9 @@ NSString *DisplayUnit(const std::string &unit)
     return [NSString stringWithUTF8String:unit.c_str()];
 }
 
-NSDictionary<NSString *, NSSet<NSString *> *> *ExpectedXiaoheUnitsByKey()
+NSDictionary<NSString *, NSSet<NSString *> *> *ExpectedUnitsByKey(const ShuangpinProfile &profile)
 {
     NSMutableDictionary<NSString *, NSMutableSet<NSString *> *> *result = [NSMutableDictionary dictionary];
-    const ShuangpinProfile &profile = GetXiaoheShuangpinProfile();
     for (const auto &entry : profile.initials)
     {
         NSString *key = [NSString stringWithUTF8String:entry.second.c_str()].uppercaseString;
@@ -76,6 +76,36 @@ NSSet<NSString *> *DisplayedUnits(NSDictionary<NSString *, NSString *> *definiti
 {
     NSString *normalized = [definition[@"codes"] stringByReplacingOccurrencesOfString:@" / " withString:@" · "];
     return [NSSet setWithArray:[normalized componentsSeparatedByString:@" · "]];
+}
+
+void RequireProfileRows(NSString *profileName, const ShuangpinProfile &profile, NSUInteger homeRowCount)
+{
+    NSArray<NSArray<NSDictionary<NSString *, NSString *> *> *> *rows = MetasequoiaShuangpinKeymapRows(profileName);
+    Require(rows.count == 3 && rows[0].count == 10 && rows[1].count == homeRowCount && rows[2].count == 7,
+            "A Shuangpin keymap did not preserve the physical QWERTY rows.");
+    NSDictionary<NSString *, NSSet<NSString *> *> *expectedUnits = ExpectedUnitsByKey(profile);
+    for (NSString *key in expectedUnits)
+    {
+        Require([DisplayedUnits(KeyDefinition(rows, key)) isEqualToSet:expectedUnits[key]],
+                "The visual keymap drifted from the engine profile.");
+    }
+    NSString *zeroInitialText = MetasequoiaShuangpinZeroInitialText(profileName);
+    Require(profile.zero_initials.size() > 0, "A Shuangpin profile stopped carrying zero-initial syllables.");
+    for (const auto &entry : profile.zero_initials)
+    {
+        NSString *pair = [NSString
+            stringWithFormat:@"%@=%@", DisplayUnit(entry.first), [NSString stringWithUTF8String:entry.second.c_str()]];
+        Require([zeroInitialText containsString:pair],
+                "The keymap hint dropped a zero-initial syllable from the engine profile.");
+    }
+    NSString *zeroInitialPrefix = @"零声母  ";
+    Require([zeroInitialText hasPrefix:zeroInitialPrefix], "The zero-initial line lost its label.");
+    NSArray<NSString *> *renderedEntries =
+        [[zeroInitialText substringFromIndex:zeroInitialPrefix.length] componentsSeparatedByString:@" · "];
+    Require(renderedEntries.count == profile.zero_initials.size(),
+            "The zero-initial line did not list every syllable exactly once.");
+    Require([renderedEntries isEqualToArray:[renderedEntries sortedArrayUsingSelector:@selector(compare:)]],
+            "The zero-initial line was not in a deterministic order.");
 }
 } // namespace
 
@@ -110,40 +140,14 @@ int main(int argc, const char *argv[])
             return 0;
         }
 
-        NSArray<NSArray<NSDictionary<NSString *, NSString *> *> *> *rows = MetasequoiaXiaoheKeymapRows();
-        Require(rows.count == 3 && rows[0].count == 10 && rows[1].count == 9 && rows[2].count == 7,
-                "The Xiaohe keymap did not preserve the three physical QWERTY rows.");
-        NSDictionary<NSString *, NSSet<NSString *> *> *expectedUnits = ExpectedXiaoheUnitsByKey();
-        for (NSString *key in expectedUnits)
-        {
-            Require([DisplayedUnits(KeyDefinition(key)) isEqualToSet:expectedUnits[key]],
-                    "The visual keymap drifted from the engine's Xiaohe profile.");
-        }
-        NSString *zeroInitialText = MetasequoiaXiaoheZeroInitialText();
-        const ShuangpinProfile &xiaohe = GetXiaoheShuangpinProfile();
-        Require(xiaohe.zero_initials.size() > 0, "The Xiaohe profile stopped carrying zero-initial syllables.");
-        for (const auto &entry : xiaohe.zero_initials)
-        {
-            NSString *pair = [NSString stringWithFormat:@"%@=%@", DisplayUnit(entry.first),
-                                                        [NSString stringWithUTF8String:entry.second.c_str()]];
-            // These codes are the part of Xiaohe a beginner cannot derive from the key caps, and they map to a
-            // two-letter code rather than to one key, so the panel has to spell them out.
-            Require([zeroInitialText containsString:pair],
-                    "The keymap hint dropped a zero-initial syllable from the engine's Xiaohe profile.");
-        }
-        // The builder caches into a function-local static, so comparing two calls compared one
-        // pointer with itself and could never fail — deleting the sort that this was meant to
-        // protect left the suite green. Assert the ordering property directly instead: the entries
-        // come out of an unordered_map, so only the sort keeps the line from rendering in an order
-        // that depends on the toolchain's hashing.
-        NSString *zeroInitialPrefix = @"零声母  ";
-        Require([zeroInitialText hasPrefix:zeroInitialPrefix], "The zero-initial line lost its label.");
-        NSArray<NSString *> *renderedEntries =
-            [[zeroInitialText substringFromIndex:zeroInitialPrefix.length] componentsSeparatedByString:@" · "];
-        Require(renderedEntries.count == xiaohe.zero_initials.size(),
-                "The zero-initial line did not list every syllable exactly once.");
-        Require([renderedEntries isEqualToArray:[renderedEntries sortedArrayUsingSelector:@selector(compare:)]],
-                "The zero-initial line was not in a deterministic order.");
+        RequireProfileRows(@"xiaohe", GetXiaoheShuangpinProfile(), 9);
+        RequireProfileRows(@"ziranma", GetZiranmaShuangpinProfile(), 9);
+        RequireProfileRows(@"shoudao", GetShoudaoShuangpinProfile(), 9);
+        RequireProfileRows(@"microsoft", GetMicrosoftShuangpinProfile(), 10);
+        Require([KeyDefinition(MetasequoiaShuangpinKeymapRows(@"microsoft"), @";")[@"codes"] containsString:@"ing"],
+                "The Microsoft keymap omitted the semicolon ing final.");
+        Require(MetasequoiaShuangpinKeymapRows(@"bogus").count == 3,
+                "An unknown profile name did not fall back to a complete keymap.");
 
         Require(MetasequoiaShouldShowShuangpinKeymap(YES, YES, YES) &&
                     !MetasequoiaShouldShowShuangpinKeymap(NO, YES, YES) &&
@@ -155,8 +159,6 @@ int main(int argc, const char *argv[])
         const NSSize panelSize = NSMakeSize(620.0, 203.0);
         NSRect frame =
             MetasequoiaShuangpinKeymapPanelFrame(NSMakeRect(400.0, 400.0, 2.0, 20.0), panelSize, 60.0, visibleFrame);
-        // Assert the gap the placement exists to preserve rather than a literal origin, so growing the panel does not
-        // fail this for a reason unrelated to placement.
         Require(NearlyEqual(frame.origin.x, 400.0) && NearlyEqual(NSMaxY(frame) + 60.0 + 8.0, 400.0),
                 "The keymap panel was not placed below the candidate clearance.");
         frame =
@@ -176,6 +178,12 @@ int main(int argc, const char *argv[])
         [panel updateHighlightedKey:@"v"];
         Require([panel.contentView.accessibilityValue containsString:@"当前按键 V：zh / ui · ü"],
                 "The highlighted key was not reflected in the accessible keymap description.");
+        [panel setProfileName:@"microsoft"];
+        Require([panel.contentView.accessibilityLabel isEqualToString:@"微软双拼键位提示"],
+                "Switching the keymap profile did not update its accessible identity.");
+        [panel updateHighlightedKey:@";"];
+        Require([panel.contentView.accessibilityValue containsString:@"当前按键 ;：ing"],
+                "The Microsoft ing key was not highlighted.");
         [panel orderOut:nil];
     }
     return 0;

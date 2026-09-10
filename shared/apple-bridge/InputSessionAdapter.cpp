@@ -10,14 +10,15 @@ class InputSessionAdapter::Impl
 {
   public:
     explicit Impl(const RuntimePaths &runtime_paths, SchemeType scheme = SchemeType::Quanpin,
-                  std::string profile = "xiaohe", bool learning = false, std::uint32_t fuzzy = 0)
-        : paths{runtime_paths}, session{MakeOptions(paths, scheme, profile, learning, fuzzy)},
+                  std::string profile = "xiaohe", bool learning = false, std::uint32_t fuzzy = 0,
+                  FrequencyAdjustmentOptions frequency = {FrequencyAdjustmentMode::Promote, 1, 1})
+        : paths{runtime_paths}, session{MakeOptions(paths, scheme, profile, learning, fuzzy, frequency)},
           profile_name{std::move(profile)}
     {
     }
 
     static SessionOptions MakeOptions(const RuntimePaths &paths, SchemeType scheme, const std::string &profile,
-                                      bool learning, std::uint32_t fuzzy)
+                                      bool learning, std::uint32_t fuzzy, FrequencyAdjustmentOptions frequency)
     {
         SessionOptions session_options;
         session_options.paths = paths;
@@ -25,8 +26,7 @@ class InputSessionAdapter::Impl
         session_options.shuangpin_profile = GetShuangpinProfile(profile);
         session_options.learning = learning;
         session_options.fuzzy_pinyin.rules = fuzzy;
-        session_options.frequency.mode =
-            learning ? FrequencyAdjustmentMode::Promote : FrequencyAdjustmentMode::Disabled;
+        session_options.frequency = learning ? frequency : FrequencyAdjustmentOptions{};
         // The iOS product ships the locked main, English and expressive databases.
         LocalModeOptions options;
         options.unicode = true;
@@ -70,8 +70,19 @@ InputSessionAdapter::InputSessionAdapter() : InputSessionAdapter(RuntimePaths::l
 {
 }
 
-InputSessionAdapter::InputSessionAdapter(const RuntimePaths &paths) : impl_(std::make_unique<Impl>(paths))
+InputSessionAdapter::InputSessionAdapter(const RuntimePaths &paths)
+    : impl_(std::make_unique<Impl>(paths, SchemeType::Quanpin, "xiaohe", learning_enabled_, fuzzy_pinyin_rules_,
+                                   frequency_))
 {
+}
+
+void InputSessionAdapter::replace_session(SchemeType scheme, std::string profile, bool nine_key)
+{
+    impl_ = std::make_unique<Impl>(impl_->paths, scheme, std::move(profile), learning_enabled_, fuzzy_pinyin_rules_,
+                                   frequency_);
+    impl_->nine_key = nine_key;
+    impl_->session.set_nine_key_enabled(nine_key);
+    impl_->session.set_wubi_mixed_pinyin(wubi_mixed_pinyin_);
 }
 
 InputSessionAdapter::~InputSessionAdapter() = default;
@@ -158,12 +169,17 @@ bool InputSessionAdapter::set_learning_enabled(bool enabled)
     const auto current = impl_->session.snapshot();
     if (!current.preedit.empty() || current.local_mode != LocalInputMode::None)
         return false;
-    const bool nine_key = impl_->nine_key;
-    impl_ = std::make_unique<Impl>(impl_->paths, current.scheme, impl_->profile_name, enabled, fuzzy_pinyin_rules_);
-    impl_->nine_key = nine_key;
-    impl_->session.set_nine_key_enabled(nine_key);
     learning_enabled_ = enabled;
+    replace_session(current.scheme, impl_->profile_name, impl_->nine_key);
     return true;
+}
+
+void InputSessionAdapter::set_wubi_mixed_pinyin(bool enabled)
+{
+    if (enabled == wubi_mixed_pinyin_)
+        return;
+    wubi_mixed_pinyin_ = enabled;
+    impl_->session.set_wubi_mixed_pinyin(enabled);
 }
 
 bool InputSessionAdapter::set_fuzzy_pinyin_rules(std::uint32_t rules)
@@ -174,11 +190,8 @@ bool InputSessionAdapter::set_fuzzy_pinyin_rules(std::uint32_t rules)
     const auto current = impl_->session.snapshot();
     if (!current.preedit.empty() || current.local_mode != LocalInputMode::None)
         return false;
-    const bool nine_key = impl_->nine_key;
-    impl_ = std::make_unique<Impl>(impl_->paths, current.scheme, impl_->profile_name, learning_enabled_, rules);
-    impl_->nine_key = nine_key;
-    impl_->session.set_nine_key_enabled(nine_key);
     fuzzy_pinyin_rules_ = rules;
+    replace_session(current.scheme, impl_->profile_name, impl_->nine_key);
     return true;
 }
 
@@ -198,6 +211,39 @@ RuntimePaths InputSessionAdapter::runtime_paths() const
     return impl_->paths;
 }
 
+bool InputSessionAdapter::set_frequency_adjustment(FrequencyAdjustmentOptions options)
+{
+    switch (options.mode)
+    {
+    case FrequencyAdjustmentMode::Disabled:
+    case FrequencyAdjustmentMode::Pin:
+    case FrequencyAdjustmentMode::Halve:
+    case FrequencyAdjustmentMode::Linear:
+    case FrequencyAdjustmentMode::Promote:
+        break;
+    default:
+        return false;
+    }
+    if (options.trigger_count < 1 || options.trigger_count > 10 || options.linear_step < 1 || options.linear_step > 10)
+        return false;
+    if (options.mode == frequency_.mode && options.trigger_count == frequency_.trigger_count &&
+        options.linear_step == frequency_.linear_step)
+        return true;
+    const auto current = impl_->session.snapshot();
+    if (!current.preedit.empty() || current.local_mode != LocalInputMode::None)
+        return false;
+    frequency_ = options;
+    if (!learning_enabled_)
+        return true;
+    replace_session(current.scheme, impl_->profile_name, impl_->nine_key);
+    return true;
+}
+
+FrequencyAdjustmentOptions InputSessionAdapter::frequency_adjustment() const
+{
+    return frequency_;
+}
+
 PersonalDictionaryEditResult InputSessionAdapter::edit_personal_word(
     const std::optional<PersonalDictionaryEntry> &previous, const std::optional<PersonalDictionaryEntry> &replacement,
     const std::string &request_id)
@@ -210,9 +256,10 @@ PersonalDictionaryEditResult InputSessionAdapter::edit_personal_word(
     const bool nine_key = impl_->nine_key;
     impl_.reset();
     const auto result = edit_personal_dictionary(paths, previous, replacement, request_id);
-    impl_ = std::make_unique<Impl>(paths, current.scheme, profile, learning_enabled_, fuzzy_pinyin_rules_);
+    impl_ = std::make_unique<Impl>(paths, current.scheme, profile, learning_enabled_, fuzzy_pinyin_rules_, frequency_);
     impl_->nine_key = nine_key;
     impl_->session.set_nine_key_enabled(nine_key);
+    impl_->session.set_wubi_mixed_pinyin(wubi_mixed_pinyin_);
     return result;
 }
 
@@ -223,10 +270,11 @@ bool InputSessionAdapter::activate_dictionary_generation(const RuntimePaths &pat
     if (!current.preedit.empty() || current.local_mode != LocalInputMode::None)
         return false;
     paths.validate();
-    auto replacement =
-        std::make_unique<Impl>(paths, current.scheme, impl_->profile_name, learning_enabled_, fuzzy_pinyin_rules_);
+    auto replacement = std::make_unique<Impl>(paths, current.scheme, impl_->profile_name, learning_enabled_,
+                                              fuzzy_pinyin_rules_, frequency_);
     replacement->nine_key = impl_->nine_key;
     replacement->session.set_nine_key_enabled(replacement->nine_key);
+    replacement->session.set_wubi_mixed_pinyin(wubi_mixed_pinyin_);
     // No throwing operation follows publication: swap only transfers ownership.
     // Constructing beforehand also keeps the original session intact on failure.
     publish();
@@ -274,7 +322,7 @@ InputSnapshot InputSessionAdapter::switch_to_shuangpin(bool uses_shuangpin)
     const auto result = impl_->session.finish();
     auto snapshot = MakeSnapshot(impl_->session, result);
     const auto scheme = uses_shuangpin ? SchemeType::Shuangpin : SchemeType::Quanpin;
-    impl_ = std::make_unique<Impl>(impl_->paths, scheme, "xiaohe", learning_enabled_, fuzzy_pinyin_rules_);
+    replace_session(scheme, "xiaohe", false);
     return snapshot;
 }
 
@@ -285,7 +333,7 @@ InputSnapshot InputSessionAdapter::switch_to_shuangpin_profile(const std::string
     if (uses_shuangpin() && !impl_->nine_key && impl_->profile_name == name)
         return MakeSnapshot(impl_->session, {});
     auto snapshot = MakeSnapshot(impl_->session, impl_->session.finish());
-    impl_ = std::make_unique<Impl>(impl_->paths, SchemeType::Shuangpin, name, learning_enabled_, fuzzy_pinyin_rules_);
+    replace_session(SchemeType::Shuangpin, name, false);
     return snapshot;
 }
 std::string InputSessionAdapter::shuangpin_profile_name() const
@@ -298,7 +346,7 @@ InputSnapshot InputSessionAdapter::switch_to_wubi()
     if (impl_->session.snapshot().scheme == SchemeType::Wubi && !impl_->nine_key)
         return MakeSnapshot(impl_->session, {});
     auto snapshot = MakeSnapshot(impl_->session, impl_->session.finish());
-    impl_ = std::make_unique<Impl>(impl_->paths, SchemeType::Wubi, "xiaohe", learning_enabled_, fuzzy_pinyin_rules_);
+    replace_session(SchemeType::Wubi, "xiaohe", false);
     return snapshot;
 }
 
@@ -307,8 +355,7 @@ InputSnapshot InputSessionAdapter::switch_to_japanese()
     if (impl_->session.snapshot().scheme == SchemeType::JapaneseRomaji && !impl_->nine_key)
         return MakeSnapshot(impl_->session, {});
     auto snapshot = MakeSnapshot(impl_->session, impl_->session.finish());
-    impl_ = std::make_unique<Impl>(impl_->paths, SchemeType::JapaneseRomaji, "xiaohe", learning_enabled_,
-                                   fuzzy_pinyin_rules_);
+    replace_session(SchemeType::JapaneseRomaji, "xiaohe", false);
     return snapshot;
 }
 
@@ -317,9 +364,7 @@ InputSnapshot InputSessionAdapter::switch_to_nine_key()
     if (impl_->nine_key)
         return MakeSnapshot(impl_->session, {});
     auto snapshot = MakeSnapshot(impl_->session, impl_->session.finish());
-    impl_ = std::make_unique<Impl>(impl_->paths, SchemeType::Quanpin, "xiaohe", learning_enabled_, fuzzy_pinyin_rules_);
-    impl_->session.set_nine_key_enabled(true);
-    impl_->nine_key = true;
+    replace_session(SchemeType::Quanpin, "xiaohe", true);
     return snapshot;
 }
 InputSnapshot InputSessionAdapter::choose_nine_key_spelling(std::size_t index)
