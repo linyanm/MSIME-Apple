@@ -13,6 +13,7 @@
 #import "InputMenu.h"
 #include "InputModeRouting.h"
 #include "FullWidthInput.h"
+#include "FrequencyAdjustmentPreference.h"
 #include "HelpcodeSchemaPreference.h"
 #include "InputSchemePreference.h"
 #include "WubiCommitPolicy.h"
@@ -49,6 +50,7 @@ struct SessionPreferences
     size_t candidatePageSize;
     size_t candidateFontSize;
     bool candidateLearningEnabled;
+    metasequoia::FrequencyAdjustmentOptions frequency;
     bool wubiAutoCommitUniqueEnabled;
     bool wubiMixedPinyinEnabled;
 };
@@ -75,6 +77,11 @@ SessionPreferences ReadSessionPreferences()
         metasequoia::mac::NormalizeCandidateFontSize(
             static_cast<size_t>([MetasequoiaPreferencesWindowController storedCandidateFontSize])),
         [MetasequoiaPreferencesWindowController storedCandidateLearningEnabled] == YES,
+        metasequoia::mac::EngineFrequencyOptions(
+            [MetasequoiaPreferencesWindowController storedCandidateLearningEnabled] == YES,
+            [MetasequoiaPreferencesWindowController storedFrequencyAdjustmentMode].UTF8String,
+            static_cast<int>([MetasequoiaPreferencesWindowController storedFrequencyTriggerCount]),
+            static_cast<int>([MetasequoiaPreferencesWindowController storedFrequencyLinearStep])),
         [MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled] == YES,
         [MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled] == YES,
     };
@@ -97,7 +104,10 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     return options.scheme == preferences.scheme && shuangpinMatches &&
            options.autocorrect == preferences.autocorrectEnabled && helpcodeMatches &&
            options.chinese_punctuation == preferences.chinesePunctuationEnabled &&
-           options.learning == preferences.candidateLearningEnabled && wubiMixedPinyinMatches;
+           options.learning == preferences.candidateLearningEnabled && wubiMixedPinyinMatches &&
+           options.frequency.mode == preferences.frequency.mode &&
+           options.frequency.trigger_count == preferences.frequency.trigger_count &&
+           options.frequency.linear_step == preferences.frequency.linear_step;
 }
 } // namespace
 
@@ -287,6 +297,7 @@ static NSHashTable *LiveDictionaryControllers()
     options.helpcode_schema = preferences.helpcodeSchema;
     options.chinese_punctuation = preferences.chinesePunctuationEnabled;
     options.learning = preferences.candidateLearningEnabled;
+    options.frequency = preferences.frequency;
     options.wubi.mixed_pinyin = preferences.wubiMixedPinyinEnabled;
     options.local_modes = [self localInputModeOptions];
     _session = std::make_unique<metasequoia::Session>(options);

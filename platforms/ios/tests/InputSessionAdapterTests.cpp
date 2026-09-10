@@ -8,7 +8,9 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <chrono>
+#include <vector>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -511,6 +513,80 @@ int RunTest()
         Require(adapter.learning_enabled() && adapter.set_learning_enabled(false),
                 "Nine-key lost the learning setting.");
         Require(adapter.handle_character('7').handled, "Changing learning lost nine-key routing.");
+    }
+
+    {
+        auto seed_frequency = [&] {
+            sqlite3 *database = nullptr;
+            Require(sqlite3_open((dataDirectory / "msime.db").c_str(), &database) == SQLITE_OK,
+                    "Cannot open frequency fixture.");
+            Require(sqlite3_exec(database,
+                                 "DROP TABLE IF EXISTS tbl_1_n;"
+                                 "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                                 "INSERT INTO tbl_1_n VALUES('ni','n','甲',100);"
+                                 "INSERT INTO tbl_1_n VALUES('ni','n','乙',90);"
+                                 "INSERT INTO tbl_1_n VALUES('ni','n','丙',80);"
+                                 "INSERT INTO tbl_1_n VALUES('ni','n','丁',70);"
+                                 "INSERT INTO tbl_1_n VALUES('ni','n','戊',60);"
+                                 "INSERT INTO tbl_1_n VALUES('ni','n','己',50);",
+                                 nullptr, nullptr, nullptr) == SQLITE_OK,
+                    "Cannot populate frequency fixture.");
+            sqlite3_close(database);
+        };
+        auto type = [](metasequoia::apple::InputSessionAdapter &adapter) { return adapter.handle_character('i'); };
+        auto start_ni = [&](metasequoia::apple::InputSessionAdapter &adapter) {
+            Require(adapter.handle_character('n').handled, "Frequency fixture did not start a composition.");
+            return type(adapter);
+        };
+        auto index_of = [](const std::vector<std::string> &candidates, const std::string &word) {
+            const auto found = std::find(candidates.begin(), candidates.end(), word);
+            return found == candidates.end() ? candidates.size() : static_cast<std::size_t>(found - candidates.begin());
+        };
+        seed_frequency();
+        {
+            metasequoia::apple::InputSessionAdapter adapter;
+            Require(adapter.frequency_adjustment().mode == metasequoia::FrequencyAdjustmentMode::Promote &&
+                        adapter.frequency_adjustment().trigger_count == 1 &&
+                        adapter.frequency_adjustment().linear_step == 1,
+                    "Adapter frequency defaults did not match Windows promote/1/1.");
+            Require(!adapter.set_frequency_adjustment({static_cast<metasequoia::FrequencyAdjustmentMode>(99), 1, 1}),
+                    "An invalid frequency mode was accepted.");
+            Require(!adapter.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Pin, 0, 1}),
+                    "An invalid trigger count was accepted.");
+            Require(adapter.set_learning_enabled(true), "Cannot enable frequency fixture learning.");
+            start_ni(adapter);
+            Require(!adapter.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Pin, 1, 1}),
+                    "Frequency changed during a composition.");
+            Require(adapter.select_candidate(5).commit == "己", "Promote selection failed.");
+            Require(index_of(start_ni(adapter).candidates, "己") == 4,
+                    "Default promote mode did not move the selected candidate one slot in the top five.");
+        }
+        user_dictionary::close_default_user_database();
+        std::filesystem::remove(dataDirectory / "msime_user.db");
+        seed_frequency();
+        {
+            metasequoia::apple::InputSessionAdapter adapter;
+            Require(adapter.set_learning_enabled(true) &&
+                        adapter.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Pin, 1, 1}) &&
+                        adapter.frequency_adjustment().mode == metasequoia::FrequencyAdjustmentMode::Pin,
+                    "Idle pin frequency change failed.");
+            start_ni(adapter);
+            Require(adapter.select_candidate(5).commit == "己", "Pin selection failed.");
+            adapter.cancel();
+            adapter.switch_to_nine_key();
+            Require(adapter.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Halve, 2, 3}) &&
+                        adapter.frequency_adjustment().linear_step == 3,
+                    "Nine-key lost the frequency setting.");
+            Require(adapter.handle_character('7').handled, "Changing frequency lost nine-key routing.");
+        }
+        {
+            metasequoia::apple::InputSessionAdapter reopened;
+            Require(reopened.set_learning_enabled(true), "Cannot enable reopened frequency learning.");
+            Require(reopened.set_frequency_adjustment({metasequoia::FrequencyAdjustmentMode::Pin, 1, 1}),
+                    "Cannot restore pin frequency on a new session.");
+            Require(index_of(start_ni(reopened).candidates, "己") == 0,
+                    "Pin mode did not persist the Windows-compatible ranking transition.");
+        }
     }
 
     TestRuntimeGenerationUpgrade(dataDirectory / "upgrade");

@@ -11,6 +11,13 @@ typedef NS_ENUM(NSInteger, MetasequoiaCandidateAction) {
     MetasequoiaCandidateActionClearPosition,
 };
 
+typedef NS_ENUM(NSInteger, MetasequoiaFrequencyAdjustmentMode) {
+    MetasequoiaFrequencyAdjustmentModePin,
+    MetasequoiaFrequencyAdjustmentModeHalve,
+    MetasequoiaFrequencyAdjustmentModeLinear,
+    MetasequoiaFrequencyAdjustmentModePromote,
+};
+
 @interface MetasequoiaInputSnapshot : NSObject
 
 @property(nonatomic, readonly, getter=isHandled) BOOL handled;
@@ -40,7 +47,9 @@ typedef NS_ENUM(NSInteger, MetasequoiaCandidateAction) {
 - (MetasequoiaInputSnapshot *)selectCandidateAtIndex:(NSUInteger)index;
 - (BOOL)setLearningEnabled:(BOOL)enabled;
 - (BOOL)setFuzzyPinyinRules:(uint32_t)rules;
-// Answers a wubi code the table cannot spell with quanpin candidates for the same letters.
+- (BOOL)setFrequencyAdjustmentMode:(MetasequoiaFrequencyAdjustmentMode)mode
+                      triggerCount:(NSInteger)triggerCount
+                        linearStep:(NSInteger)linearStep;
 - (void)setWubiMixedPinyin:(BOOL)enabled;
 - (BOOL)suspendDictionarySession;
 - (BOOL)resumeDictionarySessionWithError:(NSError **)error NS_SWIFT_NAME(resumeDictionarySession());
