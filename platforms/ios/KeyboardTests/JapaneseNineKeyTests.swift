@@ -3,6 +3,13 @@ import UIKit
 
 @MainActor
 final class JapaneseNineKeyTests: XCTestCase {
+  // Claims every scheme so an assignment to InputSchemePreference.scheme is not downgraded to
+  // whatever the app group was left holding. See InputSchemeTestSupport.
+  override func setUp() {
+    super.setUp()
+    enableAllInputSchemes()
+  }
+
   func testKanaKeysFeedJapaneseEngineCandidates() throws {
     let previous = InputSchemePreference.scheme
     let enabled = InputSchemePreference.enabledSchemes
@@ -14,7 +21,7 @@ final class JapaneseNineKeyTests: XCTestCase {
     InputSchemePreference.scheme = .japaneseNineKey
     let controller = KeyboardViewController()
     controller.loadViewIfNeeded()
-    controller.view.frame = CGRect(x: 0, y: 0, width: 414, height: 260)
+    controller.view.frame = CGRect(x: 0, y: 0, width: 414, height: 260 + KeyboardViewController.compositionRowHeight)
     controller.view.layoutIfNeeded()
     let panel = try XCTUnwrap(nodes(controller.view).compactMap { $0 as? JapaneseNineKeyView }.first)
     XCTAssertFalse(panel.isHidden)

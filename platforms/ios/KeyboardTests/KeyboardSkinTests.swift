@@ -2,6 +2,13 @@ import XCTest
 import UIKit
 
 final class KeyboardSkinTests: XCTestCase {
+  // Claims every scheme so an assignment to InputSchemePreference.scheme is not downgraded to
+  // whatever the app group was left holding. See InputSchemeTestSupport.
+  override func setUp() {
+    super.setUp()
+    enableAllInputSchemes()
+  }
+
   func testCuratedDesignsRemainReadableAndRoundTrip() throws {
     for (name, design) in CustomKeyboardSkin.templates {
       XCTAssertTrue(design.hasReadableText, name)
@@ -150,7 +157,7 @@ final class KeyboardSkinTests: XCTestCase {
     defer { KeyboardFeedbackPreference.defaults.set(previous.rawValue, forKey: KeyboardSkinPreference.key) }
     let controller = KeyboardViewController()
     controller.loadViewIfNeeded()
-    controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 260)
+    controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 260 + KeyboardViewController.compositionRowHeight)
     func descendants(_ node: UIView) -> [UIView] { [node] + node.subviews.flatMap { descendants($0) } }
     for skin in [KeyboardSkin.typewriter, .candy, .midnight, .blueprint, .forest, .custom] {
       KeyboardFeedbackPreference.defaults.set(skin.rawValue, forKey: KeyboardSkinPreference.key)
@@ -197,7 +204,7 @@ final class KeyboardSkinTests: XCTestCase {
       CustomKeyboardSkinStore.save(design)
       let controller = KeyboardViewController()
       controller.loadViewIfNeeded()
-      controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 260)
+      controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 260 + KeyboardViewController.compositionRowHeight)
       controller.view.layoutIfNeeded()
       func visible(_ view: UIView) -> Bool {
         if view.isHidden { return false }

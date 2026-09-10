@@ -182,10 +182,14 @@ int main()
         [MetasequoiaPreferencesWindowController setCandidateFontSize:16];
         [MetasequoiaPreferencesWindowController setCandidatePageShortcut:1];
         [MetasequoiaPreferencesWindowController setCandidateLearningEnabled:NO];
+        [MetasequoiaPreferencesWindowController setFrequencyAdjustmentMode:@"pin"];
+        [MetasequoiaPreferencesWindowController setFrequencyTriggerCount:3];
+        [MetasequoiaPreferencesWindowController setFrequencyLinearStep:2];
         [MetasequoiaPreferencesWindowController setEnglishInputMode:YES];
         [MetasequoiaPreferencesWindowController setInputModeShortcutEnabled:NO];
         [MetasequoiaPreferencesWindowController setFullWidthInputEnabled:NO];
         [MetasequoiaPreferencesWindowController setWubiAutoCommitUniqueEnabled:NO];
+        [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:NO];
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MetasequoiaImeShuangpinKeymapEnabled"];
         [MetasequoiaPreferencesWindowController setHelpcodeEnabled:YES];
         [[NSUserDefaults standardUserDefaults] setInteger:1 forKey:@"MetasequoiaImeQuanpinHelpcodeSchema"];
@@ -196,6 +200,12 @@ int main()
         [MetasequoiaPreferencesWindowController setStoredScheme:99];
         require([MetasequoiaPreferencesWindowController storedScheme] == 0,
                 "An unsupported input scheme preference was not normalized safely.");
+        [MetasequoiaPreferencesWindowController setShuangpinSchema:@"microsoft"];
+        require([[MetasequoiaPreferencesWindowController storedShuangpinSchema] isEqualToString:@"microsoft"],
+                "The Microsoft Shuangpin schema preference was not stored.");
+        [MetasequoiaPreferencesWindowController setShuangpinSchema:@"bogus"];
+        require([[MetasequoiaPreferencesWindowController storedShuangpinSchema] isEqualToString:@"xiaohe"],
+                "An unsupported Shuangpin schema preference was not normalized safely.");
         [MetasequoiaPreferencesWindowController setStoredScheme:2];
         require([MetasequoiaPreferencesWindowController storedCandidatePanelStyle] == 1,
                 "The vertical candidate layout preference was not stored.");
@@ -207,12 +217,32 @@ int main()
                 "The bracket candidate page shortcut preference was not stored.");
         require(![MetasequoiaPreferencesWindowController storedCandidateLearningEnabled],
                 "The disabled candidate-learning preference was not stored.");
+        require([[MetasequoiaPreferencesWindowController storedFrequencyAdjustmentMode] isEqualToString:@"pin"],
+                "The pin frequency-adjustment preference was not stored.");
+        require([MetasequoiaPreferencesWindowController storedFrequencyTriggerCount] == 3,
+                "The frequency trigger-count preference was not stored.");
+        require([MetasequoiaPreferencesWindowController storedFrequencyLinearStep] == 2,
+                "The frequency linear-step preference was not stored.");
+        [MetasequoiaPreferencesWindowController setFrequencyAdjustmentMode:@"nope"];
+        require([[MetasequoiaPreferencesWindowController storedFrequencyAdjustmentMode] isEqualToString:@"promote"],
+                "An unsupported frequency mode was not normalized to promote.");
+        [MetasequoiaPreferencesWindowController setFrequencyTriggerCount:99];
+        require([MetasequoiaPreferencesWindowController storedFrequencyTriggerCount] == 1,
+                "An unsupported frequency trigger count was not normalized safely.");
+        [MetasequoiaPreferencesWindowController setFrequencyLinearStep:0];
+        require([MetasequoiaPreferencesWindowController storedFrequencyLinearStep] == 1,
+                "An unsupported frequency linear step was not normalized safely.");
+        [MetasequoiaPreferencesWindowController setFrequencyAdjustmentMode:@"pin"];
+        [MetasequoiaPreferencesWindowController setFrequencyTriggerCount:3];
+        [MetasequoiaPreferencesWindowController setFrequencyLinearStep:2];
         require([MetasequoiaPreferencesWindowController storedEnglishInputMode],
                 "The English input-mode state was not stored.");
         require(![MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled],
                 "The disabled input-mode shortcut preference was not stored.");
         require(![MetasequoiaPreferencesWindowController storedFullWidthInputEnabled],
                 "The disabled full-width input preference was not stored.");
+        require(![MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled],
+                "Mixed wubi input was on before anyone asked for it.");
         require(![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled],
                 "The disabled Wubi auto-commit preference was not stored.");
 
@@ -328,8 +358,11 @@ int main()
         NSView *shuangpinSchemeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"双拼方案");
         NSView *wubiSchemeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"五笔方案");
         require([shuangpinSchemeView isKindOfClass:[NSPopUpButton class]] &&
-                    ((NSPopUpButton *)shuangpinSchemeView).numberOfItems == 1 &&
+                    ((NSPopUpButton *)shuangpinSchemeView).numberOfItems == 4 &&
                     [[((NSPopUpButton *)shuangpinSchemeView) itemTitleAtIndex:0] isEqualToString:@"小鹤双拼"] &&
+                    [[((NSPopUpButton *)shuangpinSchemeView) itemTitleAtIndex:1] isEqualToString:@"自然码双拼"] &&
+                    [[((NSPopUpButton *)shuangpinSchemeView) itemTitleAtIndex:2] isEqualToString:@"首道双拼"] &&
+                    [[((NSPopUpButton *)shuangpinSchemeView) itemTitleAtIndex:3] isEqualToString:@"微软双拼"] &&
                     [wubiSchemeView isKindOfClass:[NSPopUpButton class]] &&
                     ((NSPopUpButton *)wubiSchemeView).numberOfItems == 1 &&
                     [[((NSPopUpButton *)wubiSchemeView) itemTitleAtIndex:0] isEqualToString:@"86 五笔"],
@@ -337,7 +370,7 @@ int main()
         NSView *wubiSettingsRow = FindViewWithAccessibilityLabel(controller.window.contentView, @"五笔功能行");
         NSView *shuangpinKeymapRow = FindViewWithAccessibilityLabel(controller.window.contentView, @"双拼键位提示行");
         NSView *shuangpinKeymapView =
-            FindViewWithAccessibilityLabel(controller.window.contentView, @"显示小鹤双拼键位提示");
+            FindViewWithAccessibilityLabel(controller.window.contentView, @"显示双拼键位提示");
         require(wubiSettingsRow != nil && !wubiSettingsRow.hidden,
                 "The selected Wubi scheme did not reveal its settings row.");
         require(shuangpinKeymapRow != nil && shuangpinKeymapRow.hidden &&
@@ -357,6 +390,14 @@ int main()
         require(wubiSettingsRow.hidden, "The Wubi settings row remained visible after another scheme was selected.");
         require(!shuangpinKeymapRow.hidden && ((NSButton *)shuangpinKeymapView).state == NSControlStateValueOn,
                 "Selecting Shuangpin did not reveal the stored beginner keymap option.");
+        NSPopUpButton *shuangpinSchemaButton = (NSPopUpButton *)shuangpinSchemeView;
+        require(shuangpinSchemaButton.enabled, "Selecting Shuangpin left the schema menu disabled.");
+        [shuangpinSchemaButton selectItemAtIndex:3];
+        require([NSApp sendAction:shuangpinSchemaButton.action
+                               to:shuangpinSchemaButton.target
+                             from:shuangpinSchemaButton] &&
+                    [[MetasequoiaPreferencesWindowController storedShuangpinSchema] isEqualToString:@"microsoft"],
+                "The Shuangpin schema menu did not persist the Microsoft profile.");
         ((NSButton *)shuangpinKeymapView).state = NSControlStateValueOff;
         require([NSApp sendAction:((NSButton *)shuangpinKeymapView).action
                                to:((NSButton *)shuangpinKeymapView).target
@@ -395,6 +436,20 @@ int main()
                              from:wubiAutoCommitButton] &&
                     [MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled],
                 "The Wubi auto-commit option did not persist its enabled state.");
+        NSView *wubiMixedPinyinView =
+            FindViewWithAccessibilityLabel(controller.window.contentView, @"编码打不出时用拼音候选");
+        require([wubiMixedPinyinView isKindOfClass:[NSButton class]] &&
+                    ((NSButton *)wubiMixedPinyinView).state == NSControlStateValueOff,
+                "The Wubi detail page did not reflect the stored mixed-pinyin preference.");
+        NSButton *wubiMixedPinyinButton = (NSButton *)wubiMixedPinyinView;
+        wubiMixedPinyinButton.state = NSControlStateValueOn;
+        require([NSApp sendAction:wubiMixedPinyinButton.action
+                               to:wubiMixedPinyinButton.target
+                             from:wubiMixedPinyinButton] &&
+                    [MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled],
+                "The Wubi mixed-pinyin option did not persist its enabled state.");
+        [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:NO];
+
         NSButton *backToKeyboardButton = FindButtonWithTitle(controller.window.contentView, @"返回键盘输入");
         [backToKeyboardButton performClick:nil];
         require(!generalPage.hidden && wubiPage.hidden &&
@@ -571,6 +626,22 @@ int main()
         NSButton *learningButton = (NSButton *)learningView;
         require(learningButton.state == NSControlStateValueOff,
                 "The candidate-learning control did not reflect the stored disabled value.");
+        NSView *frequencyModeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"调频方式");
+        NSView *frequencyTriggerView = FindViewWithAccessibilityLabel(controller.window.contentView, @"触发频次");
+        NSView *frequencyStepView = FindViewWithAccessibilityLabel(controller.window.contentView, @"线性调频步长");
+        require([frequencyModeView isKindOfClass:[NSPopUpButton class]] &&
+                    [frequencyTriggerView isKindOfClass:[NSPopUpButton class]] &&
+                    [frequencyStepView isKindOfClass:[NSPopUpButton class]],
+                "The settings window did not expose the frequency-adjustment controls.");
+        NSPopUpButton *frequencyModeButton = (NSPopUpButton *)frequencyModeView;
+        NSPopUpButton *frequencyTriggerButton = (NSPopUpButton *)frequencyTriggerView;
+        NSPopUpButton *frequencyStepButton = (NSPopUpButton *)frequencyStepView;
+        require([frequencyModeButton.itemTitles isEqualToArray:@[ @"一次置顶", @"折半调频", @"线性调频", @"一次置前" ]],
+                "The frequency mode control did not contain the Windows-compatible algorithms.");
+        require(frequencyModeButton.indexOfSelectedItem == 0 && frequencyTriggerButton.indexOfSelectedItem == 2 &&
+                    frequencyStepButton.indexOfSelectedItem == 1 && !frequencyModeButton.enabled &&
+                    !frequencyTriggerButton.enabled && !frequencyStepButton.enabled,
+                "The frequency controls did not reflect the stored pin/3/2 values and disabled learning state.");
         NSView *helpcodeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"启用辅助码");
         require([helpcodeView isKindOfClass:[NSButton class]],
                 "The settings window did not expose the helpcode control.");
@@ -734,6 +805,25 @@ int main()
                 "The candidate-learning control did not dispatch its action.");
         require([MetasequoiaPreferencesWindowController storedCandidateLearningEnabled],
                 "The candidate-learning control did not store the selected value.");
+        require(frequencyModeButton.enabled && frequencyTriggerButton.enabled && !frequencyStepButton.enabled,
+                "Enabling learning did not enable frequency mode and trigger controls.");
+        [frequencyModeButton selectItemAtIndex:2];
+        require(
+            [NSApp sendAction:frequencyModeButton.action to:frequencyModeButton.target from:frequencyModeButton] &&
+                [[MetasequoiaPreferencesWindowController storedFrequencyAdjustmentMode] isEqualToString:@"linear"] &&
+                frequencyStepButton.enabled,
+            "Selecting linear frequency did not persist the mode or enable the step control.");
+        [frequencyTriggerButton selectItemAtIndex:4];
+        [frequencyStepButton selectItemAtIndex:5];
+        require([NSApp sendAction:frequencyTriggerButton.action
+                               to:frequencyTriggerButton.target
+                             from:frequencyTriggerButton] &&
+                    [NSApp sendAction:frequencyStepButton.action
+                                   to:frequencyStepButton.target
+                                 from:frequencyStepButton] &&
+                    [MetasequoiaPreferencesWindowController storedFrequencyTriggerCount] == 5 &&
+                    [MetasequoiaPreferencesWindowController storedFrequencyLinearStep] == 6,
+                "The frequency count controls did not persist the selected values.");
 
         [quanpinHelpcodeSchemaButton selectItemAtIndex:4];
         [shuangpinHelpcodeSchemaButton selectItemAtIndex:2];
@@ -776,35 +866,46 @@ int main()
         [MetasequoiaPreferencesWindowController setCandidateFontSize:20];
         [MetasequoiaPreferencesWindowController setCandidatePageShortcut:2];
         [MetasequoiaPreferencesWindowController setCandidateLearningEnabled:NO];
+        [MetasequoiaPreferencesWindowController setFrequencyAdjustmentMode:@"halve"];
+        [MetasequoiaPreferencesWindowController setFrequencyTriggerCount:4];
+        [MetasequoiaPreferencesWindowController setFrequencyLinearStep:3];
         [MetasequoiaPreferencesWindowController setInputModeShortcutEnabled:NO];
         [MetasequoiaPreferencesWindowController setFullWidthInputEnabled:YES];
         [MetasequoiaPreferencesWindowController setFloatingToolbarEnabled:NO];
         [MetasequoiaPreferencesWindowController setTraditionalChineseOutputEnabled:YES];
         [MetasequoiaPreferencesWindowController setEnglishInputMode:YES];
         [MetasequoiaPreferencesWindowController setWubiAutoCommitUniqueEnabled:YES];
+        [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:YES];
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MetasequoiaImeShuangpinKeymapEnabled"];
         NSButton *restoreDefaultsButton = FindButtonWithTitle(controller.window.contentView, @"恢复默认设置");
         require(restoreDefaultsButton != nil, "The settings window did not expose the restore-defaults button.");
         [restoreDefaultsButton performClick:nil];
-        require([MetasequoiaPreferencesWindowController storedScheme] == 0 &&
-                    [MetasequoiaPreferencesWindowController storedAutocorrectEnabled] &&
-                    [MetasequoiaPreferencesWindowController storedHelpcodeEnabled] &&
-                    [MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled] &&
-                    [MetasequoiaPreferencesWindowController storedCandidatePanelStyle] == 0 &&
-                    [[MetasequoiaPreferencesWindowController storedCandidateSkin] isEqualToString:@"fluent"] &&
-                    [MetasequoiaPreferencesWindowController storedCandidatePageSize] == 9 &&
-                    [MetasequoiaPreferencesWindowController storedCandidateFontSize] == 18 &&
-                    [MetasequoiaPreferencesWindowController storedCandidatePageShortcut] == 0 &&
-                    [MetasequoiaPreferencesWindowController storedCandidateLearningEnabled] &&
-                    [MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled] &&
-                    ![MetasequoiaPreferencesWindowController storedFullWidthInputEnabled] &&
-                    [MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled] &&
-                    ![MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled] &&
-                    ![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled] &&
-                    ![[NSUserDefaults standardUserDefaults] boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"],
-                "Restoring defaults did not restore every visible setting.");
+        require(
+            [MetasequoiaPreferencesWindowController storedScheme] == 0 &&
+                [MetasequoiaPreferencesWindowController storedAutocorrectEnabled] &&
+                [MetasequoiaPreferencesWindowController storedHelpcodeEnabled] &&
+                [MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled] &&
+                [MetasequoiaPreferencesWindowController storedCandidatePanelStyle] == 0 &&
+                [[MetasequoiaPreferencesWindowController storedCandidateSkin] isEqualToString:@"fluent"] &&
+                [MetasequoiaPreferencesWindowController storedCandidatePageSize] == 9 &&
+                [MetasequoiaPreferencesWindowController storedCandidateFontSize] == 18 &&
+                [MetasequoiaPreferencesWindowController storedCandidatePageShortcut] == 0 &&
+                [MetasequoiaPreferencesWindowController storedCandidateLearningEnabled] &&
+                [[MetasequoiaPreferencesWindowController storedFrequencyAdjustmentMode] isEqualToString:@"promote"] &&
+                [MetasequoiaPreferencesWindowController storedFrequencyTriggerCount] == 1 &&
+                [MetasequoiaPreferencesWindowController storedFrequencyLinearStep] == 1 &&
+                [MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled] &&
+                ![MetasequoiaPreferencesWindowController storedFullWidthInputEnabled] &&
+                [MetasequoiaPreferencesWindowController storedFloatingToolbarEnabled] &&
+                ![MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled] &&
+                ![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled] &&
+                ![MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled] &&
+                ![[NSUserDefaults standardUserDefaults] boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"] &&
+                [[MetasequoiaPreferencesWindowController storedShuangpinSchema] isEqualToString:@"xiaohe"],
+            "Restoring defaults did not restore every visible setting.");
         NSArray<NSString *> *preferenceKeys = @[
             @"MetasequoiaImeInputScheme",
+            @"MetasequoiaImeShuangpinSchema",
             @"MetasequoiaImeQuanpinAutocorrect",
             @"MetasequoiaImeHelpcodeEnabled",
             @"MetasequoiaImeQuanpinHelpcodeSchema",
@@ -816,11 +917,15 @@ int main()
             @"MetasequoiaImeCandidateFontSize",
             @"MetasequoiaImeCandidatePageShortcut",
             @"MetasequoiaImeCandidateLearning",
+            @"MetasequoiaImeFrequencyAdjustmentMode",
+            @"MetasequoiaImeFrequencyTriggerCount",
+            @"MetasequoiaImeFrequencyLinearStep",
             @"MetasequoiaImeInputModeShortcutEnabled",
             @"MetasequoiaImeFullWidthInputEnabled",
             @"MetasequoiaImeFloatingToolbarEnabled",
             @"MetasequoiaImeTraditionalChineseOutput",
             @"MetasequoiaImeWubiAutoCommitUnique",
+            @"MetasequoiaImeWubiMixedPinyin",
             @"MetasequoiaImeShuangpinKeymapEnabled",
         ];
         for (NSString *key in preferenceKeys)

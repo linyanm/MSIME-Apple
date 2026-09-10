@@ -68,6 +68,12 @@ struct SkinSettingsView: View {
 struct DictionarySettingsView: View {
   @AppStorage(DictionaryLearningPreference.key, store: KeyboardFeedbackPreference.defaults)
   private var learningEnabled = false
+  @AppStorage(FrequencyAdjustmentPreference.modeKey, store: KeyboardFeedbackPreference.defaults)
+  private var frequencyMode = FrequencyAdjustmentMode.promote.rawValue
+  @AppStorage(FrequencyAdjustmentPreference.triggerCountKey, store: KeyboardFeedbackPreference.defaults)
+  private var frequencyTriggerCount = 1
+  @AppStorage(FrequencyAdjustmentPreference.linearStepKey, store: KeyboardFeedbackPreference.defaults)
+  private var frequencyLinearStep = 1
   private var manifest: [String: Any] {
     guard let url = Bundle.main.url(forResource: "dictionary-manifest", withExtension: "json"),
           let data = try? Data(contentsOf: url),
@@ -79,10 +85,27 @@ struct DictionarySettingsView: View {
       Section {
         Toggle("学习常用词", isOn: $learningEnabled)
           .accessibilityIdentifier("dictionaryLearningToggle")
+        Picker("调频方式", selection: $frequencyMode) {
+          ForEach(FrequencyAdjustmentMode.allCases, id: \.self) { mode in
+            Text(mode.title).tag(mode.rawValue)
+          }
+        }
+        .accessibilityIdentifier("frequencyAdjustmentModePicker")
+        .disabled(!learningEnabled)
+        Picker("触发频次", selection: $frequencyTriggerCount) {
+          ForEach(1...6, id: \.self) { Text("\($0)").tag($0) }
+        }
+        .accessibilityIdentifier("frequencyAdjustmentTriggerPicker")
+        .disabled(!learningEnabled)
+        Picker("线性调频步长", selection: $frequencyLinearStep) {
+          ForEach(1...6, id: \.self) { Text("\($0)").tag($0) }
+        }
+        .accessibilityIdentifier("frequencyAdjustmentLinearStepPicker")
+        .disabled(!learningEnabled || frequencyMode != FrequencyAdjustmentMode.linear.rawValue)
       } header: {
         Text("输入习惯")
       } footer: {
-        Text("开启后，引擎根据你选择的词调整候选排序，并学习支持的拼音组词。学习记录仅保存在设备上。关闭后停止新增学习，不清除已有记录；正在输入的内容结束后生效。")
+        Text("开启后，引擎按所选调频方式调整候选排序，并学习支持的拼音组词。一次置顶移到首位；折半移到当前名次与首位之间；线性按固定步数前移；一次置前把前五名前进一位、更靠后的提到第五名。触发频次是同一候选累计选中多少次后才调整一次。学习记录仅保存在设备上。关闭后停止新增学习，不清除已有记录；正在输入的内容结束后生效。")
       }
       Section {
         NavigationLink(destination: PersonalDictionaryView()) {
@@ -91,7 +114,7 @@ struct DictionarySettingsView: View {
       }
       Section("已安装词库") {
         Label("内置离线多方案词库", systemImage: "checkmark.circle.fill")
-        Text("支持全拼 26 键、全拼 9 键、小鹤／自然码／微软／Shoudao 双拼、86 五笔和日语罗马字；提供英文补全、快捷短语、表情及颜文字。")
+        Text("支持全拼 26 键、全拼 9 键、小鹤／自然码／微软／首道双拼、86 五笔和日语罗马字；提供英文补全、快捷短语、表情及颜文字。")
           .foregroundStyle(.secondary)
         HStack {
           Text("更新方式")

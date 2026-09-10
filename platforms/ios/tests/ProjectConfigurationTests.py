@@ -157,6 +157,41 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
             )
             subprocess.run([str(executable)], check=True)
 
+    def test_frequency_adjustment_preference(self):
+        preference = IOS_ROOT / "SharedUI/FrequencyAdjustmentPreference.swift"
+        scheme = IOS_ROOT / "SharedUI/InputSchemePreference.swift"
+        tests = IOS_ROOT / "tests/FrequencyAdjustmentPreferenceTests.swift"
+        settings = (IOS_ROOT / "App/Sources/FeatureSettingsViews.swift").read_text()
+        controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
+        bridge = (IOS_ROOT.parents[1] / "shared/apple-bridge/MetasequoiaInputSessionBridge.h").read_text()
+
+        self.assertIn('static let modeKey = "frequencyAdjustmentMode"', preference.read_text())
+        self.assertIn("UserDefaults(suiteName: InputSchemePreference.appGroupIdentifier)", preference.read_text())
+        self.assertIn('Picker("调频方式", selection: $frequencyMode)', settings)
+        self.assertIn('.accessibilityIdentifier("frequencyAdjustmentModePicker")', settings)
+        self.assertIn('.accessibilityIdentifier("frequencyAdjustmentTriggerPicker")', settings)
+        self.assertIn('.accessibilityIdentifier("frequencyAdjustmentLinearStepPicker")', settings)
+        self.assertIn("applyLearningPreferences()", controller)
+        self.assertIn("setFrequencyAdjustmentMode", controller)
+        self.assertIn("FrequencyAdjustmentPreference.mode", controller)
+        apply = controller.split("private func applyLearningPreferences()", 1)[1].split(
+            "private func applyInputScheme()", 1
+        )[0]
+        self.assertLess(
+            apply.index("setFrequencyAdjustmentMode"),
+            apply.index("setLearningEnabled"),
+        )
+        self.assertIn("MetasequoiaFrequencyAdjustmentMode", bridge)
+        self.assertIn("setFrequencyAdjustmentMode", bridge)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            executable = Path(temporary_directory) / "FrequencyAdjustmentPreferenceTests"
+            subprocess.run(
+                ["swiftc", str(preference), str(scheme), str(tests), "-o", str(executable)],
+                check=True,
+            )
+            subprocess.run([str(executable)], check=True)
+
     def test_host_and_keyboard_share_the_chinese_output_script(self):
         preference = (IOS_ROOT / "SharedUI/ChineseOutputPreference.swift").read_text()
         onboarding = (IOS_ROOT / "App/Sources/OnboardingView.swift").read_text()
@@ -186,7 +221,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         # converting before selection would break the engine index the candidate chips carry.
         self.assertIn("insertOwnText(source == .japanese ? commitText : chineseOutput(commitText), source: source)", controller)
         self.assertIn("let display = chineseOutput(candidate)", controller)
-        self.assertIn('configuration.title = "\\(number)  \\(display)"', controller)
+        self.assertIn("configuration.title = display", controller)
         self.assertIn("self.render(self.session.selectCandidate(at: UInt(index)))", controller)
 
         preedit = controller.split("private func updatePreeditButton", 1)[1].split("\n  }", 1)[0]
@@ -290,48 +325,46 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertIn("handleInputModeList(from:", controller)
         self.assertNotIn("URLSession", controller)
 
-    def test_candidate_paging_keeps_the_digit_keys_pointing_at_the_visible_page(self):
-        # The chips are numbered 1-9 to match the digits on the symbol layer. handleCandidateKey
-        # numbers from the engine's first candidate, so once the strip shows a later page the digit
-        # and the chip with that number stop meaning the same thing. Off the first page the digit
-        # has to go through the absolute index instead.
+    def test_candidates_past_the_strip_are_reached_by_expanding_not_by_paging(self):
+        # The strip shows nine and the arrows advanced by nine, so the tail of a long answer was
+        # unreachable in practice: quanpin returns 351 candidates for "yi" and 103 for "shurufa",
+        # which is thirty-nine and eleven taps away. Paging is gone; one control opens the whole
+        # list instead.
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
-        self.assertIn("private static let candidatePageSize = 9", controller)
-        self.assertIn("private var candidatePageStart = 0", controller)
+        self.assertIn("static let candidatePageSize = 9", controller)
+        self.assertIn('identifier: "expandCandidates")', controller)
+        self.assertIn("private func showCandidatePanel()", controller)
+        self.assertIn("KeyboardCandidatePanelView(", controller)
+        self.assertNotIn("candidatePageStart", controller)
+        self.assertNotIn("previousCandidatePage", controller)
+
+        # Without a page offset the chip numbers and the engine's own numbering agree, so a digit
+        # and the chip carrying it name the same candidate again.
         self.assertIn("makeCandidateButton(candidate: String, number: Int, index: Int)", controller)
+        self.assertIn("candidate: candidate, number: offset + 1, index: offset))", controller)
         self.assertIn("self.render(self.session.selectCandidate(at: UInt(index)))", controller)
-        self.assertIn("let index = candidatePageStart + digit - 1", controller)
-        self.assertIn("render(session.selectCandidate(at: UInt(index)))", controller)
-        self.assertIn('"previousCandidatePage" : "nextCandidatePage"', controller)
 
-        # A new candidate list is a different composition, so a retained page would number chips
-        # against candidates that no longer exist.
-        strip = controller.split("private func updateCandidateStrip", 1)[1].split("\n  }", 1)[0]
-        self.assertIn("candidatePageStart = 0", strip)
+        # The control is for reaching what the strip cannot show, so it appears exactly then.
+        expand = controller.split("private func updateExpandControl", 1)[1].split("\n  }", 1)[0]
+        self.assertIn("visibleCandidates.count <= Self.candidatePageSize", expand)
 
-        # A digit with no chip on the current page must be swallowed, not fall through. The
-        # fall-through reached handleCandidateKey, which numbers from the engine's first candidate,
-        # so pressing 7 on a last page of six chips committed the seventh candidate overall — one
-        # the user could not see and had not asked for.
-        digits = controller.split('symbol >= "1", symbol <= "9"', 1)[1].split("\n    }", 1)[0]
-        self.assertIn("if candidatePageStart > 0, let digit = Int(symbol) {", digits)
-        paged = digits.split("if candidatePageStart > 0", 1)[1].split("\n      }", 1)[0]
-        self.assertIn("return", paged)
-        self.assertNotIn("handleCandidateKey", paged)
+        panel = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardCandidatePanelView.swift").read_text()
+        self.assertIn('accessibilityIdentifier = "candidatePanel"', panel)
+        self.assertIn('accessibilityIdentifier = "closeCandidatePanel"', panel)
+        self.assertIn('chip.accessibilityIdentifier = "panelCandidate-\\(number)"', panel)
 
-    def test_committing_the_leading_candidate_follows_the_visible_page(self):
-        # commitCandidate always takes the engine's first candidate, which is off screen once the
-        # strip has paged. Space, return and the language switch all mean "take what is showing".
+    def test_committing_the_leading_candidate_takes_the_engines_first(self):
+        # Space, return and the language switch all mean "take what is showing". The strip no longer
+        # pages, so the leading chip is the engine's first and commitCandidate names it.
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
         self.assertIn("private func commitVisibleCandidate() -> MetasequoiaInputSnapshot {", controller)
         helper = controller.split("private func commitVisibleCandidate", 1)[1].split("\n  }", 1)[0]
-        self.assertIn("candidatePageStart > 0, candidatePageStart < visibleCandidates.count", helper)
-        self.assertIn("session.selectCandidate(at: UInt(candidatePageStart))", helper)
         # The unhandled report is what tells space and return to insert their own character, and
-        # only commitCandidate produces it, so the first-page path has to keep using it.
+        # only commitCandidate produces it.
         self.assertIn("return session.commitCandidate()", helper)
+        self.assertNotIn("selectCandidate", helper)
 
         space = controller.split("private func handleSpace()", 1)[1].split("\n  }", 1)[0]
         self.assertIn("commitVisibleCandidate()", space)
@@ -497,12 +530,16 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertIn("handleCandidateKey", bridge_header)
         self.assertIn("handlePunctuation", bridge_header)
 
-    def test_candidate_surface_exposes_numbered_native_chips(self):
+    def test_candidate_surface_exposes_native_chips_numbered_only_for_voiceover(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
-        self.assertIn("candidate: candidate, number: offset + 1, index: candidatePageStart + offset", controller)
-        self.assertIn('configuration.title = "\\(number)  \\(display)"', controller)
+        self.assertIn("candidate: candidate, number: offset + 1, index: offset", controller)
         self.assertIn("configuration.background.cornerRadius", controller)
+
+        # A touch keyboard has no number row for the ordinal to answer to, so it is spoken rather
+        # than drawn: the chip shows the candidate alone and VoiceOver still hears the position.
+        self.assertIn("configuration.title = display", controller)
+        self.assertNotIn('configuration.title = "\\(number)', controller)
         self.assertIn('button.accessibilityLabel = "候选词 \\(number)：\\(display)"', controller)
 
     def test_apostrophe_reaches_the_engine_before_punctuation_conversion(self):
@@ -635,7 +672,10 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
 
         self.assertIn("root.bottomAnchor.constraint(equalTo: view.bottomAnchor", controller)
         self.assertIn("height.priority = .init(999)", controller)
-        self.assertIn("landscape ? 216 : 260", controller)
+        # The composition line added a row to the candidate strip and the keyboard grew by it,
+        # rather than taking the space out of the keys.
+        self.assertIn("landscape ? 216 + extra : 260 + extra", controller)
+        self.assertIn("let extra = Self.compositionRowHeight", controller)
 
     def test_keyboard_exposes_a_persisted_full_and_double_pinyin_switch(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
