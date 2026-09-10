@@ -32,7 +32,7 @@ The iOS target builds and is exercised in CI on the simulator, but **it is not d
 - Japanese input: romaji, as a scheme and as a temporary mode
 - Helpcode (形码) filtering on pinyin schemes
 - Mixed Chinese-English input, emoji and kaomoji candidates
-- Candidate learning, which can be disabled and whose learned data can be erased from the settings panel
+- Candidate learning, with the same pin / halve / linear / promote frequency modes as Windows, which can be disabled and whose learned data can be erased from the settings panel
 - Voice input: cloud transcription through an endpoint you configure, or a local Whisper model that never leaves the machine
 
 ## Privacy
