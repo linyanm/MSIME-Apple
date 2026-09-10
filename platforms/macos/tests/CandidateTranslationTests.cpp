@@ -39,6 +39,10 @@ int main()
             "A gloss kept more than two senses.");
     Require(metasequoia::mac::FormatCandidateGloss("你好；问候；招呼") == "你好; 问候",
             "A Chinese-delimited gloss kept more than two senses.");
+    Require(metasequoia::mac::FormatCandidateGloss("开会；聚会") == "开会; 聚会",
+            "A gloss was split on UTF-8 bytes inside 会.");
+    Require(metasequoia::mac::FormatCandidateGloss("问候；招呼；你好") == "问候; 招呼",
+            "A gloss was split on UTF-8 bytes inside 招.");
 
     WordItem chinese{"shui'shan", "水杉", 1};
     const auto chineseQuery = metasequoia::mac::TranslationQueryForCandidate(chinese);

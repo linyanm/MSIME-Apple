@@ -3,6 +3,7 @@
 #include "common/helpcode_utils.h"
 #include "english/english_dictionary.h"
 
+#include <string_view>
 #include <vector>
 
 namespace metasequoia::mac
@@ -36,6 +37,26 @@ std::string CollapseWhitespace(const std::string &text)
     return out;
 }
 
+size_t FindSenseDelimiter(const std::string &text, size_t begin, size_t &delimiter_size)
+{
+    constexpr std::string_view kAsciiDelimiter = ";";
+    constexpr std::string_view kFullwidthDelimiter = "；";
+    const size_t ascii = text.find(kAsciiDelimiter, begin);
+    const size_t fullwidth = text.find(kFullwidthDelimiter, begin);
+    if (ascii == std::string::npos && fullwidth == std::string::npos)
+    {
+        delimiter_size = 0;
+        return std::string::npos;
+    }
+    if (fullwidth == std::string::npos || (ascii != std::string::npos && ascii < fullwidth))
+    {
+        delimiter_size = kAsciiDelimiter.size();
+        return ascii;
+    }
+    delimiter_size = kFullwidthDelimiter.size();
+    return fullwidth;
+}
+
 std::string TakeLeadingSenses(const std::string &text, size_t limit)
 {
     if (limit == 0 || text.empty())
@@ -44,14 +65,15 @@ std::string TakeLeadingSenses(const std::string &text, size_t limit)
     size_t begin = 0;
     while (begin <= text.size() && senses.size() < limit)
     {
-        const size_t end = text.find_first_of(";；", begin);
+        size_t delimiter_size = 0;
+        const size_t end = FindSenseDelimiter(text, begin, delimiter_size);
         const size_t stop = end == std::string::npos ? text.size() : end;
         std::string sense = CollapseWhitespace(text.substr(begin, stop - begin));
         if (!sense.empty())
             senses.push_back(std::move(sense));
         if (end == std::string::npos)
             break;
-        begin = end + 1;
+        begin = end + delimiter_size;
     }
     std::string joined;
     for (size_t index = 0; index < senses.size(); ++index)
