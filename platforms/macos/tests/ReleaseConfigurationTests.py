@@ -18,7 +18,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         preferences_controller = (MACOS_ROOT / "src/PreferencesWindowController.mm").read_text()
         input_controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
 
-        self.assertIn("显示小鹤双拼键位提示", preferences_controller)
+        self.assertIn("显示双拼键位提示", preferences_controller)
         self.assertIn('accessibilityLabel = @"双拼键位提示行"', preferences_controller)
         self.assertIn("storedShuangpinKeymapEnabled", preferences_controller)
         self.assertIn('import "ShuangpinKeymapPanel.h"', input_controller)
@@ -36,11 +36,11 @@ class ReleaseConfigurationTests(unittest.TestCase):
         )
         self.assertIn("ShuangpinKeymapPanel.mm", cmake)
         self.assertIn("ShuangpinKeymapPanelTests.mm", cmake)
-        self.assertIn("小鹤双拼键位提示", readme)
+        self.assertIn("双拼键位提示", readme)
 
         keymap_panel = (MACOS_ROOT / "src/ShuangpinKeymapPanel.mm").read_text()
         self.assertIn("profile.zero_initials", keymap_panel)
-        self.assertIn("MetasequoiaXiaoheZeroInitialText", keymap_panel)
+        self.assertIn("MetasequoiaShuangpinZeroInitialText", keymap_panel)
         self.assertIn("零声母", readme)
 
     def test_ci_cancels_duplicate_runs_for_the_same_source_branch(self):
@@ -298,11 +298,17 @@ class ReleaseConfigurationTests(unittest.TestCase):
             (policy["nested"]["openingInput"], policy["nested"]["closingInput"])
         )
 
-        # The host delegates the complete supported-key decision to the pinned Engine contract, so
-        # a future contract addition cannot be silently omitted from this routing branch.
+        # The host delegates the supported-key decision to the pinned Engine contract, so a future
+        # contract addition cannot be silently omitted from this routing branch. Microsoft Shuangpin
+        # must try ';' as ing before that catch-all, or n; commits punctuation instead of composing.
+        character_input = controller.split("ControllerKeyAction::Character:", 1)[1]
         self.assertIn(
             "metasequoia::punctuation_contract::is_supported(static_cast<char>(character))",
-            controller,
+            character_input,
+        )
+        self.assertLess(
+            character_input.index("ShouldRouteSemicolonAsShuangpinInput"),
+            character_input.index("punctuation_contract::is_supported"),
         )
         self.assertGreater(len(engine_characters), 10, "the Engine punctuation contract was not parsed")
 
@@ -502,7 +508,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertLess(workflow.index("name: Determine release signing mode"), workflow.index("name: Install dependencies"))
         self.assertIn("Developer ID Application", readme)
         self.assertIn("公证", readme)
-        self.assertIn("全拼、小鹤双拼或 86 五笔", readme)
+        self.assertIn("全拼、双拼（小鹤、自然码、首道、微软）或 86 五笔", readme)
         self.assertIn("作为翻页键", readme)
         self.assertIn("macos-universal-update.zip", readme)
         self.assertIn("`appcast.xml`", readme)
@@ -553,7 +559,13 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("MetasequoiaStandalonePreferencesDidCloseNotification", preferences_controller)
         self.assertIn("storedScheme", preferences_controller)
         self.assertIn("setStoredScheme", preferences_controller)
-        self.assertIn("小鹤双拼", preferences_controller)
+        self.assertIn("storedShuangpinSchema", preferences_controller)
+        self.assertIn("setShuangpinSchema", preferences_controller)
+        scheme_preference = (MACOS_ROOT / "src/InputSchemePreference.h").read_text()
+        self.assertIn("小鹤双拼", scheme_preference)
+        self.assertIn("自然码双拼", scheme_preference)
+        self.assertIn("首道双拼", scheme_preference)
+        self.assertIn("微软双拼", scheme_preference)
         self.assertIn("storedAutocorrectEnabled", preferences_controller)
         self.assertIn("setAutocorrectEnabled", preferences_controller)
         self.assertIn("启用全拼自动纠错", preferences_controller)
@@ -589,7 +601,8 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("toolbarSelectableItemIdentifiers", preferences_controller)
         self.assertIn('@"键盘输入", @"外观", @"皮肤", @"词库与数据", @"更新与反馈"', preferences_controller)
         self.assertIn('@[ @"全拼输入", @"双拼输入", @"五笔输入" ]', preferences_controller)
-        self.assertIn('addItemWithTitle:@"小鹤双拼"', preferences_controller)
+        self.assertIn("ShuangpinSchemaTitle", preferences_controller)
+        self.assertIn("kShuangpinSchemaIdentifiers", preferences_controller)
         self.assertIn('addItemWithTitle:@"86 五笔"', preferences_controller)
         self.assertIn('accessibilityLabel = @"五笔功能设置"', preferences_controller)
         self.assertIn("selectPreferencesPageFromToolbar:", preferences_controller)
@@ -601,6 +614,9 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("词库不可用，请重新安装水杉输入法", preferences_controller)
         input_controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
         self.assertIn("EngineSchemeForStoredPreference", input_controller)
+        self.assertIn("options.shuangpin_profile", input_controller)
+        self.assertIn("GetShuangpinProfile", input_controller)
+        self.assertIn("ShouldRouteSemicolonAsShuangpinInput", input_controller)
         self.assertIn("reloadSessionFromPreferences", input_controller)
         self.assertIn("prepareSessionIfNeeded", input_controller)
         self.assertIn("kDictionaryRetryDelay", input_controller)
@@ -636,6 +652,10 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("candidatePageShortcutModified", handle_event)
         character_input = handle_event.split("ControllerKeyAction::Character:", 1)[1]
         self.assertNotIn("charactersIgnoringModifiers", character_input)
+        self.assertLess(
+            character_input.index("ShouldRouteSemicolonAsShuangpinInput"),
+            character_input.index("punctuation_contract::is_supported"),
+        )
         commit_composition = input_controller.split("- (void)commitComposition:(id)sender", 1)[1].split(
             "- (void)deactivateServer:(id)sender", 1
         )[0]

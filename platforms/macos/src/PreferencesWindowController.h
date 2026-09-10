@@ -17,6 +17,8 @@ bool MetasequoiaShouldShowPreferences(int argc, const char *argv[]);
 + (NSNumber *)applyCloudSettingsSnapshot:(NSDictionary<NSString *, id> *)values;
 + (NSInteger)storedScheme;
 + (void)setStoredScheme:(NSInteger)scheme;
++ (NSString *)storedShuangpinSchema;
++ (void)setShuangpinSchema:(NSString *)schema;
 + (BOOL)storedAutocorrectEnabled;
 + (void)setAutocorrectEnabled:(BOOL)enabled;
 + (BOOL)storedHelpcodeEnabled;
