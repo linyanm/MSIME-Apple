@@ -766,6 +766,15 @@ int main()
             require(rowHidden(accountStatus) == !account,
                     "The account status line did not follow the chosen provider.");
         }
+        // Signed out, the row also carries the way to sign in: the entry lives on another page, and
+        // naming a requirement without a route to it is how this sent someone hunting for a button
+        // that was never on that page.
+        NSView *signInView = FindViewWithAccessibilityLabel(controller.window.contentView, @"登录水杉账号");
+        require([signInView isKindOfClass:[NSButton class]],
+                "The account provider named a requirement without offering the way to meet it.");
+        require(((NSButton *)signInView).target != nil && ((NSButton *)signInView).action != nullptr,
+                "The sign-in button was not wired to anything.");
+
         [translationProviderButton selectItemAtIndex:0];
         require([NSApp sendAction:translationProviderButton.action
                                to:translationProviderButton.target

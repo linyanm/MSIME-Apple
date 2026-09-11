@@ -341,6 +341,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSView *_translationEndpointRow;
     NSView *_translationAccountRow;
     NSTextField *_translationAccountLabel;
+    NSButton *_translationAccountButton;
     MetasequoiaCandidatePreviewView *_candidatePreview;
     MetasequoiaSkinSettingsView *_skinSettings;
     NSButton *_candidateLearningButton;
@@ -1385,7 +1386,18 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _translationAccountLabel.textColor = [NSColor secondaryLabelColor];
     _translationAccountLabel.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
     _translationAccountLabel.accessibilityLabel = @"候选翻译账号状态";
-    _translationAccountRow = PreferenceRow(@"", _translationAccountLabel);
+    // Signed out, the line that names the requirement also offers the way to meet it: the sign-in
+    // entry lives on another page, and a setting that names one without a route to it is how someone
+    // ends up hunting the settings for a button that was never on that page.
+    _translationAccountButton = [NSButton buttonWithTitle:@"登录…" target:self action:@selector(showBackendAccount:)];
+    _translationAccountButton.bezelStyle = NSBezelStyleRounded;
+    _translationAccountButton.accessibilityLabel = @"登录水杉账号";
+    NSStackView *translationAccountStatus =
+        [NSStackView stackViewWithViews:@[ _translationAccountLabel, _translationAccountButton ]];
+    translationAccountStatus.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    translationAccountStatus.alignment = NSLayoutAttributeCenterY;
+    translationAccountStatus.spacing = 8.0;
+    _translationAccountRow = PreferenceRow(@"", translationAccountStatus);
     // The rows are addressed by label so the settings test can watch each provider reveal its own.
     _translationTencentIdRow.accessibilityLabel = @"腾讯云 SecretId 行";
     _translationTencentKeyRow.accessibilityLabel = @"腾讯云 SecretKey 行";
@@ -2292,9 +2304,10 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _translationAccountRow.hidden = !accountModel;
     // Signed out is the one thing that stops this provider, and it stops it silently, so the card
     // says so rather than leaving someone to wonder why nothing appears beside their candidates.
-    _translationAccountLabel.stringValue = MSIMEBackendAccountSignedIn()
-                                               ? @"使用已登录的水杉账号，无需填写密钥。"
-                                               : @"需要先登录水杉账号，否则候选旁不会出现译文。";
+    const BOOL signedIn = MSIMEBackendAccountSignedIn();
+    _translationAccountLabel.stringValue =
+        signedIn ? @"使用已登录的水杉账号，无需填写密钥。" : @"需要先登录水杉账号，否则候选旁不会出现译文。";
+    _translationAccountButton.hidden = signedIn;
     _translationSecretIdField.placeholderString = @"SecretId（腾讯云）";
     _translationSecretKeyField.placeholderString = @"SecretKey（腾讯云）";
 }
