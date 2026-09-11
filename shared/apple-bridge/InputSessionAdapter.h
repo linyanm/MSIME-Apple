@@ -30,6 +30,10 @@ struct InputSnapshot
     std::optional<std::string> commit;
     std::string preedit;
     std::vector<std::string> candidates;
+    // The dictionary key each candidate was found by, in the same order. A wubi frontend needs it to
+    // say which keys still single a candidate out, since an unfinished code answers with the codes
+    // it can still become. Empty for a candidate that has no key of its own.
+    std::vector<std::string> candidate_codes;
     // Set when the engine could answer the key but something behind it failed, such as a local input
     // mode whose table is missing or a word that could not be learned. Input stays usable, so a
     // frontend reports it rather than treating it as an error.
