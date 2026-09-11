@@ -148,25 +148,18 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("NSEventModifierFlagShift", uppercase_branch)
         self.assertIn("character(static_cast<char>(character), true)", uppercase_branch)
 
-    def test_engine_english_learning_stays_unreachable_from_macos(self):
+    def test_engine_english_learning_uses_the_installed_and_reset_dictionary(self):
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
         installer = (MACOS_ROOT / "src/DictionaryInstaller.mm").read_text()
 
-        # The engine writes learned English words to data_file_path("english.db"), while this installer
-        # replays the English journal into msime_english.db and only backs that name up when learned data
-        # is reset. The two never meet today because macOS never turns the engine's English paths on, so
-        # the divergence is latent. Wiring any of these up without first reconciling the filename would
-        # orphan learned English words in a file no macOS code reads, migrates or clears.
+        # English candidates now use SessionOptions. The legacy installer must seed, replay
+        # and clear the same english.db that Engine owns; keep the old name only for migration.
         self.assertIn("msime_english.db", installer)
-        for switch in (
-            "set_dedicated_english",
-            "set_english_input_options",
-            "set_frequency_adjustment",
-            "set_mixed_expressive_options",
-        ):
-            self.assertNotIn(switch, controller, f"{switch} reaches the engine's english.db path; reconcile the filename with msime_english.db first")
-        # handle_character's second parameter is what routes Shift+letter into the English and local modes.
-        self.assertIn("_session->character(static_cast<char>(character))", controller)
+        self.assertIn('options.english.mixed_candidates = preferences.mixedEnglish', controller)
+        self.assertIn('InstallMetasequoiaEnglishDictionary', installer)
+        mutable_files = installer.split('NSArray<NSString *> *MutableDictionaryFileNames()', 1)[1].split('return fileNames;', 1)[0]
+        self.assertIn('@"english.db"', mutable_files)
+        self.assertIn('NSURL *englishDatabase = [dataDirectory URLByAppendingPathComponent:@"english.db"', installer)
 
     def test_macos_session_forwards_windows_frequency_adjustment(self):
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
@@ -597,20 +590,18 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn('#import "DictionaryInstaller.h"', preferences_controller)
         self.assertIn("refreshDictionaryStatus", preferences_controller)
         self.assertIn("EnsureMetasequoiaDictionary", preferences_controller)
-        self.assertIn("constexpr CGFloat kWindowWidth = 680.0", preferences_controller)
+        self.assertIn("constexpr CGFloat kWindowWidth = 980.0", preferences_controller)
         self.assertIn("constexpr CGFloat kWindowHeight = 800.0", preferences_controller)
-        self.assertIn("NSWindowToolbarStylePreference", preferences_controller)
-        self.assertIn("NSToolbarDisplayModeIconAndLabel", preferences_controller)
-        self.assertIn("toolbarSelectableItemIdentifiers", preferences_controller)
-        self.assertIn('@"键盘输入", @"外观", @"皮肤", @"词库与数据", @"更新与反馈"', preferences_controller)
+        self.assertIn("NSWindowStyleMaskResizable", preferences_controller)
+        self.assertIn("MetasequoiaSettingsNavigationButton", preferences_controller)
         self.assertIn('@[ @"全拼输入", @"双拼输入", @"五笔输入" ]', preferences_controller)
         self.assertIn("ShuangpinSchemaTitle", preferences_controller)
         self.assertIn("kShuangpinSchemaIdentifiers", preferences_controller)
         self.assertIn('addItemWithTitle:@"86 五笔"', preferences_controller)
         self.assertIn('accessibilityLabel = @"五笔功能设置"', preferences_controller)
-        self.assertIn("selectPreferencesPageFromToolbar:", preferences_controller)
+        self.assertIn("selectPreferencesPage:", preferences_controller)
         self.assertIn('NSURL URLWithString:@"https://msime.app/"', preferences_controller)
-        self.assertNotIn('accessibilityLabel = @"水杉输入法导航"', preferences_controller)
+        self.assertIn('accessibilityLabel = @"水杉输入法导航"', preferences_controller)
         self.assertNotIn("sidebar.fillColor", preferences_controller)
         self.assertIn("词库已就绪", preferences_controller)
         self.assertIn("当前输入结束后的下一次按键生效", preferences_controller)

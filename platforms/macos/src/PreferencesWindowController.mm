@@ -9,14 +9,69 @@ extern "C" void MSIMEShowBackendAccount(void);
 #include "FrequencyAdjustmentPreference.h"
 #include "HelpcodeSchemaPreference.h"
 #include "InputControllerKeyRouting.h"
+#include "InputBehaviorPreferences.h"
 #include "InputSchemePreference.h"
 #import "CandidateSkinAppearance.h"
 #import "CandidateSkinPreviewView.h"
 #import "DictionaryInstaller.h"
 #import "SkinSettingsView.h"
 #import "UpdateController.h"
+#import "VoiceSettings.h"
 
 #include <cstring>
+
+@interface MetasequoiaPreferencesDocumentView : NSView
+@end
+@implementation MetasequoiaPreferencesDocumentView
+- (BOOL)isFlipped
+{
+    return YES;
+}
+@end
+
+@interface MetasequoiaSettingsSurface : NSView
+@end
+@implementation MetasequoiaSettingsSurface
+- (void)drawRect:(NSRect)rect
+{
+    BOOL dark = [[self.effectiveAppearance
+        bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]]
+        isEqualToString:NSAppearanceNameDarkAqua];
+    [(dark ? [NSColor colorWithWhite:0.12 alpha:1.0] : [NSColor colorWithWhite:0.96 alpha:1.0]) setFill];
+    NSRectFill(rect);
+}
+@end
+
+@interface MetasequoiaSettingsNavigationButton : NSButton
+@end
+@implementation MetasequoiaSettingsNavigationButton
+- (void)drawRect:(NSRect)rect
+{
+    (void)rect;
+    if (self.state == NSControlStateValueOn)
+    {
+        [[[NSColor labelColor] colorWithAlphaComponent:0.06] setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds, 0.0, 2.0) xRadius:6.0 yRadius:6.0] fill];
+        [[NSColor colorWithSRGBRed:0.45 green:0.42 blue:0.77 alpha:1.0] setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:NSMakeRect(0.0, 12.0, 3.0, NSHeight(self.bounds) - 24.0)
+                                         xRadius:1.5
+                                         yRadius:1.5] fill];
+    }
+    NSImage *symbol =
+        [self.image imageWithSymbolConfiguration:[NSImageSymbolConfiguration
+                                                     configurationWithPaletteColors:@[ [NSColor labelColor] ]]];
+    [symbol drawInRect:NSMakeRect(19.0, (NSHeight(self.bounds) - 20.0) / 2.0, 20.0, 20.0)];
+    NSDictionary *attributes =
+        @{NSFontAttributeName : [NSFont systemFontOfSize:16.0], NSForegroundColorAttributeName : [NSColor labelColor]};
+    NSSize size = [self.title sizeWithAttributes:attributes];
+    [self.title drawAtPoint:NSMakePoint(57.0, (NSHeight(self.bounds) - size.height) / 2.0) withAttributes:attributes];
+    if (self.window.firstResponder == self)
+    {
+        [[NSColor keyboardFocusIndicatorColor] setStroke];
+        [[NSBezierPath bezierPathWithRoundedRect:NSInsetRect(self.bounds, 1.0, 2.0) xRadius:6.0 yRadius:6.0] stroke];
+    }
+}
+@end
 
 NSNotificationName const MetasequoiaWillResetLearnedDataNotification = @"MetasequoiaWillResetLearnedDataNotification";
 NSNotificationName const MetasequoiaStandalonePreferencesDidCloseNotification =
@@ -33,14 +88,8 @@ bool MetasequoiaShouldShowPreferences(int argc, const char *argv[])
 
 namespace
 {
-constexpr CGFloat kWindowWidth = 680.0;
+constexpr CGFloat kWindowWidth = 980.0;
 constexpr CGFloat kWindowHeight = 800.0;
-NSToolbarIdentifier const kPreferencesToolbarIdentifier = @"MetasequoiaPreferencesToolbar";
-NSToolbarItemIdentifier const kKeyboardToolbarItemIdentifier = @"MetasequoiaPreferencesKeyboard";
-NSToolbarItemIdentifier const kAppearanceToolbarItemIdentifier = @"MetasequoiaPreferencesAppearance";
-NSToolbarItemIdentifier const kSkinToolbarItemIdentifier = @"MetasequoiaPreferencesSkin";
-NSToolbarItemIdentifier const kDataToolbarItemIdentifier = @"MetasequoiaPreferencesData";
-NSToolbarItemIdentifier const kUpdatesToolbarItemIdentifier = @"MetasequoiaPreferencesUpdates";
 NSString *const kSchemePreferenceKey = @"MetasequoiaImeInputScheme";
 NSString *const kShuangpinSchemaPreferenceKey = @"MetasequoiaImeShuangpinSchema";
 NSString *const kAutocorrectPreferenceKey = @"MetasequoiaImeQuanpinAutocorrect";
@@ -74,7 +123,7 @@ void ConfigureCard(NSBox *card)
 {
     card.boxType = NSBoxCustom;
     card.titlePosition = NSNoTitle;
-    card.borderWidth = 1.0;
+    card.borderWidth = 0.5;
     card.cornerRadius = 12.0;
     card.borderColor = [NSColor separatorColor];
     card.fillColor = [NSColor controlBackgroundColor];
@@ -93,19 +142,19 @@ NSView *PreferenceRow(NSString *title, NSView *control)
 {
     NSView *row = [[NSView alloc] initWithFrame:NSZeroRect];
     NSTextField *label = [NSTextField labelWithString:title];
-    label.font = [NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium];
+    label.font = [NSFont systemFontOfSize:15.0 weight:NSFontWeightRegular];
     label.translatesAutoresizingMaskIntoConstraints = NO;
     control.translatesAutoresizingMaskIntoConstraints = NO;
     [row addSubview:label];
     [row addSubview:control];
     [NSLayoutConstraint activateConstraints:@[
-        [row.heightAnchor constraintEqualToConstant:34.0],
+        [row.heightAnchor constraintEqualToConstant:48.0],
         [label.leadingAnchor constraintEqualToAnchor:row.leadingAnchor],
         [label.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
         [label.trailingAnchor constraintLessThanOrEqualToAnchor:control.leadingAnchor constant:-12.0],
         [control.trailingAnchor constraintEqualToAnchor:row.trailingAnchor],
         [control.centerYAnchor constraintEqualToAnchor:row.centerYAnchor],
-        [control.widthAnchor constraintEqualToConstant:188.0],
+        [control.widthAnchor constraintEqualToConstant:[control isKindOfClass:NSSwitch.class] ? 52.0 : 188.0],
     ]];
     return row;
 }
@@ -191,36 +240,46 @@ NSBox *CardWithViews(NSArray<NSView *> *views, CGFloat spacing)
 
 NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *content)
 {
-    NSView *page = [[NSView alloc] initWithFrame:NSZeroRect];
+    NSScrollView *page = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     page.translatesAutoresizingMaskIntoConstraints = NO;
+    page.hasVerticalScroller = YES;
+    page.autohidesScrollers = YES;
+    page.drawsBackground = NO;
     NSTextField *titleLabel = [NSTextField labelWithString:title];
     titleLabel.font = [NSFont systemFontOfSize:24.0 weight:NSFontWeightSemibold];
-    NSTextField *descriptionLabel = [NSTextField labelWithString:summary];
-    descriptionLabel.textColor = [NSColor secondaryLabelColor];
-    descriptionLabel.maximumNumberOfLines = 2;
-    NSStackView *stack = [NSStackView stackViewWithViews:@[ titleLabel, descriptionLabel ]];
+    page.accessibilityHelp = summary;
+    NSStackView *stack = [NSStackView stackViewWithViews:@[ titleLabel ]];
     stack.orientation = NSUserInterfaceLayoutOrientationVertical;
     stack.alignment = NSLayoutAttributeLeading;
     stack.distribution = NSStackViewDistributionFill;
-    stack.spacing = 7.0;
+    stack.spacing = 18.0;
     for (NSView *view in content)
     {
         [stack addArrangedSubview:view];
         [view.widthAnchor constraintEqualToAnchor:stack.widthAnchor].active = YES;
     }
-    [stack setCustomSpacing:22.0 afterView:descriptionLabel];
+    [stack setCustomSpacing:30.0 afterView:titleLabel];
     stack.translatesAutoresizingMaskIntoConstraints = NO;
-    [page addSubview:stack];
+    NSView *document = [[MetasequoiaPreferencesDocumentView alloc] initWithFrame:NSZeroRect];
+    document.translatesAutoresizingMaskIntoConstraints = NO;
+    page.documentView = document;
+    [document addSubview:stack];
     [NSLayoutConstraint activateConstraints:@[
-        [stack.leadingAnchor constraintEqualToAnchor:page.leadingAnchor constant:30.0],
-        [stack.trailingAnchor constraintEqualToAnchor:page.trailingAnchor constant:-30.0],
-        [stack.topAnchor constraintEqualToAnchor:page.topAnchor constant:28.0],
+        [document.widthAnchor constraintEqualToAnchor:page.contentView.widthAnchor],
+        [document.heightAnchor constraintGreaterThanOrEqualToAnchor:page.contentView.heightAnchor],
+        [stack.leadingAnchor constraintEqualToAnchor:document.leadingAnchor constant:30.0],
+        [stack.trailingAnchor constraintEqualToAnchor:document.trailingAnchor constant:-30.0],
+        [stack.topAnchor constraintEqualToAnchor:document.topAnchor constant:28.0],
+        [stack.bottomAnchor constraintLessThanOrEqualToAnchor:document.bottomAnchor constant:-28.0],
     ]];
+    NSLayoutConstraint *height = [document.heightAnchor constraintEqualToAnchor:page.contentView.heightAnchor];
+    height.priority = NSLayoutPriorityDefaultLow;
+    height.active = YES;
     return page;
 }
 } // namespace
 
-@interface MetasequoiaPreferencesWindowController () <NSToolbarDelegate>
+@interface MetasequoiaPreferencesWindowController ()
 - (void)updateFrequencyControlEnabled;
 @end
 
@@ -242,7 +301,34 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSPopUpButton *_candidatePanelStyleButton;
     NSPopUpButton *_candidatePageSizeButton;
     NSPopUpButton *_candidateFontSizeButton;
+    NSPopUpButton *_candidateFontButton;
+    NSPopUpButton *_candidateFallbackFontButton;
+    NSPopUpButton *_preeditFontSizeButton;
+    NSPopUpButton *_themeButton;
+    NSSwitch *_followCaretSwitch;
+    NSColorWell *_candidateColorWell;
     NSPopUpButton *_candidatePageShortcutButton;
+    NSMutableArray<NSButton *> *_inputBehaviorButtons;
+    NSPopUpButton *_englishMinimumPrefixButton;
+    NSPopUpButton *_defaultInputModeButton;
+    NSPopUpButton *_inputModeScopeButton;
+    NSPopUpButton *_outputScriptButton;
+    NSPopUpButton *_languageModeButton;
+    NSButton *_alwaysChinesePunctuationButton;
+    NSButton *_alwaysEnglishPunctuationButton;
+    NSButton *_smartPunctuationButton;
+    NSButton *_pairedPunctuationButton;
+    NSButton *_repeatPunctuationButton;
+    NSButton *_candidateTranslationButton;
+    NSButton *_cloudCandidatesButton;
+    NSPopUpButton *_translationProviderButton;
+    NSPopUpButton *_translationLanguageButton;
+    NSTextField *_translationSecretIdField;
+    NSSecureTextField *_translationSecretKeyField;
+    NSTextField *_translationEndpointField;
+    NSView *_translationTencentIdRow;
+    NSView *_translationTencentKeyRow;
+    NSView *_translationEndpointRow;
     MetasequoiaCandidatePreviewView *_candidatePreview;
     MetasequoiaSkinSettingsView *_skinSettings;
     NSButton *_candidateLearningButton;
@@ -260,7 +346,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSTextField *_automaticUpdateLabel;
     NSButton *_updatePageButton;
     NSArray<NSView *> *_preferencePages;
-    NSArray<NSToolbarItemIdentifier> *_preferenceToolbarItemIdentifiers;
+    NSArray<NSButton *> *_navigationButtons;
     MetasequoiaUpdateController *_updateController;
     BOOL _standaloneLaunch;
 }
@@ -288,8 +374,17 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         @"platform.macos.quanpin_helpcode_schema" : @([self storedQuanpinHelpcodeSchema]),
         @"platform.macos.shuangpin_helpcode_schema" : @([self storedShuangpinHelpcodeSchema]),
         @"platform.macos.candidate_panel_style" : @([self storedCandidatePanelStyle]),
-        @"platform.macos.candidate_page_size" : @([self storedCandidatePageSize]),
-        @"platform.macos.candidate_font_size" : @([self storedCandidateFontSize]),
+        // Expanded local values are not sent to the older cloud enum contract.
+        @"platform.macos.candidate_page_size" :
+            @([@[ @5, @7, @9 ]
+                  containsObject:[NSUserDefaults.standardUserDefaults objectForKey:kCandidatePageSizePreferenceKey]]
+                  ? [NSUserDefaults.standardUserDefaults integerForKey:kCandidatePageSizePreferenceKey]
+                  : 9),
+        @"platform.macos.candidate_font_size" :
+            @([@[ @16, @18, @20 ]
+                  containsObject:[NSUserDefaults.standardUserDefaults objectForKey:kCandidateFontSizePreferenceKey]]
+                  ? [NSUserDefaults.standardUserDefaults integerForKey:kCandidateFontSizePreferenceKey]
+                  : 18),
         @"platform.macos.candidate_page_shortcut" : @([self storedCandidatePageShortcut]),
         @"platform.macos.autocorrect" : @([self storedAutocorrectEnabled]),
         @"platform.macos.helpcode" : @([self storedHelpcodeEnabled]),
@@ -611,14 +706,22 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 + (NSInteger)storedCandidatePageSize
 {
     const NSInteger value = [[NSUserDefaults standardUserDefaults] integerForKey:kCandidatePageSizePreferenceKey];
-    return static_cast<NSInteger>(metasequoia::mac::NormalizeCandidatePageSize(static_cast<size_t>(value)));
+    return MetasequoiaAppearanceInteger(
+        @"pageSize", static_cast<NSInteger>(metasequoia::mac::NormalizeCandidatePageSize(static_cast<size_t>(value))),
+        1, 9);
 }
 
 + (void)setCandidatePageSize:(NSInteger)pageSize
 {
     const NSInteger normalizedPageSize =
         static_cast<NSInteger>(metasequoia::mac::NormalizeCandidatePageSize(static_cast<size_t>(pageSize)));
-    [[NSUserDefaults standardUserDefaults] setInteger:normalizedPageSize forKey:kCandidatePageSizePreferenceKey];
+    if ([@[ @5, @7, @9 ] containsObject:@(normalizedPageSize)])
+    {
+        [[NSUserDefaults standardUserDefaults] setInteger:normalizedPageSize forKey:kCandidatePageSizePreferenceKey];
+        MetasequoiaSetAppearancePreference(@"pageSize", nil);
+    }
+    else
+        MetasequoiaSetAppearancePreference(@"pageSize", @(normalizedPageSize));
     [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaCandidatePageSizeDidChangeNotification"
                                                         object:@(normalizedPageSize)];
 }
@@ -626,14 +729,22 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 + (NSInteger)storedCandidateFontSize
 {
     const NSInteger value = [[NSUserDefaults standardUserDefaults] integerForKey:kCandidateFontSizePreferenceKey];
-    return static_cast<NSInteger>(metasequoia::mac::NormalizeCandidateFontSize(static_cast<size_t>(value)));
+    return MetasequoiaAppearanceInteger(
+        @"fontSize", static_cast<NSInteger>(metasequoia::mac::NormalizeCandidateFontSize(static_cast<size_t>(value))),
+        12, 36);
 }
 
 + (void)setCandidateFontSize:(NSInteger)fontSize
 {
     const NSInteger normalizedFontSize =
         static_cast<NSInteger>(metasequoia::mac::NormalizeCandidateFontSize(static_cast<size_t>(fontSize)));
-    [[NSUserDefaults standardUserDefaults] setInteger:normalizedFontSize forKey:kCandidateFontSizePreferenceKey];
+    if ([@[ @16, @18, @20 ] containsObject:@(normalizedFontSize)])
+    {
+        [[NSUserDefaults standardUserDefaults] setInteger:normalizedFontSize forKey:kCandidateFontSizePreferenceKey];
+        MetasequoiaSetAppearancePreference(@"fontSize", nil);
+    }
+    else
+        MetasequoiaSetAppearancePreference(@"fontSize", @(normalizedFontSize));
     [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaCandidateFontSizeDidChangeNotification"
                                                         object:@(normalizedFontSize)];
 }
@@ -845,17 +956,19 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 - (instancetype)initWithUpdateController:(MetasequoiaUpdateController *)updateController
 {
     NSRect frame = NSMakeRect(0.0, 0.0, kWindowWidth, kWindowHeight);
-    NSWindow *window = [[NSWindow alloc] initWithContentRect:frame
-                                                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
-                                                     backing:NSBackingStoreBuffered
-                                                       defer:NO];
+    NSWindow *window =
+        [[NSWindow alloc] initWithContentRect:frame
+                                    styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                                               NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
+                                      backing:NSBackingStoreBuffered
+                                        defer:NO];
     window.title = @"水杉输入法设置";
     window.releasedWhenClosed = NO;
     window.restorable = NO;
     window.titleVisibility = NSWindowTitleVisible;
     window.titlebarAppearsTransparent = NO;
     window.movableByWindowBackground = NO;
-    window.toolbarStyle = NSWindowToolbarStylePreference;
+    window.contentMinSize = NSMakeSize(900.0, 650.0);
 
     self = [super initWithWindow:window];
     if (self == nil)
@@ -863,6 +976,15 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         return nil;
     }
     window.delegate = self;
+    window.appearance = MetasequoiaForcedAppearance();
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(appearancePreferencesChanged:)
+                                               name:MetasequoiaAppearanceDidChange
+                                             object:nil];
+    [NSDistributedNotificationCenter.defaultCenter addObserver:self
+                                                      selector:@selector(appearancePreferencesChanged:)
+                                                          name:MetasequoiaAppearanceDidChange
+                                                        object:nil];
     _updateController = updateController;
     // The floating toolbar menu can hide the bar while this window is open, and this checkbox is the documented way to
     // bring it back, so it must follow the preference instead of waiting for the next refreshControls.
@@ -885,23 +1007,88 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                              selector:@selector(candidateSkinPreferenceDidChange:)
                                                  name:MetasequoiaCandidateSkinDidChangeNotification
                                                object:nil];
-    _preferenceToolbarItemIdentifiers = @[
-        kKeyboardToolbarItemIdentifier,
-        kAppearanceToolbarItemIdentifier,
-        kSkinToolbarItemIdentifier,
-        kDataToolbarItemIdentifier,
-        kUpdatesToolbarItemIdentifier,
-    ];
-    NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:kPreferencesToolbarIdentifier];
-    toolbar.delegate = self;
-    toolbar.displayMode = NSToolbarDisplayModeIconAndLabel;
-    toolbar.sizeMode = NSToolbarSizeModeRegular;
-    toolbar.allowsUserCustomization = NO;
-    toolbar.autosavesConfiguration = NO;
-    window.toolbar = toolbar;
-
-    NSView *contentView = [[NSView alloc] initWithFrame:frame];
+    NSView *contentView = [[MetasequoiaSettingsSurface alloc] initWithFrame:frame];
     window.contentView = contentView;
+
+    NSView *sidebar = [[MetasequoiaSettingsSurface alloc] initWithFrame:NSZeroRect];
+    sidebar.translatesAutoresizingMaskIntoConstraints = NO;
+    sidebar.accessibilityLabel = @"水杉输入法导航";
+    NSTextField *brand = [NSTextField labelWithString:@"水杉 IME"];
+    brand.font = [NSFont systemFontOfSize:20.0 weight:NSFontWeightSemibold];
+    NSImageView *logo = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    logo.image = [NSImage imageWithSize:NSMakeSize(26.0, 32.0)
+                                flipped:YES
+                         drawingHandler:^BOOL(NSRect bounds) {
+                           [[NSColor colorWithWhite:0.15 alpha:1.0] setFill];
+                           [[NSBezierPath bezierPathWithRoundedRect:bounds xRadius:2.0 yRadius:2.0] fill];
+                           NSBezierPath *mark = [NSBezierPath bezierPath];
+                           [mark moveToPoint:NSMakePoint(20.0, 5.0)];
+                           [mark lineToPoint:NSMakePoint(6.0, 12.0)];
+                           [mark lineToPoint:NSMakePoint(20.0, 16.0)];
+                           [mark lineToPoint:NSMakePoint(6.0, 23.0)];
+                           [mark curveToPoint:NSMakePoint(20.0, 26.0)
+                                controlPoint1:NSMakePoint(10.0, 27.0)
+                                controlPoint2:NSMakePoint(15.0, 28.0)];
+                           mark.lineWidth = 2.0;
+                           mark.lineCapStyle = NSLineCapStyleRound;
+                           mark.lineJoinStyle = NSLineJoinStyleRound;
+                           [[NSColor whiteColor] setStroke];
+                           [mark stroke];
+                           return YES;
+                         }];
+    [logo.widthAnchor constraintEqualToConstant:26.0].active = YES;
+    [logo.heightAnchor constraintEqualToConstant:32.0].active = YES;
+    NSStackView *brandRow = [NSStackView stackViewWithViews:@[ logo, brand ]];
+    brandRow.spacing = 12.0;
+    brandRow.edgeInsets = NSEdgeInsetsMake(0.0, 18.0, 0.0, 0.0);
+    NSStackView *navigation = [NSStackView stackViewWithViews:@[ brandRow ]];
+    navigation.orientation = NSUserInterfaceLayoutOrientationVertical;
+    navigation.alignment = NSLayoutAttributeLeading;
+    navigation.spacing = 2.0;
+    navigation.translatesAutoresizingMaskIntoConstraints = NO;
+    [navigation setCustomSpacing:30.0 afterView:brandRow];
+    NSArray<NSString *> *labels = @[
+        @"输入", @"外观", @"皮肤", @"词库", @"关于与更新", @"五笔", @"辅助码", @"快捷键", @"悬浮工具栏", @"语音输入",
+        @"帮助", @"反馈"
+    ];
+    NSArray<NSString *> *symbols = @[
+        @"keyboard", @"paintpalette", @"photo.on.rectangle", @"book", @"info.circle", @"keyboard", @"a.circle",
+        @"command", @"ellipsis.rectangle", @"mic", @"questionmark.square", @"ladybug"
+    ];
+    NSMutableArray<NSButton *> *buttons = [NSMutableArray array];
+    // Keep page indices stable; appearance leads the navigation to match the visual settings workflow.
+    for (NSNumber *pageIndex in @[ @1, @0, @6, @7, @3, @2, @9, @8, @10, @4, @11 ])
+    {
+        NSInteger index = pageIndex.integerValue;
+        NSButton *button = [[MetasequoiaSettingsNavigationButton alloc] initWithFrame:NSZeroRect];
+        button.title = labels[index];
+        button.target = self;
+        button.action = @selector(selectPreferencesPage:);
+        button.tag = index;
+        [button setButtonType:NSButtonTypePushOnPushOff];
+        button.bordered = NO;
+        button.alignment = NSTextAlignmentLeft;
+        button.imagePosition = NSImageLeft;
+        button.image = [NSImage imageWithSystemSymbolName:symbols[index] accessibilityDescription:nil];
+        button.font = [NSFont systemFontOfSize:14.0 weight:NSFontWeightMedium];
+        button.accessibilityLabel = labels[index];
+        [navigation addArrangedSubview:button];
+        [button.widthAnchor constraintEqualToAnchor:navigation.widthAnchor].active = YES;
+        [button.heightAnchor constraintEqualToConstant:42.0].active = YES;
+        [buttons addObject:button];
+    }
+    _navigationButtons = buttons;
+    [sidebar addSubview:navigation];
+    [contentView addSubview:sidebar];
+    [NSLayoutConstraint activateConstraints:@[
+        [sidebar.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor],
+        [sidebar.topAnchor constraintEqualToAnchor:contentView.topAnchor],
+        [sidebar.bottomAnchor constraintEqualToAnchor:contentView.bottomAnchor],
+        [sidebar.widthAnchor constraintEqualToConstant:220.0],
+        [navigation.leadingAnchor constraintEqualToAnchor:sidebar.leadingAnchor constant:10.0],
+        [navigation.trailingAnchor constraintEqualToAnchor:sidebar.trailingAnchor constant:-10.0],
+        [navigation.topAnchor constraintEqualToAnchor:sidebar.topAnchor constant:30.0],
+    ]];
 
     NSView *settingsPanel = [[NSView alloc] initWithFrame:NSZeroRect];
     settingsPanel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -989,16 +1176,167 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _candidatePageShortcutButton.accessibilityLabel = @"候选翻页快捷键";
 
     NSBox *schemeCard = CardWithViews(schemeRows, 0.0);
-    NSBox *behaviorCard = CardWithViews(
-        @[ _autocorrectButton, _chinesePunctuationButton, _inputModeShortcutButton, _fullWidthInputButton ], 9.0);
-    NSBox *shortcutCard = CardWithViews(@[ PreferenceRow(@"上翻 / 下翻", _candidatePageShortcutButton) ], 0.0);
+    _languageModeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_languageModeButton addItemsWithTitles:@[ @"中文", @"日语 · 罗马字输入" ]];
+    _languageModeButton.identifier = @"japaneseMode";
+    _languageModeButton.accessibilityLabel = @"输入语言模式";
+    _languageModeButton.toolTip = @"中文方案独立保存；切换模式在当前组合结束后生效。";
+    _languageModeButton.target = self;
+    _languageModeButton.action = @selector(inputModePreferenceChanged:);
+    _languageModeButton.autoenablesItems = NO;
+    [_languageModeButton itemAtIndex:1].enabled = [NSBundle.mainBundle URLForResource:@"dict_japanese"
+                                                                        withExtension:@"dat"] != nil;
+    NSBox *languageCard = CardWithViews(@[ PreferenceRow(@"输入模式", _languageModeButton) ], 12.0);
+    NSBox *behaviorCard = CardWithViews(@[ _autocorrectButton, _chinesePunctuationButton ], 9.0);
+    NSBox *shortcutCard = CardWithViews(
+        @[
+            PreferenceRow(@"上翻 / 下翻", _candidatePageShortcutButton), CardSeparator(), _inputModeShortcutButton,
+            _fullWidthInputButton
+        ],
+        12.0);
     schemeCard.accessibilityLabel = @"输入方式卡片";
     behaviorCard.accessibilityLabel = @"中英文状态切换卡片";
     shortcutCard.accessibilityLabel = @"候选翻页快捷键卡片";
-    NSView *generalPage = PreferencesPage(
-        @"键盘输入", @"选择全拼、双拼或 86 五笔，并调整日常输入行为。",
-        @[ schemeCard, SectionLabel(@"中英文状态切换"), behaviorCard, SectionLabel(@"候选翻页快捷键"), shortcutCard ]);
-    generalPage.accessibilityLabel = @"键盘输入设置页";
+    _inputBehaviorButtons = [NSMutableArray array];
+    NSMutableArray<NSView *> *pagingRows = [NSMutableArray array];
+    NSArray<NSArray<NSString *> *> *pagingDefinitions = @[
+        @[ @"pageMinus", @"减号 / 等号（- / =）" ],
+        @[ @"pageComma", @"逗号 / 句号（, / .）" ],
+        @[ @"pageBrackets", @"方括号（[ / ]）" ],
+        @[ @"pageKeys", @"Page Up / Page Down" ],
+        @[ @"verticalNavigation", @"上 / 下方向键选择候选" ],
+    ];
+    for (NSArray<NSString *> *definition in pagingDefinitions)
+    {
+        NSButton *button = [NSButton checkboxWithTitle:definition[1]
+                                                target:self
+                                                action:@selector(inputBehaviorChanged:)];
+        button.identifier = definition[0];
+        button.accessibilityLabel = definition[1];
+        [_inputBehaviorButtons addObject:button];
+        [pagingRows addObject:button];
+    }
+    NSButton *edgeButton = [NSButton checkboxWithTitle:@"以词定字：[ 取首字，] 取末字"
+                                                target:self
+                                                action:@selector(inputBehaviorChanged:)];
+    edgeButton.identifier = @"edgeSelection";
+    edgeButton.accessibilityLabel = @"以词定字";
+    edgeButton.toolTip = @"对当前高亮候选生效，与方括号翻页互斥。";
+    [_inputBehaviorButtons addObject:edgeButton];
+    NSButton *mixedButton = [NSButton checkboxWithTitle:@"中文输入时显示英文候选"
+                                                 target:self
+                                                 action:@selector(inputBehaviorChanged:)];
+    mixedButton.identifier = @"mixedEnglish";
+    mixedButton.accessibilityLabel = @"中英混输";
+    [_inputBehaviorButtons addObject:mixedButton];
+    _englishMinimumPrefixButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    for (NSInteger length = 1; length <= 10; ++length)
+        [_englishMinimumPrefixButton addItemWithTitle:[NSString stringWithFormat:@"%ld 个字母", (long)length]];
+    _englishMinimumPrefixButton.target = self;
+    _englishMinimumPrefixButton.action = @selector(englishMinimumPrefixChanged:);
+    _englishMinimumPrefixButton.accessibilityLabel = @"英文候选最短前缀";
+    NSBox *pagingCard = CardWithViews(pagingRows, 12.0);
+    NSBox *edgeCard = CardWithViews(@[ edgeButton ], 12.0);
+    NSBox *mixedCard = CardWithViews(
+        @[ mixedButton, CardSeparator(), PreferenceRow(@"英文候选最短前缀", _englishMinimumPrefixButton) ], 12.0);
+    _defaultInputModeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_defaultInputModeButton addItemsWithTitles:@[ @"中文", @"英文" ]];
+    _defaultInputModeButton.identifier = @"defaultEnglish";
+    _defaultInputModeButton.accessibilityLabel = @"默认输入状态";
+    _defaultInputModeButton.toolTip = @"输入法下次启动及首次进入未记忆的应用时使用。";
+    _defaultInputModeButton.target = self;
+    _defaultInputModeButton.action = @selector(inputModePreferenceChanged:);
+    _inputModeScopeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_inputModeScopeButton addItemsWithTitles:@[ @"全局共享", @"按应用记忆" ]];
+    _inputModeScopeButton.identifier = @"perApplicationMode";
+    _inputModeScopeButton.accessibilityLabel = @"中英文状态作用范围";
+    _inputModeScopeButton.target = self;
+    _inputModeScopeButton.action = @selector(inputModePreferenceChanged:);
+    _outputScriptButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_outputScriptButton addItemsWithTitles:@[ @"简体中文", @"繁體中文" ]];
+    _outputScriptButton.identifier = @"outputScript";
+    _outputScriptButton.accessibilityLabel = @"简繁输出";
+    _outputScriptButton.target = self;
+    _outputScriptButton.action = @selector(inputModePreferenceChanged:);
+    NSBox *modeCard = CardWithViews(
+        @[
+            PreferenceRow(@"默认输入状态", _defaultInputModeButton), CardSeparator(),
+            PreferenceRow(@"中英文状态作用范围", _inputModeScopeButton), CardSeparator(),
+            PreferenceRow(@"简繁输出", _outputScriptButton)
+        ],
+        12.0);
+    _alwaysChinesePunctuationButton = [NSButton checkboxWithTitle:@"始终使用中文标点"
+                                                           target:self
+                                                           action:@selector(inputBehaviorChanged:)];
+    _alwaysChinesePunctuationButton.identifier = @"alwaysChinesePunctuation";
+    _alwaysEnglishPunctuationButton = [NSButton checkboxWithTitle:@"始终使用英文标点"
+                                                           target:self
+                                                           action:@selector(inputBehaviorChanged:)];
+    _alwaysEnglishPunctuationButton.identifier = @"alwaysEnglishPunctuation";
+    _smartPunctuationButton = [NSButton checkboxWithTitle:@"智能标点"
+                                                   target:self
+                                                   action:@selector(inputBehaviorChanged:)];
+    _smartPunctuationButton.identifier = @"smartPunctuation";
+    _pairedPunctuationButton = [NSButton checkboxWithTitle:@"成对标点自动补全"
+                                                    target:self
+                                                    action:@selector(inputBehaviorChanged:)];
+    _pairedPunctuationButton.identifier = @"pairedPunctuation";
+    _repeatPunctuationButton = [NSButton checkboxWithTitle:@"重复标点转中文（2 秒内）"
+                                                    target:self
+                                                    action:@selector(inputBehaviorChanged:)];
+    _repeatPunctuationButton.identifier = @"repeatPunctuation";
+    NSBox *punctuationCard = CardWithViews(
+        @[
+            _alwaysChinesePunctuationButton, _alwaysEnglishPunctuationButton, CardSeparator(), _smartPunctuationButton,
+            _pairedPunctuationButton, _repeatPunctuationButton
+        ],
+        8.0);
+    _candidateTranslationButton = [NSButton checkboxWithTitle:@"候选词翻译"
+                                                       target:self
+                                                       action:@selector(inputBehaviorChanged:)];
+    _candidateTranslationButton.identifier = @"candidateTranslation";
+    _cloudCandidatesButton = [NSButton checkboxWithTitle:@"云候选（输入内容会离开本机）"
+                                                  target:self
+                                                  action:@selector(inputBehaviorChanged:)];
+    _cloudCandidatesButton.identifier = @"cloudCandidates";
+    _translationProviderButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_translationProviderButton addItemsWithTitles:@[ @"腾讯云", @"DeepLX（自部署）" ]];
+    _translationProviderButton.identifier = @"translationProvider";
+    _translationProviderButton.target = self;
+    _translationProviderButton.action = @selector(translationProviderChanged:);
+    _translationLanguageButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_translationLanguageButton addItemsWithTitles:@[ @"英语", @"日语", @"韩语" ]];
+    _translationLanguageButton.identifier = @"translationLanguage";
+    _translationLanguageButton.target = self;
+    _translationLanguageButton.action = @selector(inputBehaviorChanged:);
+    _translationSecretIdField = [NSTextField textFieldWithString:@""];
+    _translationSecretIdField.placeholderString = @"SecretId";
+    _translationSecretIdField.identifier = @"translationSecretId";
+    _translationSecretIdField.target = self;
+    _translationSecretIdField.action = @selector(translationCredentialChanged:);
+    _translationSecretKeyField = [[NSSecureTextField alloc] initWithFrame:NSZeroRect];
+    _translationSecretKeyField.stringValue = @"";
+    _translationSecretKeyField.placeholderString = @"SecretKey";
+    _translationSecretKeyField.identifier = @"translationSecretKey";
+    _translationSecretKeyField.target = self;
+    _translationSecretKeyField.action = @selector(translationCredentialChanged:);
+    _translationEndpointField = [NSTextField textFieldWithString:@""];
+    _translationEndpointField.placeholderString = @"https://your-deeplx.example/translate";
+    _translationEndpointField.identifier = @"translationEndpoint";
+    _translationEndpointField.target = self;
+    _translationEndpointField.action = @selector(translationCredentialChanged:);
+    _translationTencentIdRow = PreferenceRow(@"腾讯云 SecretId", _translationSecretIdField);
+    _translationTencentKeyRow = PreferenceRow(@"腾讯云 SecretKey", _translationSecretKeyField);
+    _translationEndpointRow = PreferenceRow(@"DeepLX Endpoint", _translationEndpointField);
+    NSBox *translationCard = CardWithViews(
+        @[
+            _candidateTranslationButton, PreferenceRow(@"在线服务", _translationProviderButton),
+            PreferenceRow(@"目标语言", _translationLanguageButton),
+            _translationTencentIdRow, _translationTencentKeyRow, _translationEndpointRow
+        ],
+        8.0);
+    NSView *shortcutsPage = PreferencesPage(@"快捷键", @"设置候选翻页与输入状态切换快捷键。", @[ shortcutCard ]);
+    shortcutsPage.accessibilityLabel = @"快捷键设置页";
 
     NSButton *backToKeyboardButton = [NSButton buttonWithTitle:@"返回键盘输入"
                                                         target:self
@@ -1032,23 +1370,78 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _candidatePanelStyleButton.accessibilityLabel = @"候选排列";
 
     _candidatePageSizeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
-    [_candidatePageSizeButton addItemsWithTitles:@[ @"5 个", @"7 个", @"9 个" ]];
+    for (NSInteger count = 1; count <= 9; ++count)
+        [_candidatePageSizeButton addItemWithTitle:[NSString stringWithFormat:@"%ld 个", (long)count]];
     _candidatePageSizeButton.target = self;
     _candidatePageSizeButton.action = @selector(candidatePageSizeChanged:);
     _candidatePageSizeButton.accessibilityLabel = @"每页候选";
 
     _candidateFontSizeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
-    [_candidateFontSizeButton addItemsWithTitles:@[ @"小（16 pt）", @"标准（18 pt）", @"大（20 pt）" ]];
+    for (NSInteger size = 12; size <= 36; ++size)
+        [_candidateFontSizeButton addItemWithTitle:[NSString stringWithFormat:@"%ld", (long)size]];
     _candidateFontSizeButton.target = self;
     _candidateFontSizeButton.action = @selector(candidateFontSizeChanged:);
     _candidateFontSizeButton.accessibilityLabel = @"候选字号";
 
+    _candidateFontButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    _candidateFallbackFontButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    for (NSPopUpButton *button in @[ _candidateFontButton, _candidateFallbackFontButton ])
+    {
+        [button addItemWithTitle:@"跟随系统"];
+        button.lastItem.representedObject = @"";
+        for (NSString *family in [NSFontManager.sharedFontManager.availableFontFamilies
+                 sortedArrayUsingSelector:@selector(localizedStandardCompare:)])
+        {
+            [button addItemWithTitle:family];
+            button.lastItem.representedObject = family;
+        }
+        button.target = self;
+        button.action = @selector(advancedAppearanceChanged:);
+    }
+    _candidateFontButton.accessibilityLabel = @"候选窗主字体";
+    _candidateFallbackFontButton.accessibilityLabel = @"候选窗中文补充字体";
+    _preeditFontSizeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    for (NSInteger size = 10; size <= 36; ++size)
+        [_preeditFontSizeButton addItemWithTitle:[NSString stringWithFormat:@"%ld", (long)size]];
+    _preeditFontSizeButton.target = self;
+    _preeditFontSizeButton.action = @selector(advancedAppearanceChanged:);
+    _preeditFontSizeButton.accessibilityLabel = @"候选窗预编辑字号";
+    _followCaretSwitch = [[NSSwitch alloc] initWithFrame:NSZeroRect];
+    _followCaretSwitch.target = self;
+    _followCaretSwitch.action = @selector(advancedAppearanceChanged:);
+    _followCaretSwitch.accessibilityLabel = @"候选窗口跟随光标";
+    _followCaretSwitch.toolTip = @"关闭后保持本次组合首次出现的位置，直到候选窗口消失。";
+    _themeButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+    [_themeButton addItemsWithTitles:@[ @"跟随系统", @"浅色", @"深色" ]];
+    _themeButton.target = self;
+    _themeButton.action = @selector(advancedAppearanceChanged:);
+    _themeButton.accessibilityLabel = @"主题模式";
+    _candidateColorWell = [[NSColorWell alloc] initWithFrame:NSMakeRect(0, 0, 40, 26)];
+    _candidateColorWell.target = self;
+    _candidateColorWell.action = @selector(advancedAppearanceChanged:);
+    _candidateColorWell.accessibilityLabel = @"候选文字颜色";
+    NSButton *resetColor = [NSButton buttonWithTitle:@"跟随主题" target:self action:@selector(resetCandidateColor:)];
+    NSStackView *colorControls = [NSStackView stackViewWithViews:@[ _candidateColorWell, resetColor ]];
+    colorControls.spacing = 8;
+    [_candidateColorWell.widthAnchor constraintEqualToConstant:40].active = YES;
+    [_candidateColorWell.heightAnchor constraintEqualToConstant:26].active = YES;
+
     _candidatePreview = [[MetasequoiaCandidatePreviewView alloc] initWithFrame:NSZeroRect];
     NSBox *appearanceCard = CardWithViews(
         @[
-            PreferenceRow(@"候选排列", _candidatePanelStyleButton),
-            PreferenceRow(@"每页候选", _candidatePageSizeButton),
+            PreferenceRow(@"候选窗口跟随光标", _followCaretSwitch),
+            CardSeparator(),
+            PreferenceRow(@"候选窗主字体", _candidateFontButton),
+            CardSeparator(),
+            PreferenceRow(@"候选窗中文补充字体", _candidateFallbackFontButton),
+            CardSeparator(),
             PreferenceRow(@"候选字号", _candidateFontSizeButton),
+            CardSeparator(),
+            PreferenceRow(@"候选窗预编辑字号", _preeditFontSizeButton),
+            CardSeparator(),
+            PreferenceRow(@"候选文字颜色", colorControls),
+            CardSeparator(),
+            PreferenceRow(@"每页候选项数量", _candidatePageSizeButton),
         ],
         4.0);
     appearanceCard.accessibilityLabel = @"候选窗口卡片";
@@ -1059,10 +1452,13 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSBox *floatingToolbarCard = CardWithViews(@[ _floatingToolbarButton ], 0.0);
     floatingToolbarCard.accessibilityLabel = @"悬浮状态栏卡片";
     NSView *appearancePage = PreferencesPage(@"外观", @"调整候选窗口与输入状态栏的显示方式。", @[
-        SectionLabel(@"效果预览"), _candidatePreview, SectionLabel(@"候选窗口"), appearanceCard,
-        SectionLabel(@"悬浮状态栏"), floatingToolbarCard
+        _candidatePreview, appearanceCard, CardWithViews(@[ PreferenceRow(@"主题模式", _themeButton) ], 0),
+        CardWithViews(@[ PreferenceRow(@"候选项排列方式", _candidatePanelStyleButton) ], 0)
     ]);
     appearancePage.accessibilityLabel = @"外观设置页";
+    NSView *floatingPage =
+        PreferencesPage(@"悬浮工具栏", @"随时查看输入状态，通过工具栏切换常用输入选项。", @[ floatingToolbarCard ]);
+    floatingPage.accessibilityLabel = @"悬浮工具栏设置页";
 
     _skinSettings = [[MetasequoiaSkinSettingsView alloc] initWithFrame:NSZeroRect];
 
@@ -1115,11 +1511,19 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _resetLearningButton.contentTintColor = [NSColor systemRedColor];
     _resetLearningButton.accessibilityLabel = @"清除学习数据";
 
+    NSView *helpcodePage = PreferencesPage(
+        @"辅助码", @"为全拼与双拼分别选择辅助码方案。",
+        @[ CardWithViews(
+            @[
+                _helpcodeButton, CardSeparator(), PreferenceRow(@"全拼辅助码方案", _quanpinHelpcodeSchemaButton),
+                CardSeparator(), PreferenceRow(@"双拼辅助码方案", _shuangpinHelpcodeSchemaButton)
+            ],
+            12.0) ]);
+    helpcodePage.accessibilityLabel = @"辅助码设置页";
     NSBox *learningCard = CardWithViews(
         @[
-            _helpcodeButton, PreferenceRow(@"全拼辅助码方案", _quanpinHelpcodeSchemaButton),
-            PreferenceRow(@"双拼辅助码方案", _shuangpinHelpcodeSchemaButton), _candidateLearningButton,
-            PreferenceRow(@"调频方式", _frequencyModeButton), PreferenceRow(@"触发频次", _frequencyTriggerCountButton),
+            _candidateLearningButton, PreferenceRow(@"调频方式", _frequencyModeButton),
+            PreferenceRow(@"触发频次", _frequencyTriggerCountButton),
             PreferenceRow(@"线性调频步长", _frequencyLinearStepButton), _localInputModesButton
         ],
         9.0);
@@ -1127,11 +1531,17 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSBox *resetCard =
         CardWithViews(@[ PreferenceRow(@"候选词频、用户词典与拼音学习记录", _resetLearningButton) ], 0.0);
     learningCard.accessibilityLabel = @"候选与学习卡片";
-    resetCard.accessibilityLabel = @"数据与隐私卡片";
-    NSView *dataPage = PreferencesPage(@"词库与数据", @"管理候选学习、辅助码与本机词库状态。", @[
-        SectionLabel(@"候选与学习"), learningCard, SectionLabel(@"词库状态"), dictionaryCard,
-        SectionLabel(@"数据与隐私"), resetCard
+    NSView *generalPage = PreferencesPage(@"键盘输入", @"选择中文或日语输入模式，并调整日常输入行为。", @[
+        languageCard, SectionLabel(@"中文输入方案"), schemeCard, SectionLabel(@"翻页键 · 可同时启用多组"), pagingCard,
+        SectionLabel(@"以词定字"), edgeCard, SectionLabel(@"中英混输"), mixedCard, SectionLabel(@"默认状态与简繁输出"),
+        modeCard, SectionLabel(@"候选词翻译与云候选"), translationCard, SectionLabel(@"标点与输入行为"),
+        punctuationCard, behaviorCard, SectionLabel(@"调频与候选学习"), learningCard
     ]);
+    generalPage.accessibilityLabel = @"键盘输入设置页";
+    resetCard.accessibilityLabel = @"数据与隐私卡片";
+    NSView *dataPage =
+        PreferencesPage(@"词库与数据", @"管理候选学习、辅助码与本机词库状态。",
+                        @[ SectionLabel(@"词库状态"), dictionaryCard, SectionLabel(@"数据与隐私"), resetCard ]);
     dataPage.accessibilityLabel = @"词库与数据设置页";
 
     _versionLabel = [NSTextField labelWithString:@"开发构建"];
@@ -1200,7 +1610,10 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     ]);
     updatesPage.accessibilityLabel = @"更新与反馈设置页";
 
-    _preferencePages = @[ generalPage, appearancePage, _skinSettings, dataPage, updatesPage, wubiPage ];
+    _preferencePages = @[
+        generalPage, appearancePage, _skinSettings, dataPage, updatesPage, wubiPage, helpcodePage, shortcutsPage,
+        floatingPage
+    ];
 
     NSButton *restoreButton = [NSButton buttonWithTitle:@"恢复默认设置" target:self action:@selector(restoreDefaults:)];
     restoreButton.bezelStyle = NSBezelStyleRounded;
@@ -1227,7 +1640,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [settingsPanel addSubview:closeButton];
 
     [NSLayoutConstraint activateConstraints:@[
-        [settingsPanel.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor],
+        [settingsPanel.leadingAnchor constraintEqualToAnchor:sidebar.trailingAnchor],
         [settingsPanel.trailingAnchor constraintEqualToAnchor:contentView.trailingAnchor],
         [settingsPanel.topAnchor constraintEqualToAnchor:contentView.topAnchor],
         [settingsPanel.bottomAnchor constraintEqualToAnchor:contentView.bottomAnchor],
@@ -1241,52 +1654,9 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         [closeButton.centerYAnchor constraintEqualToAnchor:restoreButton.centerYAnchor],
         [closeButton.widthAnchor constraintGreaterThanOrEqualToConstant:80.0],
     ]];
-    [self showPreferencesPageAtIndex:0 toolbarIndex:0];
+    [self showPreferencesPageAtIndex:1 navigationIndex:1];
     [self refreshUpdateControls];
     return self;
-}
-
-- (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar
-{
-    (void)toolbar;
-    return _preferenceToolbarItemIdentifiers;
-}
-
-- (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar
-{
-    (void)toolbar;
-    return _preferenceToolbarItemIdentifiers;
-}
-
-- (NSArray<NSToolbarItemIdentifier> *)toolbarSelectableItemIdentifiers:(NSToolbar *)toolbar
-{
-    (void)toolbar;
-    return _preferenceToolbarItemIdentifiers;
-}
-
-- (NSToolbarItem *)toolbar:(NSToolbar *)toolbar
-        itemForItemIdentifier:(NSToolbarItemIdentifier)itemIdentifier
-    willBeInsertedIntoToolbar:(BOOL)flag
-{
-    (void)toolbar;
-    (void)flag;
-    const NSInteger index = [_preferenceToolbarItemIdentifiers indexOfObject:itemIdentifier];
-    if (index == NSNotFound)
-    {
-        return nil;
-    }
-    NSArray<NSString *> *labels = @[ @"键盘输入", @"外观", @"皮肤", @"词库与数据", @"更新与反馈" ];
-    NSArray<NSString *> *symbols =
-        @[ @"keyboard", @"paintpalette", @"paintbrush", @"books.vertical", @"arrow.triangle.2.circlepath" ];
-    NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:itemIdentifier];
-    item.label = labels[index];
-    item.paletteLabel = labels[index];
-    item.toolTip = labels[index];
-    item.image = [NSImage imageWithSystemSymbolName:symbols[index] accessibilityDescription:labels[index]];
-    item.target = self;
-    item.action = @selector(selectPreferencesPageFromToolbar:);
-    item.tag = index;
-    return item;
 }
 
 - (void)showBackendAccount:(id)sender
@@ -1313,23 +1683,34 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [_updateController checkForUpdates:sender];
 }
 
-- (void)selectPreferencesPageFromToolbar:(id)sender
+- (void)selectPreferencesPage:(NSButton *)sender
 {
-    NSToolbarItem *selectedItem = [sender isKindOfClass:[NSToolbarItem class]] ? (NSToolbarItem *)sender : nil;
-    const NSInteger selectedIndex = selectedItem == nil ? 0 : selectedItem.tag;
-    [self showPreferencesPageAtIndex:selectedIndex toolbarIndex:selectedIndex];
+    const NSInteger selectedIndex = sender.tag;
+    if (selectedIndex >= 9)
+    {
+        sender.state = NSControlStateValueOff;
+        if (selectedIndex == 9)
+            [[MetasequoiaVoiceSettingsWindow sharedController] showAndActivate];
+        else if (selectedIndex == 10)
+            [self openWebsite:nil];
+        else if (selectedIndex == 11)
+            [self openFeedback:nil];
+        return;
+    }
+    [self showPreferencesPageAtIndex:selectedIndex navigationIndex:selectedIndex];
 }
 
-- (void)showPreferencesPageAtIndex:(NSInteger)pageIndex toolbarIndex:(NSInteger)toolbarIndex
+- (void)showPreferencesPageAtIndex:(NSInteger)pageIndex navigationIndex:(NSInteger)navigationIndex
 {
     for (NSInteger index = 0; index < static_cast<NSInteger>(_preferencePages.count); ++index)
     {
         const BOOL selected = index == pageIndex;
         _preferencePages[index].hidden = !selected;
     }
-    if (toolbarIndex >= 0 && toolbarIndex < static_cast<NSInteger>(_preferenceToolbarItemIdentifiers.count))
+    for (NSButton *button in _navigationButtons)
     {
-        self.window.toolbar.selectedItemIdentifier = _preferenceToolbarItemIdentifiers[toolbarIndex];
+        button.state = button.tag == navigationIndex ? NSControlStateValueOn : NSControlStateValueOff;
+        button.needsDisplay = YES;
     }
 }
 
@@ -1337,13 +1718,13 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 {
     (void)sender;
     [self refreshControls];
-    [self showPreferencesPageAtIndex:5 toolbarIndex:0];
+    [self showPreferencesPageAtIndex:5 navigationIndex:0];
 }
 
 - (void)backToKeyboardInput:(id)sender
 {
     (void)sender;
-    [self showPreferencesPageAtIndex:0 toolbarIndex:0];
+    [self showPreferencesPageAtIndex:0 navigationIndex:0];
 }
 
 - (void)openWebsite:(id)sender
@@ -1369,6 +1750,63 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 - (void)dealloc
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [NSDistributedNotificationCenter.defaultCenter removeObserver:self];
+}
+
+- (void)appearancePreferencesChanged:(NSNotification *)notification
+{
+    (void)notification;
+    [NSUserDefaults.standardUserDefaults synchronize];
+    self.window.appearance = MetasequoiaForcedAppearance();
+    [self refreshAdvancedAppearanceControls];
+    [_candidatePreview updatePanelStyle:[MetasequoiaPreferencesWindowController storedCandidatePanelStyle]
+                               pageSize:[MetasequoiaPreferencesWindowController storedCandidatePageSize]
+                               fontSize:[MetasequoiaPreferencesWindowController storedCandidateFontSize]];
+    [_skinSettings refreshSelection];
+}
+
+- (void)refreshAdvancedAppearanceControls
+{
+    if (_candidateFontButton == nil)
+        return;
+    NSDictionary *values = MetasequoiaAppearancePreferences();
+    for (NSPopUpButton *button in @[ _candidateFontButton, _candidateFallbackFontButton ])
+    {
+        NSString *key = button == _candidateFontButton ? @"font" : @"fallbackFont";
+        NSInteger index = [button indexOfItemWithRepresentedObject:values[key] ? values[key] : @""];
+        [button selectItemAtIndex:index == -1 ? 0 : index];
+    }
+    _followCaretSwitch.state = MetasequoiaCandidateFollowsCaret() ? NSControlStateValueOn : NSControlStateValueOff;
+    [_preeditFontSizeButton selectItemAtIndex:MetasequoiaAppearanceInteger(@"preeditSize", 15, 10, 36) - 10];
+    [_themeButton selectItemAtIndex:MetasequoiaAppearanceInteger(@"theme", 0, 0, 2)];
+    NSColor *color = MetasequoiaCandidateTextColor();
+    _candidateColorWell.color = color ? color : [_candidatePreview previewTextColor];
+}
+
+- (void)advancedAppearanceChanged:(id)sender
+{
+    if (sender == _candidateFontButton || sender == _candidateFallbackFontButton)
+        MetasequoiaSetAppearancePreference(sender == _candidateFontButton ? @"font" : @"fallbackFont",
+                                           [(NSPopUpButton *)sender selectedItem].representedObject);
+    else if (sender == _preeditFontSizeButton)
+        MetasequoiaSetAppearancePreference(@"preeditSize", @(_preeditFontSizeButton.indexOfSelectedItem + 10));
+    else if (sender == _themeButton)
+        MetasequoiaSetAppearancePreference(@"theme", @(_themeButton.indexOfSelectedItem));
+    else if (sender == _followCaretSwitch)
+        MetasequoiaSetAppearancePreference(@"followCaret", @(_followCaretSwitch.state == NSControlStateValueOn));
+    else if (sender == _candidateColorWell)
+    {
+        NSColor *color = [_candidateColorWell.color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+        if (color)
+            MetasequoiaSetAppearancePreference(
+                @"textColor", @[ @(color.redComponent), @(color.greenComponent), @(color.blueComponent) ]);
+    }
+}
+
+- (void)resetCandidateColor:(id)sender
+{
+    (void)sender;
+    MetasequoiaSetAppearancePreference(@"textColor", nil);
 }
 
 - (void)floatingToolbarPreferenceDidChange:(NSNotification *)notification
@@ -1397,6 +1835,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
 - (void)refreshControls
 {
+    [self refreshAdvancedAppearanceControls];
     const NSInteger storedScheme = [MetasequoiaPreferencesWindowController storedScheme];
     for (NSInteger index = 0; index < static_cast<NSInteger>(_schemeButtons.count); ++index)
     {
@@ -1445,6 +1884,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                               static_cast<size_t>([MetasequoiaPreferencesWindowController storedCandidateFontSize])))];
     [_candidatePageShortcutButton
         selectItemAtIndex:[MetasequoiaPreferencesWindowController storedCandidatePageShortcut]];
+    [self refreshInputBehaviorControls];
     [self refreshSkinControl];
     [_candidatePreview updatePanelStyle:[MetasequoiaPreferencesWindowController storedCandidatePanelStyle]
                                pageSize:[MetasequoiaPreferencesWindowController storedCandidatePageSize]
@@ -1676,6 +2116,91 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 {
     NSPopUpButton *shortcutButton = (NSPopUpButton *)sender;
     [MetasequoiaPreferencesWindowController setCandidatePageShortcut:shortcutButton.indexOfSelectedItem];
+    MetasequoiaSetInputBehavior(@"pageMinus", shortcutButton.indexOfSelectedItem == 0);
+    MetasequoiaSetInputBehavior(@"pageBrackets", shortcutButton.indexOfSelectedItem == 1);
+    MetasequoiaSetInputBehavior(@"pageKeys", 1);
+    [self refreshInputBehaviorControls];
+}
+
+- (void)refreshInputBehaviorControls
+{
+    const auto keys =
+        MetasequoiaCandidateKeyOptions([MetasequoiaPreferencesWindowController storedCandidatePageShortcut]);
+    NSDictionary *states = @{
+        @"pageMinus" : @(keys.minusEqual),
+        @"pageComma" : @(keys.commaPeriod),
+        @"pageBrackets" : @(keys.brackets),
+        @"pageKeys" : @(keys.pageKeys),
+        @"verticalNavigation" : @(keys.verticalNavigation),
+        @"edgeSelection" : @(keys.edgeSelection),
+        @"mixedEnglish" : @(MetasequoiaInputInteger(@"mixedEnglish", 0, 0, 1))
+    };
+    for (NSButton *button in _inputBehaviorButtons)
+        button.state = [states[button.identifier] boolValue] ? NSControlStateValueOn : NSControlStateValueOff;
+    [_englishMinimumPrefixButton selectItemAtIndex:MetasequoiaInputInteger(@"englishMinimumPrefix", 2, 1, 10) - 1];
+    _englishMinimumPrefixButton.enabled = [states[@"mixedEnglish"] boolValue];
+    [_defaultInputModeButton selectItemAtIndex:MetasequoiaInputInteger(@"defaultEnglish", 0, 0, 1)];
+    [_inputModeScopeButton selectItemAtIndex:MetasequoiaInputInteger(@"perApplicationMode", 0, 0, 1)];
+    [_outputScriptButton
+        selectItemAtIndex:[MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled] ? 1 : 0];
+    [_languageModeButton selectItemAtIndex:MetasequoiaInputInteger(@"japaneseMode", 0, 0, 1)];
+    _alwaysChinesePunctuationButton.state =
+        MetasequoiaInputFlag(@"alwaysChinesePunctuation") ? NSControlStateValueOn : NSControlStateValueOff;
+    _alwaysEnglishPunctuationButton.state =
+        MetasequoiaInputFlag(@"alwaysEnglishPunctuation") ? NSControlStateValueOn : NSControlStateValueOff;
+    _smartPunctuationButton.state =
+        MetasequoiaInputFlag(@"smartPunctuation") ? NSControlStateValueOn : NSControlStateValueOff;
+    _pairedPunctuationButton.state =
+        MetasequoiaInputFlag(@"pairedPunctuation") ? NSControlStateValueOn : NSControlStateValueOff;
+    _repeatPunctuationButton.state =
+        MetasequoiaInputFlag(@"repeatPunctuation") ? NSControlStateValueOn : NSControlStateValueOff;
+    _candidateTranslationButton.state =
+        MetasequoiaInputFlag(@"candidateTranslation") ? NSControlStateValueOn : NSControlStateValueOff;
+    _cloudCandidatesButton.state =
+        MetasequoiaInputFlag(@"cloudCandidates") ? NSControlStateValueOn : NSControlStateValueOff;
+    [_translationProviderButton selectItemAtIndex:MetasequoiaInputInteger(@"translationProvider", 0, 0, 1)];
+    [_translationLanguageButton selectItemAtIndex:MetasequoiaInputInteger(@"translationLanguage", 0, 0, 2)];
+    _translationProviderButton.enabled = _candidateTranslationButton.state == NSControlStateValueOn;
+    _translationLanguageButton.enabled = _candidateTranslationButton.state == NSControlStateValueOn;
+    const BOOL tencent = _translationProviderButton.indexOfSelectedItem == 0;
+    _translationSecretIdField.enabled = _candidateTranslationButton.state == NSControlStateValueOn && tencent;
+    _translationSecretKeyField.enabled = _candidateTranslationButton.state == NSControlStateValueOn && tencent;
+    _translationEndpointField.enabled = _candidateTranslationButton.state == NSControlStateValueOn && !tencent;
+    _translationTencentIdRow.hidden = !tencent;
+    _translationTencentKeyRow.hidden = !tencent;
+    _translationEndpointRow.hidden = tencent;
+    _translationSecretIdField.placeholderString = tencent ? @"SecretId（腾讯云）" : @"DeepLX 不需要 SecretId";
+    _translationSecretKeyField.placeholderString = tencent ? @"SecretKey（腾讯云）" : @"DeepLX 不需要 SecretKey";
+}
+
+- (void)translationCredentialChanged:(NSTextField *)sender
+{
+    [NSUserDefaults.standardUserDefaults setObject:sender.stringValue forKey:sender.identifier];
+}
+
+- (void)translationProviderChanged:(NSPopUpButton *)sender
+{
+    MetasequoiaSetInputBehavior(@"translationProvider", sender.indexOfSelectedItem);
+    [self refreshInputBehaviorControls];
+}
+
+- (void)inputModePreferenceChanged:(NSPopUpButton *)sender
+{
+    if ([sender.identifier isEqualToString:@"outputScript"])
+        [MetasequoiaPreferencesWindowController setTraditionalChineseOutputEnabled:sender.indexOfSelectedItem == 1];
+    else
+        MetasequoiaSetInputBehavior(sender.identifier, sender.indexOfSelectedItem);
+}
+
+- (void)inputBehaviorChanged:(NSButton *)sender
+{
+    MetasequoiaSetInputBehavior(sender.identifier, sender.state == NSControlStateValueOn);
+    [self refreshInputBehaviorControls];
+}
+
+- (void)englishMinimumPrefixChanged:(NSPopUpButton *)sender
+{
+    MetasequoiaSetInputBehavior(@"englishMinimumPrefix", sender.indexOfSelectedItem + 1);
 }
 
 - (void)inputModeShortcutChanged:(id)sender
@@ -1785,6 +2310,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
              kWubiMixedPinyinPreferenceKey,
              kShuangpinKeymapPreferenceKey,
              kLocalInputModesPreferenceKey,
+             MetasequoiaAppearancePreferencesKey,
+             MetasequoiaInputBehaviorKey,
              kFullWidthInputPreferenceKey,
              kFloatingToolbarPreferenceKey,
              kTraditionalChineseOutputPreferenceKey,
@@ -1794,6 +2321,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     }
 
     NSNotificationCenter *notifications = [NSNotificationCenter defaultCenter];
+    MetasequoiaSetAppearancePreference(@"theme", nil);
     [notifications postNotificationName:@"MetasequoiaInputSchemeDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedScheme])];
     [notifications postNotificationName:@"MetasequoiaShuangpinSchemaDidChangeNotification"

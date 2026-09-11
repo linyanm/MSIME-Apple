@@ -87,6 +87,29 @@ int main()
     using metasequoia::mac::NormalizeCandidatePanelStyle;
     using metasequoia::mac::NormalizeStoredInputScheme;
 
+    using metasequoia::mac::ClassifyConfiguredControllerKey;
+    metasequoia::mac::CandidateKeyOptions keys{true, true, true, true, true, false};
+    for (char key : std::string("-,["))
+        require(ClassifyConfiguredControllerKey(0, true, keys, key, false) == ControllerKeyAction::MoveCandidatePageUp,
+                "Enabled paging combinations must coexist.");
+    for (char key : std::string("=.]"))
+        require(ClassifyConfiguredControllerKey(0, true, keys, key, false) ==
+                    ControllerKeyAction::MoveCandidatePageDown,
+                "Enabled next-page combinations must coexist.");
+    keys.edgeSelection = true;
+    require(ClassifyConfiguredControllerKey(0, true, keys, '[', false) == ControllerKeyAction::CommitFirstHan &&
+                ClassifyConfiguredControllerKey(0, true, keys, ']', false) == ControllerKeyAction::CommitLastHan,
+            "Edge selection must take priority over conflicting bracket paging.");
+    require(ClassifyConfiguredControllerKey(0, false, keys, '[', false) == ControllerKeyAction::Character &&
+                ClassifyConfiguredControllerKey(0, true, keys, '[', true) == ControllerKeyAction::Character,
+            "Edge selection must not consume idle or modified punctuation.");
+    keys.pageKeys = false;
+    keys.verticalNavigation = false;
+    require(ClassifyConfiguredControllerKey(kVK_PageDown, true, keys, '\0', false) == ControllerKeyAction::Character &&
+                ClassifyConfiguredControllerKey(kVK_DownArrow, true, keys, '\0', false) ==
+                    ControllerKeyAction::Character,
+            "Disabled navigation keys must pass through.");
+
     require(NormalizeStoredInputScheme(0) == 0 && NormalizeStoredInputScheme(1) == 1 &&
                 NormalizeStoredInputScheme(2) == 2 && NormalizeStoredInputScheme(99) == 0,
             "The stored input scheme was not normalized safely.");
@@ -265,22 +288,22 @@ int main()
                 NormalizeCandidatePageSize(9) == 9 && NormalizeCandidatePageSize(0) == 9 &&
                 NormalizeCandidatePageSize(99) == 9,
             "The stored candidate page size was not normalized safely.");
-    require(CandidatePageSizeForOptionIndex(0) == 5 && CandidatePageSizeForOptionIndex(1) == 7 &&
-                CandidatePageSizeForOptionIndex(2) == 9 && CandidatePageSizeForOptionIndex(99) == 9 &&
-                CandidatePageSizeOptionIndex(5) == 0 && CandidatePageSizeOptionIndex(7) == 1 &&
-                CandidatePageSizeOptionIndex(9) == 2,
+    require(CandidatePageSizeForOptionIndex(0) == 1 && CandidatePageSizeForOptionIndex(5) == 6 &&
+                CandidatePageSizeForOptionIndex(8) == 9 && CandidatePageSizeForOptionIndex(99) == 9 &&
+                CandidatePageSizeOptionIndex(5) == 4 && CandidatePageSizeOptionIndex(7) == 6 &&
+                CandidatePageSizeOptionIndex(9) == 8,
             "The candidate page-size options did not map to persisted values.");
     require(metasequoia::mac::NormalizeCandidateFontSize(16) == 16 &&
                 metasequoia::mac::NormalizeCandidateFontSize(18) == 18 &&
                 metasequoia::mac::NormalizeCandidateFontSize(20) == 20 &&
                 metasequoia::mac::NormalizeCandidateFontSize(99) == 18,
             "The stored candidate font size was not normalized safely.");
-    require(metasequoia::mac::CandidateFontSizeForOptionIndex(0) == 16 &&
-                metasequoia::mac::CandidateFontSizeForOptionIndex(1) == 18 &&
-                metasequoia::mac::CandidateFontSizeForOptionIndex(2) == 20 &&
-                metasequoia::mac::CandidateFontSizeOptionIndex(16) == 0 &&
-                metasequoia::mac::CandidateFontSizeOptionIndex(18) == 1 &&
-                metasequoia::mac::CandidateFontSizeOptionIndex(20) == 2,
+    require(metasequoia::mac::CandidateFontSizeForOptionIndex(0) == 12 &&
+                metasequoia::mac::CandidateFontSizeForOptionIndex(5) == 17 &&
+                metasequoia::mac::CandidateFontSizeForOptionIndex(24) == 36 &&
+                metasequoia::mac::CandidateFontSizeOptionIndex(16) == 4 &&
+                metasequoia::mac::CandidateFontSizeOptionIndex(18) == 6 &&
+                metasequoia::mac::CandidateFontSizeOptionIndex(20) == 8,
             "The candidate font-size options did not map to persisted values.");
     require(metasequoia::mac::NormalizeCandidatePageShortcut(0) == CandidatePageShortcut::MinusEqual &&
                 metasequoia::mac::NormalizeCandidatePageShortcut(1) == CandidatePageShortcut::Brackets &&

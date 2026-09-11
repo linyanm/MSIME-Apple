@@ -22,9 +22,11 @@
 #import "VoiceSettings.h"
 #import "ShuangpinKeymapPanel.h"
 #import "UpdateController.h"
+#import "TranslationClient.h"
 #include "StringConversion.h"
 #include "CandidateSelectionState.h"
 #include "InputControllerKeyRouting.h"
+#include "InputBehaviorPreferences.h"
 #include <metasequoia/session.h>
 #include "../../../vendor/MetasequoiaImeEngine/contracts/punctuation/policy.h"
 
@@ -53,12 +55,16 @@ struct SessionPreferences
     metasequoia::FrequencyAdjustmentOptions frequency;
     bool wubiAutoCommitUniqueEnabled;
     bool wubiMixedPinyinEnabled;
+    bool mixedEnglish;
+    size_t englishMinimumPrefix;
 };
 
 SessionPreferences ReadSessionPreferences()
 {
-    const SchemeType scheme = metasequoia::mac::EngineSchemeForStoredPreference(
-        static_cast<int>([MetasequoiaPreferencesWindowController storedScheme]));
+    const SchemeType scheme = MetasequoiaInputInteger(@"japaneseMode", 0, 0, 1)
+                                  ? SchemeType::JapaneseRomaji
+                                  : metasequoia::mac::EngineSchemeForStoredPreference(
+                                        static_cast<int>([MetasequoiaPreferencesWindowController storedScheme]));
     const NSInteger helpcodeSchema = scheme == SchemeType::Shuangpin
                                          ? [MetasequoiaPreferencesWindowController storedShuangpinHelpcodeSchema]
                                          : [MetasequoiaPreferencesWindowController storedQuanpinHelpcodeSchema];
@@ -84,6 +90,8 @@ SessionPreferences ReadSessionPreferences()
             static_cast<int>([MetasequoiaPreferencesWindowController storedFrequencyLinearStep])),
         [MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled] == YES,
         [MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled] == YES,
+        MetasequoiaInputInteger(@"mixedEnglish", 0, 0, 1) != 0,
+        static_cast<size_t>(MetasequoiaInputInteger(@"englishMinimumPrefix", 2, 1, 10)),
     };
 }
 
@@ -107,7 +115,9 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
            options.learning == preferences.candidateLearningEnabled && wubiMixedPinyinMatches &&
            options.frequency.mode == preferences.frequency.mode &&
            options.frequency.trigger_count == preferences.frequency.trigger_count &&
-           options.frequency.linear_step == preferences.frequency.linear_step;
+           options.frequency.linear_step == preferences.frequency.linear_step &&
+           options.english.mixed_candidates == preferences.mixedEnglish &&
+           options.english.minimum_prefix == preferences.englishMinimumPrefix;
 }
 } // namespace
 
@@ -146,6 +156,11 @@ static NSHashTable *LiveDictionaryControllers()
     id<MetasequoiaVoiceService> _voiceService;
     NSUInteger _voiceGeneration;
     id _voiceMouseMonitor;
+    NSMutableDictionary<NSString *, NSString *> *_translationCache;
+    NSURLSessionDataTask *_translationTask;
+    NSUInteger _translationGeneration;
+    unichar _lastAsciiPunctuation;
+    NSTimeInterval _lastAsciiPunctuationTime;
 }
 
 // Main-thread publication first checks every composition, then releases every
@@ -169,6 +184,7 @@ static NSHashTable *LiveDictionaryControllers()
     if (self != nil)
     {
         _candidatePanel = [MetasequoiaCandidatePanel new];
+        _translationCache = [NSMutableDictionary dictionary];
         _candidatePanel.delegate = self;
         _floatingToolbarPanel = [MetasequoiaFloatingToolbarPanel sharedPanel];
         _shuangpinKeymapPanel = [[MetasequoiaShuangpinKeymapPanel alloc] init];
@@ -203,6 +219,7 @@ static NSHashTable *LiveDictionaryControllers()
 
 - (void)dealloc
 {
+    [_translationTask cancel];
     [_voiceService cancel];
     if (_voiceMouseMonitor)
         [NSEvent removeMonitor:_voiceMouseMonitor];
@@ -298,6 +315,8 @@ static NSHashTable *LiveDictionaryControllers()
     options.chinese_punctuation = preferences.chinesePunctuationEnabled;
     options.learning = preferences.candidateLearningEnabled;
     options.frequency = preferences.frequency;
+    options.english.mixed_candidates = preferences.mixedEnglish;
+    options.english.minimum_prefix = preferences.englishMinimumPrefix;
     options.wubi.mixed_pinyin = preferences.wubiMixedPinyinEnabled;
     options.local_modes = [self localInputModeOptions];
     _session = std::make_unique<metasequoia::Session>(options);
@@ -376,6 +395,13 @@ static NSHashTable *LiveDictionaryControllers()
     [super activateServer:sender];
     _serverActive = YES;
     _dictionaryRetryAfter = 0.0;
+    [NSUserDefaults.standardUserDefaults synchronize];
+    if (MetasequoiaInputInteger(@"perApplicationMode", 0, 0, 1))
+    {
+        NSString *identifier =
+            [sender respondsToSelector:@selector(bundleIdentifier)] ? [sender bundleIdentifier] : nil;
+        [MetasequoiaPreferencesWindowController setEnglishInputMode:MetasequoiaRememberedEnglishMode(identifier)];
+    }
     if (metasequoia::mac::ShouldPrepareInputSession([MetasequoiaPreferencesWindowController storedEnglishInputMode]) &&
         [self prepareSessionIfNeeded])
     {
@@ -410,6 +436,7 @@ static NSHashTable *LiveDictionaryControllers()
     NSRect caretRect = NSZeroRect;
     [self.client attributesForCharacterIndex:0 lineHeightRectangle:&caretRect];
     _candidatePanel.caretRect = caretRect;
+    _candidatePanel.preedit = MetasequoiaStringFromUtf8(_sessionSnapshot.preedit);
     [_candidatePanel setCandidateData:_visibleCandidateData];
     [_candidatePanel show:kIMKLocateCandidatesBelowHint];
     if (count >= 2)
@@ -562,17 +589,79 @@ static NSHashTable *LiveDictionaryControllers()
         charactersIgnoringModifiers.length == 1 && [charactersIgnoringModifiers characterAtIndex:0] <= 0x7f
             ? static_cast<char>([charactersIgnoringModifiers characterAtIndex:0])
             : '\0';
-    switch (metasequoia::mac::ClassifyControllerKey(
+    if (charactersIgnoringModifiers.length == 1 &&
+        metasequoia::punctuation_contract::is_supported(candidatePageShortcutCharacter) &&
+        MetasequoiaInputFlag(@"alwaysEnglishPunctuation") && !MetasequoiaInputFlag(@"alwaysChinesePunctuation") &&
+        _sessionSnapshot.preedit.empty())
+    {
+        if (MetasequoiaInputFlag(@"repeatPunctuation") && _lastAsciiPunctuation == candidatePageShortcutCharacter &&
+            [NSDate timeIntervalSinceReferenceDate] - _lastAsciiPunctuationTime <= 2.0)
+        {
+            id<IMKTextInput> inputClient = sender;
+            NSRange selected = [inputClient selectedRange];
+            if (selected.location != NSNotFound && selected.location > 0)
+            {
+                const char *mapped = metasequoia::punctuation_contract::simple_output(candidatePageShortcutCharacter);
+                NSString *replacement = mapped ? MetasequoiaStringFromUtf8(mapped) : @"";
+                if (replacement.length)
+                {
+                    [sender insertText:replacement replacementRange:NSMakeRange(selected.location - 1, 1)];
+                    _lastAsciiPunctuation = 0;
+                    return YES;
+                }
+            }
+        }
+        [sender insertText:charactersIgnoringModifiers replacementRange:NSMakeRange(NSNotFound, NSNotFound)];
+        _lastAsciiPunctuation = candidatePageShortcutCharacter;
+        _lastAsciiPunctuationTime = [NSDate timeIntervalSinceReferenceDate];
+        return YES;
+    }
+    if (charactersIgnoringModifiers.length == 1 && _sessionSnapshot.preedit.empty() &&
+        MetasequoiaInputFlag(@"pairedPunctuation"))
+    {
+        NSString *pair = nil;
+        switch (candidatePageShortcutCharacter)
+        {
+        case '(':
+            pair = @"（）";
+            break;
+        case '[':
+            pair = @"【】";
+            break;
+        case '"':
+            pair = @"“”";
+            break;
+        case '\'':
+            pair = @"‘’";
+            break;
+        case '<':
+            pair = @"《》";
+            break;
+        default:
+            break;
+        }
+        if (pair != nil)
+        {
+            // IMK has no setSelectedRange API. A marked pair with the caret between
+            // delimiters is the supported, focus-safe representation; the next key
+            // naturally replaces/commits it through the same client.
+            [sender setMarkedText:pair
+                   selectionRange:NSMakeRange(1, 0)
+                 replacementRange:NSMakeRange(NSNotFound, NSNotFound)];
+            return YES;
+        }
+    }
+    switch (metasequoia::mac::ClassifyConfiguredControllerKey(
         event.keyCode, [_candidatePanel isVisible],
-        metasequoia::mac::NormalizeCandidatePageShortcut(
-            static_cast<int>([MetasequoiaPreferencesWindowController storedCandidatePageShortcut])),
+        MetasequoiaCandidateKeyOptions([MetasequoiaPreferencesWindowController storedCandidatePageShortcut]),
         candidatePageShortcutCharacter, candidatePageShortcutModified))
     {
     case metasequoia::mac::ControllerKeyAction::MoveCandidateLeft:
     case metasequoia::mac::ControllerKeyAction::MoveCandidateRight:
     case metasequoia::mac::ControllerKeyAction::MoveCandidateUp:
     case metasequoia::mac::ControllerKeyAction::MoveCandidateDown: {
-        if (!metasequoia::mac::IsPrimaryCandidateDirection(event.keyCode, _candidatePanel.panelType))
+        if (event.keyCode != kVK_UpArrow && event.keyCode != kVK_DownArrow &&
+            !metasequoia::mac::IsPrimaryCandidateDirection(event.keyCode, _candidatePanel.panelType))
         {
             return YES;
         }
@@ -618,6 +707,19 @@ static NSHashTable *LiveDictionaryControllers()
     case metasequoia::mac::ControllerKeyAction::CommitCandidate:
         result = _candidateSelection.commit(*_session);
         break;
+    case metasequoia::mac::ControllerKeyAction::CommitFirstHan:
+    case metasequoia::mac::ControllerKeyAction::CommitLastHan: {
+        const auto current = _session->snapshot();
+        const size_t index = _candidateHighlightedIndex;
+        // Never commit a stale highlighted entry after a candidate refresh.
+        if (index >= current.candidates.size() || index >= _sessionSnapshot.candidates.size() ||
+            current.candidates[index].word != _sessionSnapshot.candidates[index].word)
+            return YES;
+        result =
+            _session->select_edge(index, candidatePageShortcutCharacter == '[' ? metasequoia::CandidateEdge::FirstHan
+                                                                               : metasequoia::CandidateEdge::LastHan);
+        break;
+    }
     case metasequoia::mac::ControllerKeyAction::Character: {
         NSString *characters = event.characters;
         if (characters.length == 1)
@@ -834,6 +936,7 @@ static NSHashTable *LiveDictionaryControllers()
 
 - (void)rebuildCandidatePanelPreservingSelection:(BOOL)preserveSelection
 {
+    ++_translationGeneration;
     _sessionSnapshot = _session->snapshot();
     const std::optional<size_t> preservedSelection =
         preserveSelection ? _candidateSelection.selected_index() : std::nullopt;
@@ -856,10 +959,19 @@ static NSHashTable *LiveDictionaryControllers()
         NSString *display = MetasequoiaStringFromUtf8(metasequoia::mac::CandidateDisplayText(
             candidate, _sessionSnapshot.scheme, annotateHelpcodes, _activeHelpcodeKeymap.get()));
         NSString *convertedDisplay = MetasequoiaChineseOutputString(display, traditionalOutput);
+        if (MetasequoiaInputFlag(@"candidateTranslation"))
+        {
+            NSString *language = @[ @"EN", @"JA", @"KO" ][MetasequoiaInputInteger(@"translationLanguage", 0, 0, 2)];
+            NSString *translation = _translationCache[
+                [NSString stringWithFormat:@"%@|%@", language, MetasequoiaStringFromUtf8(candidate.word)]];
+            if (translation.length)
+                convertedDisplay = [NSString stringWithFormat:@"%@  %@", convertedDisplay, translation];
+        }
         [data addObject:MetasequoiaIndexedCandidateString(convertedDisplay, candidateIndex)];
         ++candidateIndex;
     }
     _candidateData = [data copy];
+    [self requestCandidateTranslationsForSnapshot:_sessionSnapshot];
     if (!_sessionSnapshot.preedit.empty() && _candidateData.count > 0)
     {
         const NSUInteger selectedIndex =
@@ -885,6 +997,52 @@ static NSHashTable *LiveDictionaryControllers()
         _visibleCandidateData = @[];
         [_candidatePanel setCandidateData:_visibleCandidateData];
         [_candidatePanel hide];
+    }
+}
+
+- (void)requestCandidateTranslationsForSnapshot:(const metasequoia::SessionSnapshot &)snapshot
+{
+    if (!MetasequoiaInputFlag(@"candidateTranslation") || !snapshot.preedit.size())
+        return;
+    NSString *endpoint = [NSUserDefaults.standardUserDefaults stringForKey:@"translationEndpoint"];
+    const NSInteger provider = MetasequoiaInputInteger(@"translationProvider", 0, 0, 1);
+    NSString *secretId = [NSUserDefaults.standardUserDefaults stringForKey:@"translationSecretId"];
+    NSString *secretKey = [NSUserDefaults.standardUserDefaults stringForKey:@"translationSecretKey"];
+    if ((provider == 1 && endpoint.length == 0) || (provider == 0 && (!secretId.length || !secretKey.length)))
+        return;
+    const NSUInteger generation = _translationGeneration;
+    NSString *language = @[ @"EN", @"JA", @"KO" ][MetasequoiaInputInteger(@"translationLanguage", 0, 0, 2)];
+    const NSUInteger limit = MIN((NSUInteger)5, snapshot.candidates.size());
+    for (NSUInteger i = 0; i < limit; ++i)
+    {
+        NSString *word = MetasequoiaStringFromUtf8(snapshot.candidates[i].word);
+        NSString *key = [NSString stringWithFormat:@"%@|%@", language, word];
+        if (_translationCache[key] != nil)
+            continue;
+        __weak MetasequoiaInputController *weakSelf = self;
+        id client = provider == 1 ? (id)[MetasequoiaDeepLXClient new] : (id)[MetasequoiaTencentTmtClient new];
+        void (^completion)(NSString *, NSError *) = ^(NSString *text, NSError *error) {
+          dispatch_async(dispatch_get_main_queue(), ^{
+            MetasequoiaInputController *strongSelf = weakSelf;
+            if (!strongSelf || error || !text.length || !strongSelf->_session ||
+                strongSelf->_translationGeneration != generation)
+                return;
+            strongSelf->_translationCache[key] = text;
+            [strongSelf rebuildCandidatePanelPreservingSelection:YES];
+          });
+        };
+        if (provider == 1)
+            [(MetasequoiaDeepLXClient *)client translateText:word
+                                              targetLanguage:language
+                                                    endpoint:endpoint
+                                                  completion:completion];
+        else
+            [(MetasequoiaTencentTmtClient *)client translateText:word
+                                                  targetLanguage:language
+                                                          region:@"ap-guangzhou"
+                                                        secretId:secretId
+                                                       secretKey:secretKey
+                                                      completion:completion];
     }
 }
 
@@ -1130,6 +1288,8 @@ static NSHashTable *LiveDictionaryControllers()
     [_candidatePanel hide];
     [_shuangpinKeymapPanel orderOut:nil];
     [MetasequoiaPreferencesWindowController setEnglishInputMode:enabled];
+    NSString *identifier = [sender respondsToSelector:@selector(bundleIdentifier)] ? [sender bundleIdentifier] : nil;
+    MetasequoiaRememberEnglishMode(identifier, enabled);
 }
 
 - (void)floatingToolbarDidRequestToggleInputMode:(MetasequoiaFloatingToolbarPanel *)toolbar
