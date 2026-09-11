@@ -683,7 +683,7 @@ int main()
                     shuangpinHelpcodeSchemaButton.enabled,
                 "The helpcode controls did not reflect the stored schemes and enabled state.");
 
-        NSView *shortcutView = FindViewWithAccessibilityLabel(controller.window.contentView, @"Shift+Space 切换中英文");
+        NSView *shortcutView = FindViewWithAccessibilityLabel(controller.window.contentView, @"Shift 切换中英文");
         require([shortcutView isKindOfClass:[NSButton class]],
                 "The settings window did not expose the input-mode shortcut control.");
         NSButton *shortcutButton = (NSButton *)shortcutView;
