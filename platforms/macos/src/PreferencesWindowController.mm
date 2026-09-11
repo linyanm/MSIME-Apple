@@ -107,6 +107,8 @@ NSString *const kFrequencyTriggerCountPreferenceKey = @"MetasequoiaImeFrequencyT
 NSString *const kFrequencyLinearStepPreferenceKey = @"MetasequoiaImeFrequencyLinearStep";
 NSString *const kEnglishInputModePreferenceKey = @"MetasequoiaImeEnglishInputMode";
 NSString *const kInputModeShortcutPreferenceKey = @"MetasequoiaImeInputModeShortcutEnabled";
+// Absent from the cloud snapshot until the backend schema declares it, like the wubi keys below.
+NSString *const kInputModeHUDPreferenceKey = @"MetasequoiaImeInputModeHUD";
 NSString *const kFullWidthInputPreferenceKey = @"MetasequoiaImeFullWidthInputEnabled";
 NSString *const kFloatingToolbarPreferenceKey = @"MetasequoiaImeFloatingToolbarEnabled";
 NSString *const kTraditionalChineseOutputPreferenceKey = @"MetasequoiaImeTraditionalChineseOutput";
@@ -341,6 +343,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSPopUpButton *_frequencyTriggerCountButton;
     NSPopUpButton *_frequencyLinearStepButton;
     NSButton *_inputModeShortcutButton;
+    NSButton *_inputModeHUDButton;
     NSButton *_fullWidthInputButton;
     NSButton *_floatingToolbarButton;
     NSButton *_wubiAutoCommitButton;
@@ -837,6 +840,21 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                         object:@(enabled)];
 }
 
+// On unless it was turned off. The floating toolbar is the only other sign of which mode is live,
+// and it is off by default, so without this a switch leaves nothing on screen to confirm it.
++ (BOOL)storedInputModeHUDEnabled
+{
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:kInputModeHUDPreferenceKey];
+    return value == nil ? YES : [value boolValue];
+}
+
++ (void)setInputModeHUDEnabled:(BOOL)enabled
+{
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kInputModeHUDPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaInputModeHUDDidChangeNotification"
+                                                        object:@(enabled)];
+}
+
 + (BOOL)storedInputModeShortcutEnabled
 {
     id value = [[NSUserDefaults standardUserDefaults] objectForKey:kInputModeShortcutPreferenceKey];
@@ -1181,10 +1199,17 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _chinesePunctuationButton = [NSButton checkboxWithTitle:@"使用中文标点"
                                                      target:self
                                                      action:@selector(chinesePunctuationChanged:)];
-    _inputModeShortcutButton = [NSButton checkboxWithTitle:@"Shift+Space 切换中英文"
+    _inputModeShortcutButton = [NSButton checkboxWithTitle:@"Shift 切换中英文"
                                                     target:self
                                                     action:@selector(inputModeShortcutChanged:)];
-    _inputModeShortcutButton.accessibilityLabel = @"Shift+Space 切换中英文";
+    _inputModeShortcutButton.accessibilityLabel = @"Shift 切换中英文";
+    _inputModeShortcutButton.toolTip =
+        @"单独按一下 Shift 切换中英文，Shift+Space 同样可用。正在输入时按 Shift 则把已经打出的字母按英文上屏。";
+    _inputModeHUDButton = [NSButton checkboxWithTitle:@"切换中英文时显示提示"
+                                               target:self
+                                               action:@selector(inputModeHUDChanged:)];
+    _inputModeHUDButton.accessibilityLabel = @"切换中英文时显示提示";
+    _inputModeHUDButton.toolTip = @"切换后在光标下方短暂显示「中」或「英」。";
     _fullWidthInputButton = [NSButton checkboxWithTitle:@"Option+Shift+H 切换全半角"
                                                  target:self
                                                  action:@selector(fullWidthInputChanged:)];
@@ -1212,7 +1237,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSBox *shortcutCard = CardWithViews(
         @[
             PreferenceRow(@"上翻 / 下翻", _candidatePageShortcutButton), CardSeparator(), _inputModeShortcutButton,
-            _fullWidthInputButton
+            _inputModeHUDButton, _fullWidthInputButton
         ],
         12.0);
     schemeCard.accessibilityLabel = @"输入方式卡片";
@@ -1954,6 +1979,9 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [_frequencyLinearStepButton
         selectItemAtIndex:[MetasequoiaPreferencesWindowController storedFrequencyLinearStep] - 1];
     [self updateFrequencyControlEnabled];
+    _inputModeHUDButton.state = [MetasequoiaPreferencesWindowController storedInputModeHUDEnabled]
+                                    ? NSControlStateValueOn
+                                    : NSControlStateValueOff;
     _inputModeShortcutButton.state = [MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled]
                                          ? NSControlStateValueOn
                                          : NSControlStateValueOff;
@@ -2273,6 +2301,12 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [MetasequoiaPreferencesWindowController setInputModeShortcutEnabled:button.state == NSControlStateValueOn];
 }
 
+- (void)inputModeHUDChanged:(id)sender
+{
+    NSButton *button = (NSButton *)sender;
+    [MetasequoiaPreferencesWindowController setInputModeHUDEnabled:button.state == NSControlStateValueOn];
+}
+
 - (void)fullWidthInputChanged:(id)sender
 {
     NSButton *button = (NSButton *)sender;
@@ -2376,6 +2410,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
              kFrequencyTriggerCountPreferenceKey,
              kFrequencyLinearStepPreferenceKey,
              kInputModeShortcutPreferenceKey,
+             kInputModeHUDPreferenceKey,
              kWubiAutoCommitUniquePreferenceKey,
              kWubiMixedPinyinPreferenceKey,
              kWubiCodeHintPreferenceKey,
@@ -2423,6 +2458,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                  object:[MetasequoiaPreferencesWindowController storedFrequencyAdjustmentMode]];
     [notifications postNotificationName:@"MetasequoiaInputModeShortcutDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled])];
+    [notifications postNotificationName:@"MetasequoiaInputModeHUDDidChangeNotification"
+                                 object:@([MetasequoiaPreferencesWindowController storedInputModeHUDEnabled])];
     [notifications postNotificationName:@"MetasequoiaWubiMixedPinyinDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled])];
     [notifications postNotificationName:@"MetasequoiaWubiAutoCommitUniqueDidChangeNotification"

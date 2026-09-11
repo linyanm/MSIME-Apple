@@ -99,18 +99,30 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertNotIn("<rect", menu_icon_svg)
 
         icon_path = MACOS_ROOT / "resources" / menu_icon
-        dpi_output = subprocess.check_output(
-            ["sips", "-g", "dpiWidth", "-g", "dpiHeight", str(icon_path)],
-            text=True,
+        # The input menu draws this through HIToolbox, which reads the TIFF's pages rather than the
+        # DPI metadata of a single one. A lone 2x page is taken for a 32-point image and cropped by
+        # the 16-point slot to whatever sits in its middle, which for this stroke arrives as a solid
+        # square. Apple's own input methods ship both pages; so does this.
+        pages = subprocess.check_output(["tiffutil", "-info", str(icon_path)], text=True)
+        self.assertEqual(
+            re.findall(r"Image Width: (\d+) Image Length: (\d+)", pages),
+            [("16", "16"), ("32", "32")],
         )
-        self.assertRegex(dpi_output, r"dpiWidth:\s*144(?:\.0+)?")
-        self.assertRegex(dpi_output, r"dpiHeight:\s*144(?:\.0+)?")
+        self.assertEqual(re.findall(r"Resolution: (\d+), (\d+)", pages), [("72", "72"), ("144", "144")])
+        # The shape is carried by the alpha channel, since the menu tints the icon as a template and
+        # a filled background would tint into a block.
+        self.assertEqual(pages.count("Alpha: Present"), 2)
 
         alpha_output = subprocess.check_output(
             ["sips", "-g", "hasAlpha", str(icon_path)],
             text=True,
         )
         self.assertRegex(alpha_output, r"hasAlpha:\s*yes")
+
+        # The tile is square, and the script that renders it from the SVG stays in the tree so the
+        # next edit to the stroke can reproduce both pages.
+        self.assertRegex(menu_icon_svg, r'viewBox="[\d.]+ [\d.]+ ([\d.]+) \1"')
+        self.assertTrue((MACOS_ROOT / "scripts" / "render_menu_icon.swift").is_file())
 
     def test_input_controller_survives_the_engine_helpcode_semantics(self):
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
@@ -279,6 +291,9 @@ class ReleaseConfigurationTests(unittest.TestCase):
 
     def test_punctuation_dispatch_matches_the_pinned_engine_table(self):
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
+        # Read the contract itself. punctuation_policy.cpp only forwards to it through simple_output
+        # and alternating_mapping, so scanning that file for case labels finds none and leaves this
+        # test asserting against an empty set.
         policy = json.loads(
             (PROJECT_ROOT / "vendor/MetasequoiaImeEngine/contracts/punctuation/policy.json").read_text()
         )
@@ -290,20 +305,21 @@ class ReleaseConfigurationTests(unittest.TestCase):
         engine_characters.update(
             (policy["nested"]["openingInput"], policy["nested"]["closingInput"])
         )
-
-        # The host delegates the supported-key decision to the pinned Engine contract, so a future
-        # contract addition cannot be silently omitted from this routing branch. Microsoft Shuangpin
-        # must try ';' as ing before that catch-all, or n; commits punctuation instead of composing.
-        character_input = controller.split("ControllerKeyAction::Character:", 1)[1]
-        self.assertIn(
-            "metasequoia::punctuation_contract::is_supported(static_cast<char>(character))",
-            character_input,
-        )
-        self.assertLess(
-            character_input.index("ShouldRouteSemicolonAsShuangpinInput"),
-            character_input.index("punctuation_contract::is_supported"),
-        )
+        self.assertIn("IsEnginePunctuationCharacter", controller)
+        self.assertIn("_session->punctuation(static_cast<char>(character))", controller)
         self.assertGreater(len(engine_characters), 10, "the Engine punctuation contract was not parsed")
+
+        # The host decides the supported keys with its own literal now that it no longer calls the
+        # contract's is_supported, so that literal is what has to stay in step with the pinned table.
+        # A contract addition that never reaches it would silently stop routing to the Engine.
+        handler = controller.split("bool IsEnginePunctuationCharacter", 1)[1].split("\n}", 1)[0]
+        literal = re.search(r'std::string\("((?:[^"\\]|\\.)*)"\)', handler)
+        self.assertIsNotNone(literal, "the punctuation handler must match against a string literal")
+        handled = set(literal.group(1).encode().decode("unicode_escape"))
+        self.assertEqual(
+            sorted(engine_characters - handled), [],
+            "every punctuation input the pinned contract defines must reach the Engine",
+        )
 
     def test_every_quanpin_autocorrect_type_reaches_both_apple_products(self):
         header = (PROJECT_ROOT / "vendor/MetasequoiaImeEngine/quanpin/quanpin_utils.h").read_text()
@@ -663,10 +679,6 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("candidatePageShortcutModified", handle_event)
         character_input = handle_event.split("ControllerKeyAction::Character:", 1)[1]
         self.assertNotIn("charactersIgnoringModifiers", character_input)
-        self.assertLess(
-            character_input.index("ShouldRouteSemicolonAsShuangpinInput"),
-            character_input.index("punctuation_contract::is_supported"),
-        )
         commit_composition = input_controller.split("- (void)commitComposition:(id)sender", 1)[1].split(
             "- (void)deactivateServer:(id)sender", 1
         )[0]

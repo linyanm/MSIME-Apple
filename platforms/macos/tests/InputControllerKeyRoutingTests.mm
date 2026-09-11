@@ -273,6 +273,54 @@ int main()
     require(metasequoia::mac::ShouldToggleInputMode(true, kVK_Space, NSEventModifierFlagShift) &&
                 !metasequoia::mac::ShouldToggleInputMode(false, kVK_Space, NSEventModifierFlagShift),
             "The input-mode shortcut preference did not gate Shift+Space.");
+
+    // Shift on its own. The press cannot tell a tap from the start of Shift+A, so only the release
+    // decides, and anything arriving in between takes the decision away.
+    {
+        using metasequoia::mac::ActionForSolitaryShift;
+        using metasequoia::mac::SolitaryShiftAction;
+        using metasequoia::mac::SolitaryShiftTracker;
+        const auto shift = NSEventModifierFlagShift;
+
+        SolitaryShiftTracker tap;
+        require(!tap.flagsChanged(shift, 1.0), "Pressing Shift fired before it was released.");
+        require(tap.flagsChanged(0, 1.1), "Releasing a solitary Shift did not fire.");
+        require(!tap.flagsChanged(0, 1.2), "A release with no press behind it fired.");
+
+        SolitaryShiftTracker withKey;
+        (void)withKey.flagsChanged(shift, 2.0);
+        withKey.keyDown();
+        require(!withKey.flagsChanged(0, 2.1), "Shift+key was taken for a solitary Shift.");
+
+        SolitaryShiftTracker held;
+        (void)held.flagsChanged(shift, 3.0);
+        require(!held.flagsChanged(0, 3.0 + metasequoia::mac::kSolitaryShiftInterval + 0.01),
+                "A held Shift switched the input mode on release.");
+
+        SolitaryShiftTracker chord;
+        (void)chord.flagsChanged(shift | NSEventModifierFlagCommand, 4.0);
+        require(!chord.flagsChanged(0, 4.1), "Command+Shift was taken for a solitary Shift.");
+
+        SolitaryShiftTracker capsLock;
+        (void)capsLock.flagsChanged(shift | NSEventModifierFlagCapsLock, 5.0);
+        require(capsLock.flagsChanged(NSEventModifierFlagCapsLock, 5.1),
+                "Caps Lock being on stopped Shift from switching the input mode.");
+
+        SolitaryShiftTracker cleared;
+        (void)cleared.flagsChanged(shift, 6.0);
+        cleared.reset();
+        require(!cleared.flagsChanged(0, 6.1), "A reset tracker still fired.");
+
+        // Letters on screen mean the tap converts them; nothing composing means it switches modes;
+        // the preference turns both off together.
+        require(ActionForSolitaryShift(true, true) == SolitaryShiftAction::CommitComposition,
+                "Shift during a composition did not commit what had been typed.");
+        require(ActionForSolitaryShift(true, false) == SolitaryShiftAction::ToggleInputMode,
+                "Shift with nothing composing did not switch the input mode.");
+        require(ActionForSolitaryShift(false, true) == SolitaryShiftAction::Ignore &&
+                    ActionForSolitaryShift(false, false) == SolitaryShiftAction::Ignore,
+                "The disabled shortcut preference still acted on Shift.");
+    }
     require(metasequoia::mac::ShouldPrepareInputSession(false) && !metasequoia::mac::ShouldPrepareInputSession(true),
             "Direct English mode did not bypass input-session preparation.");
     require(metasequoia::mac::NormalizeHelpcodeSchemaPreference(0) == 0 &&

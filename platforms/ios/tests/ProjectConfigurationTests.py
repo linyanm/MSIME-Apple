@@ -770,7 +770,7 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
         self.assertIn("render(session.handleCharacter(character))", character_handler)
         self.assertNotIn("uppercased()", character_handler.split("} else {", 1)[0])
 
-    def test_build_number_is_the_commit_count_and_not_the_marketing_version(self):
+    def test_build_number_comes_from_the_release_tag_and_not_the_marketing_version(self):
         # App Store Connect keys Beta App Review to CFBundleShortVersionString and rejects a repeated
         # CFBundleVersion inside it. Both used to carry the release version, which allowed exactly one
         # upload per release: a build that failed review could only be replaced by cutting another.
@@ -813,57 +813,38 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
             self.assertEqual(archived.returncode, 0, archived.stderr)
             self.assertEqual(archived.stdout, product_version, name)
 
-        start = 'if ! git -C "$project_root" rev-parse --git-dir'
-        end = 'build_number=$(git -C "$project_root" rev-list --count HEAD)'
-        fragments = {
-            name: script[script.index(start):script.index(end) + len(end)]
-            for name, script in scripts.items()
-        }
+        # The build number is no longer a commit count: a release tag carries it directly, and a
+        # METASEQUOIA_BUILD_NUMBER disagreeing with the tag has to stop the packaging rather than
+        # ship a number that contradicts the release it goes out under.
+        start = "build_number=${METASEQUOIA_BUILD_NUMBER:-$version}"
+        fragments = {}
+        for name, script in scripts.items():
+            begin = script.index(start)
+            fragments[name] = script[begin:script.index("\nfi\n", begin) + len("\nfi\n")]
         self.assertEqual(*fragments.values(), "both release paths must derive the build number alike")
 
         fragment = next(iter(fragments.values()))
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            origin = root / "origin"
-            origin.mkdir()
-            env = {
-                **os.environ,
-                "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
-            }
-            subprocess.run(["git", "init", "-q", "-b", "main", str(origin)], check=True)
-            for index in range(3):
-                (origin / "f").write_text(str(index))
-                subprocess.run(["git", "-C", str(origin), "add", "f"], check=True)
-                subprocess.run(
-                    ["git", "-C", str(origin), "commit", "-q", "-m", f"c{index}"], check=True, env=env
-                )
-
-            runner = root / "run.sh"
-            runner.write_text(
-                f'#!/usr/bin/env bash\nset -euo pipefail\nproject_root="$1"\n{fragment}\n'
-                'printf "%s\\n" "$build_number"\n'
+        for tag, supplied, expected in [
+            (f"v{product_version}", None, product_version),
+            (f"v{product_version}-build.1002.57.1", None, "1002.57.1"),
+            (f"ios-v{product_version}-build.1002.57.1", None, "1002.57.1"),
+            (f"v{product_version}-build.1002.57.1", "1002.57.1", "1002.57.1"),
+            (f"v{product_version}-build.1002.57.1", "1002.58.1", None),
+        ]:
+            environment = dict(os.environ, tag_name=tag, version=product_version)
+            environment.pop("METASEQUOIA_BUILD_NUMBER", None)
+            if supplied is not None:
+                environment["METASEQUOIA_BUILD_NUMBER"] = supplied
+            produced = subprocess.run(
+                ["bash", "-eu", "-c", fragment + '\nprintf "%s" "$build_number"'],
+                env=environment, text=True, capture_output=True,
             )
-            runner.chmod(0o755)
-
-            done = subprocess.run(
-                [str(runner), str(origin)], capture_output=True, text=True, check=True
-            )
-            self.assertEqual(done.stdout.strip(), "3")
-
-            # A shallow checkout restarts the count low enough that App Store Connect reads the next
-            # upload as a downgrade, so the scripts have to stop rather than produce that number.
-            shallow = root / "shallow"
-            subprocess.run(
-                ["git", "clone", "-q", "--depth", "1", origin.as_uri(), str(shallow)], check=True
-            )
-            refused = subprocess.run([str(runner), str(shallow)], capture_output=True, text=True)
-            self.assertNotEqual(refused.returncode, 0)
-            self.assertIn("shallow", refused.stderr)
-
-            outside = subprocess.run([str(runner), str(root)], capture_output=True, text=True)
-            self.assertNotEqual(outside.returncode, 0)
-            self.assertIn("Not a git checkout", outside.stderr)
+            if expected is None:
+                self.assertNotEqual(produced.returncode, 0, tag)
+                self.assertIn("does not match", produced.stderr)
+            else:
+                self.assertEqual(produced.returncode, 0, produced.stderr)
+                self.assertEqual(produced.stdout, expected, tag)
 
 
 if __name__ == "__main__":

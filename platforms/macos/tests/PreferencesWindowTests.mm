@@ -255,6 +255,12 @@ int main()
                 "Mixed wubi input was on before anyone asked for it.");
         require(![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled],
                 "The disabled Wubi auto-commit preference was not stored.");
+        require([MetasequoiaPreferencesWindowController storedInputModeHUDEnabled],
+                "The input-mode badge was off without anyone turning it off.");
+        [MetasequoiaPreferencesWindowController setInputModeHUDEnabled:NO];
+        require(![MetasequoiaPreferencesWindowController storedInputModeHUDEnabled],
+                "The disabled input-mode badge preference was not stored.");
+        [MetasequoiaPreferencesWindowController setInputModeHUDEnabled:YES];
         require([MetasequoiaPreferencesWindowController storedWubiCodeHintEnabled],
                 "The Wubi code hint was off without anyone turning it off.");
         [MetasequoiaPreferencesWindowController setWubiCodeHintEnabled:NO];
@@ -718,7 +724,17 @@ int main()
                     shuangpinHelpcodeSchemaButton.enabled,
                 "The helpcode controls did not reflect the stored schemes and enabled state.");
 
-        NSView *shortcutView = FindViewWithAccessibilityLabel(controller.window.contentView, @"Shift+Space 切换中英文");
+        NSView *hudView = FindViewWithAccessibilityLabel(controller.window.contentView, @"切换中英文时显示提示");
+        require([hudView isKindOfClass:[NSButton class]] && ((NSButton *)hudView).state == NSControlStateValueOn,
+                "The settings window did not reflect the stored input-mode badge preference.");
+        NSButton *hudButton = (NSButton *)hudView;
+        hudButton.state = NSControlStateValueOff;
+        require([NSApp sendAction:hudButton.action to:hudButton.target from:hudButton] &&
+                    ![MetasequoiaPreferencesWindowController storedInputModeHUDEnabled],
+                "The input-mode badge option did not persist its disabled state.");
+        [MetasequoiaPreferencesWindowController setInputModeHUDEnabled:YES];
+
+        NSView *shortcutView = FindViewWithAccessibilityLabel(controller.window.contentView, @"Shift 切换中英文");
         require([shortcutView isKindOfClass:[NSButton class]],
                 "The settings window did not expose the input-mode shortcut control.");
         NSButton *shortcutButton = (NSButton *)shortcutView;
@@ -996,6 +1012,7 @@ int main()
         [MetasequoiaPreferencesWindowController setWubiAutoCommitUniqueEnabled:YES];
         [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:YES];
         [MetasequoiaPreferencesWindowController setWubiCodeHintEnabled:NO];
+        [MetasequoiaPreferencesWindowController setInputModeHUDEnabled:NO];
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MetasequoiaImeShuangpinKeymapEnabled"];
         NSButton *restoreDefaultsButton = FindButtonWithTitle(controller.window.contentView, @"恢复默认设置");
         require(restoreDefaultsButton != nil, "The settings window did not expose the restore-defaults button.");
@@ -1021,6 +1038,7 @@ int main()
                 ![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled] &&
                 ![MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled] &&
                 [MetasequoiaPreferencesWindowController storedWubiCodeHintEnabled] &&
+                [MetasequoiaPreferencesWindowController storedInputModeHUDEnabled] &&
                 ![[NSUserDefaults standardUserDefaults] boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"] &&
                 [[MetasequoiaPreferencesWindowController storedShuangpinSchema] isEqualToString:@"xiaohe"],
             "Restoring defaults did not restore every visible setting.");
@@ -1042,6 +1060,7 @@ int main()
             @"MetasequoiaImeFrequencyTriggerCount",
             @"MetasequoiaImeFrequencyLinearStep",
             @"MetasequoiaImeInputModeShortcutEnabled",
+            @"MetasequoiaImeInputModeHUD",
             @"MetasequoiaImeFullWidthInputEnabled",
             @"MetasequoiaImeFloatingToolbarEnabled",
             @"MetasequoiaImeTraditionalChineseOutput",
