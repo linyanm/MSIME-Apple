@@ -1,5 +1,9 @@
 #import "MetasequoiaInputController.h"
 
+// Implemented in CandidateTranslationBridge.swift.
+extern "C" void MSIMETranslateCandidates(const char *wordsJSON, const char *languageName,
+                                         unsigned long long generation);
+
 #import "DictionaryInstaller.h"
 #include "DictionaryRuntime.h"
 #include "../../../shared/apple-bridge/DictionarySessionLease.h"
@@ -28,6 +32,7 @@
 #include "CandidateSelectionState.h"
 #include "InputControllerKeyRouting.h"
 #include "InputBehaviorPreferences.h"
+#include "CandidateTranslationLanguage.h"
 #include <metasequoia/session.h>
 #include "contracts/punctuation/policy.h"
 #include "quanpin/quanpin_utils.h"
@@ -236,6 +241,10 @@ static NSHashTable *LiveDictionaryControllers()
                                                  selector:@selector(wubiCodeHintPreferenceDidChange:)
                                                      name:@"MetasequoiaWubiCodeHintDidChangeNotification"
                                                    object:nil];
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(candidateTranslationsDidArrive:)
+                                                     name:@"MetasequoiaCandidateTranslationsDidArrive"
+                                                   object:nil];
     }
     return self;
 }
@@ -285,6 +294,29 @@ static NSHashTable *LiveDictionaryControllers()
     {
         [self refreshCandidatePanelPreservingSelection];
     }
+}
+
+// The account model answers for a whole page at once, so one reply fills several cache entries. A
+// reply for a composition that has already moved on is dropped rather than drawn over the new one.
+- (void)candidateTranslationsDidArrive:(NSNotification *)notification
+{
+    NSDictionary *info = notification.userInfo;
+    NSDictionary<NSString *, NSString *> *translations = info[@"translations"];
+    if (![translations isKindOfClass:[NSDictionary class]] ||
+        [info[@"generation"] unsignedLongLongValue] != _translationGeneration || _session == nullptr)
+        return;
+    const auto &languageEntry =
+        metasequoia::mac::CandidateTranslationLanguageAt(static_cast<std::size_t>(MetasequoiaInputInteger(
+            @"translationLanguage", 0, 0, metasequoia::mac::kCandidateTranslationLanguageCount - 1)));
+    NSString *language = @(languageEntry.code);
+    for (NSString *word in translations)
+    {
+        NSString *translation = translations[word];
+        if ([word isKindOfClass:[NSString class]] && [translation isKindOfClass:[NSString class]] && translation.length)
+            _translationCache[[NSString stringWithFormat:@"%@|%@", language, word]] = translation;
+    }
+    if (!_sessionSnapshot.preedit.empty())
+        [self rebuildCandidatePanelPreservingSelection:YES];
 }
 
 - (void)prepareForLearnedDataReset:(NSNotification *)notification
@@ -1017,7 +1049,11 @@ static NSHashTable *LiveDictionaryControllers()
         NSString *convertedDisplay = MetasequoiaChineseOutputString(display, traditionalOutput);
         if (MetasequoiaInputFlag(@"candidateTranslation"))
         {
-            NSString *language = @[ @"EN", @"JA", @"KO" ][MetasequoiaInputInteger(@"translationLanguage", 0, 0, 2)];
+            NSString *language =
+                @(metasequoia::mac::CandidateTranslationLanguageAt(
+                      static_cast<std::size_t>(MetasequoiaInputInteger(
+                          @"translationLanguage", 0, 0, metasequoia::mac::kCandidateTranslationLanguageCount - 1)))
+                      .code);
             NSString *translation = _translationCache[
                 [NSString stringWithFormat:@"%@|%@", language, MetasequoiaStringFromUtf8(candidate.word)]];
             if (translation.length)
@@ -1061,14 +1097,41 @@ static NSHashTable *LiveDictionaryControllers()
     if (!MetasequoiaInputFlag(@"candidateTranslation") || !snapshot.preedit.size())
         return;
     NSString *endpoint = [NSUserDefaults.standardUserDefaults stringForKey:@"translationEndpoint"];
-    const NSInteger provider = MetasequoiaInputInteger(@"translationProvider", 0, 0, 1);
+    const NSInteger providerIndex = MetasequoiaInputInteger(@"translationProvider", 0, 0, 2);
+    const auto provider = metasequoia::mac::CandidateTranslationProviderAt(static_cast<std::size_t>(providerIndex));
     NSString *secretId = [NSUserDefaults.standardUserDefaults stringForKey:@"translationSecretId"];
     NSString *secretKey = [NSUserDefaults.standardUserDefaults stringForKey:@"translationSecretKey"];
-    if ((provider == 1 && endpoint.length == 0) || (provider == 0 && (!secretId.length || !secretKey.length)))
+    if ((provider == metasequoia::mac::CandidateTranslationProvider::DeepLX && endpoint.length == 0) ||
+        (provider == metasequoia::mac::CandidateTranslationProvider::TencentMachineTranslation &&
+         (!secretId.length || !secretKey.length)))
         return;
     const NSUInteger generation = _translationGeneration;
-    NSString *language = @[ @"EN", @"JA", @"KO" ][MetasequoiaInputInteger(@"translationLanguage", 0, 0, 2)];
+    const auto &languageEntry =
+        metasequoia::mac::CandidateTranslationLanguageAt(static_cast<std::size_t>(MetasequoiaInputInteger(
+            @"translationLanguage", 0, 0, metasequoia::mac::kCandidateTranslationLanguageCount - 1)));
+    NSString *language = @(languageEntry.code);
     const NSUInteger limit = MIN((NSUInteger)5, snapshot.candidates.size());
+    if (provider == metasequoia::mac::CandidateTranslationProvider::AccountModel)
+    {
+        // One request for the whole page: a model keeps a page consistent when it sees it at once,
+        // and the account pays per call rather than per word.
+        NSMutableArray<NSString *> *pending = [NSMutableArray arrayWithCapacity:limit];
+        for (NSUInteger i = 0; i < limit; ++i)
+        {
+            NSString *word = MetasequoiaStringFromUtf8(snapshot.candidates[i].word);
+            if (_translationCache[[NSString stringWithFormat:@"%@|%@", language, word]] == nil)
+                [pending addObject:word];
+        }
+        if (pending.count == 0)
+            return;
+        NSData *payload = [NSJSONSerialization dataWithJSONObject:pending options:0 error:nil];
+        NSString *wordsJSON =
+            payload != nil ? [[NSString alloc] initWithData:payload encoding:NSUTF8StringEncoding] : nil;
+        if (wordsJSON.length)
+            MSIMETranslateCandidates(wordsJSON.UTF8String, languageEntry.name,
+                                     static_cast<unsigned long long>(generation));
+        return;
+    }
     for (NSUInteger i = 0; i < limit; ++i)
     {
         NSString *word = MetasequoiaStringFromUtf8(snapshot.candidates[i].word);
@@ -1076,7 +1139,8 @@ static NSHashTable *LiveDictionaryControllers()
         if (_translationCache[key] != nil)
             continue;
         __weak MetasequoiaInputController *weakSelf = self;
-        id client = provider == 1 ? (id)[MetasequoiaDeepLXClient new] : (id)[MetasequoiaTencentTmtClient new];
+        const bool viaDeepLX = provider == metasequoia::mac::CandidateTranslationProvider::DeepLX;
+        id client = viaDeepLX ? (id)[MetasequoiaDeepLXClient new] : (id)[MetasequoiaTencentTmtClient new];
         void (^completion)(NSString *, NSError *) = ^(NSString *text, NSError *error) {
           dispatch_async(dispatch_get_main_queue(), ^{
             MetasequoiaInputController *strongSelf = weakSelf;
@@ -1087,7 +1151,7 @@ static NSHashTable *LiveDictionaryControllers()
             [strongSelf rebuildCandidatePanelPreservingSelection:YES];
           });
         };
-        if (provider == 1)
+        if (viaDeepLX)
             [(MetasequoiaDeepLXClient *)client translateText:word
                                               targetLanguage:language
                                                     endpoint:endpoint

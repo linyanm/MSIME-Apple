@@ -8,6 +8,7 @@
 #include "../src/FullWidthInput.h"
 #include "../src/HelpcodeSchemaPreference.h"
 #include "../src/InputSchemePreference.h"
+#include "../src/CandidateTranslationLanguage.h"
 #include "../src/WubiCommitPolicy.h"
 #include "../../../vendor/MetasequoiaImeEngine/contracts/punctuation/policy.h"
 
@@ -20,6 +21,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <initializer_list>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -217,6 +219,41 @@ int main()
             "A candidate keyed outside the typed code was annotated as though it extended it.");
     require(WubiCodeHint(WordItem{"wqb", "爷", 1}, "wq") == "b" && WubiCodeHint(WordItem{"wqb", "爷", 1}, "").empty(),
             "The wubi hint did not report the keys that are left to press.");
+
+    // A stored language or provider index is written by whichever build the user last ran; a later
+    // one that grew the list must not send an earlier one reading past it.
+    {
+        using metasequoia::mac::CandidateTranslationLanguageAt;
+        using metasequoia::mac::CandidateTranslationProvider;
+        using metasequoia::mac::CandidateTranslationProviderAt;
+        using metasequoia::mac::kCandidateTranslationLanguageCount;
+
+        require(std::string(CandidateTranslationLanguageAt(0).code) == "EN" &&
+                    std::string(CandidateTranslationLanguageAt(0).name) == "English",
+                "The first translation language was not English.");
+        require(std::string(CandidateTranslationLanguageAt(3).code) == "ES" &&
+                    std::string(CandidateTranslationLanguageAt(3).name) == "Spanish",
+                "Spanish was not reachable among the translation languages.");
+        require(std::string(CandidateTranslationLanguageAt(kCandidateTranslationLanguageCount).code) == "EN" &&
+                    std::string(CandidateTranslationLanguageAt(999).code) == "EN",
+                "An out-of-range language index was not clamped to the first language.");
+        // Every entry carries both a service code and a name a model can read.
+        for (std::size_t i = 0; i < kCandidateTranslationLanguageCount; ++i)
+        {
+            const auto &entry = CandidateTranslationLanguageAt(i);
+            require(entry.title != nullptr && entry.code != nullptr && entry.name != nullptr &&
+                        std::strlen(entry.code) == 2 && std::strlen(entry.name) > 2,
+                    "A translation language was missing its title, service code or model name.");
+        }
+
+        require(CandidateTranslationProviderAt(0) == CandidateTranslationProvider::AccountModel,
+                "The account model was not the default translation provider.");
+        require(CandidateTranslationProviderAt(1) == CandidateTranslationProvider::TencentMachineTranslation &&
+                    CandidateTranslationProviderAt(2) == CandidateTranslationProvider::DeepLX,
+                "The phrase-based providers moved out from under their stored indexes.");
+        require(CandidateTranslationProviderAt(99) == CandidateTranslationProvider::AccountModel,
+                "An unknown provider index did not fall back to the account model.");
+    }
 
     const auto dictionarySuffix = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
     const std::filesystem::path dictionaryDirectory =

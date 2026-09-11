@@ -727,6 +727,20 @@ int main()
                     shuangpinHelpcodeSchemaButton.enabled,
                 "The helpcode controls did not reflect the stored schemes and enabled state.");
 
+        // The account's own model leads the providers, since it is the one needing no keys of the
+        // user's own, and the language list reaches past the three the phrase services shipped with.
+        NSView *translationProviderView =
+            FindViewWithAccessibilityLabel(controller.window.contentView, @"候选翻译在线服务");
+        NSView *translationLanguageView =
+            FindViewWithAccessibilityLabel(controller.window.contentView, @"候选翻译目标语言");
+        require([translationProviderView isKindOfClass:[NSPopUpButton class]] &&
+                    [translationLanguageView isKindOfClass:[NSPopUpButton class]],
+                "The settings window did not expose the candidate translation controls.");
+        require([((NSPopUpButton *)translationProviderView).itemTitles.firstObject isEqualToString:@"水杉账号 AI"],
+                "The account model was not offered first among the translation providers.");
+        require([((NSPopUpButton *)translationLanguageView).itemTitles containsObject:@"西班牙语"],
+                "The translation languages did not reach past the three the services shipped with.");
+
         NSView *hudView = FindViewWithAccessibilityLabel(controller.window.contentView, @"切换中英文时显示提示");
         require([hudView isKindOfClass:[NSButton class]] && ((NSButton *)hudView).state == NSControlStateValueOn,
                 "The settings window did not reflect the stored input-mode badge preference.");
