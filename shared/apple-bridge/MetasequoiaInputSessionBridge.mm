@@ -80,6 +80,7 @@ metasequoia::apple::DictionaryInstallation ConfigureDataDirectory(bool refresh =
                      commitText:(nullable NSString *)commitText
                         preedit:(NSString *)preedit
                      candidates:(NSArray<NSString *> *)candidates
+                 candidateCodes:(NSArray<NSString *> *)candidateCodes
                  diagnosticText:(nullable NSString *)diagnosticText;
 
 @end
@@ -90,6 +91,7 @@ metasequoia::apple::DictionaryInstallation ConfigureDataDirectory(bool refresh =
                      commitText:(nullable NSString *)commitText
                         preedit:(NSString *)preedit
                      candidates:(NSArray<NSString *> *)candidates
+                 candidateCodes:(NSArray<NSString *> *)candidateCodes
                  diagnosticText:(nullable NSString *)diagnosticText
 {
     self = [super init];
@@ -99,6 +101,7 @@ metasequoia::apple::DictionaryInstallation ConfigureDataDirectory(bool refresh =
         _commitText = [commitText copy];
         _preedit = [preedit copy];
         _candidates = [candidates copy];
+        _candidateCodes = [candidateCodes copy];
         _diagnosticText = [diagnosticText copy];
     }
     return self;
@@ -196,6 +199,7 @@ metasequoia::apple::DictionaryInstallation ConfigureDataDirectory(bool refresh =
                                                   commitText:nil
                                                      preedit:@""
                                                   candidates:@[]
+                                              candidateCodes:@[]
                                               diagnosticText:nil];
 }
 
@@ -584,6 +588,11 @@ metasequoia::apple::DictionaryInstallation ConfigureDataDirectory(bool refresh =
     {
         [candidates addObject:StringFromUTF8(candidate)];
     }
+    NSMutableArray<NSString *> *candidateCodes = [NSMutableArray arrayWithCapacity:snapshot.candidate_codes.size()];
+    for (const auto &code : snapshot.candidate_codes)
+    {
+        [candidateCodes addObject:StringFromUTF8(code)];
+    }
 
     NSString *commitText = snapshot.commit.has_value() ? StringFromUTF8(*snapshot.commit) : nil;
     const auto &diagnostic = snapshot.diagnostic ? snapshot.diagnostic : _installationDiagnostic;
@@ -592,6 +601,7 @@ metasequoia::apple::DictionaryInstallation ConfigureDataDirectory(bool refresh =
                                                   commitText:commitText
                                                      preedit:StringFromUTF8(snapshot.preedit)
                                                   candidates:candidates
+                                              candidateCodes:candidateCodes
                                               diagnosticText:diagnosticText];
 }
 

@@ -28,6 +28,7 @@
 #include "InputControllerKeyRouting.h"
 #include "InputBehaviorPreferences.h"
 #include <metasequoia/session.h>
+#include "quanpin/quanpin_utils.h"
 #include "../../../vendor/MetasequoiaImeEngine/contracts/punctuation/policy.h"
 
 #import <Carbon/Carbon.h>
@@ -39,6 +40,17 @@
 namespace
 {
 constexpr NSTimeInterval kDictionaryRetryDelay = 2.0;
+
+// The Engine split its single autocorrect flag into a per-type mask. The one preference this app
+// exposes is still a checkbox, and the flag it replaced corrected transpositions and neighbour
+// substitutions together, so an enabled checkbox means every type the Engine offers. Leaving a type
+// out here would silently narrow what an existing user already had switched on.
+constexpr unsigned kAllQuanpinAutocorrectTypes = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor;
+
+constexpr unsigned QuanpinAutocorrectTypesFor(bool enabled)
+{
+    return enabled ? kAllQuanpinAutocorrectTypes : 0u;
+}
 
 struct SessionPreferences
 {
@@ -111,7 +123,7 @@ bool SessionMatchesPreferences(const metasequoia::SessionOptions &options, const
     const bool wubiMixedPinyinMatches =
         preferences.scheme != SchemeType::Wubi || options.wubi.mixed_pinyin == preferences.wubiMixedPinyinEnabled;
     return options.scheme == preferences.scheme && shuangpinMatches &&
-           options.autocorrect == preferences.autocorrectEnabled && helpcodeMatches &&
+           options.autocorrect_types == QuanpinAutocorrectTypesFor(preferences.autocorrectEnabled) && helpcodeMatches &&
            options.chinese_punctuation == preferences.chinesePunctuationEnabled &&
            options.learning == preferences.candidateLearningEnabled && wubiMixedPinyinMatches &&
            options.frequency.mode == preferences.frequency.mode &&
@@ -214,6 +226,10 @@ static NSHashTable *LiveDictionaryControllers()
                                                          name:notificationName
                                                        object:nil];
         }
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(wubiCodeHintPreferenceDidChange:)
+                                                     name:@"MetasequoiaWubiCodeHintDidChangeNotification"
+                                                   object:nil];
     }
     return self;
 }
@@ -249,6 +265,17 @@ static NSHashTable *LiveDictionaryControllers()
     [self refreshFloatingToolbar];
     if ([notification.name isEqualToString:MetasequoiaTraditionalChineseOutputDidChangeNotification] && _serverActive &&
         _session != nullptr && !_sessionSnapshot.preedit.empty())
+    {
+        [self refreshCandidatePanelPreservingSelection];
+    }
+}
+
+// The hint is drawn from the snapshot already on screen, so a composition in progress can take the
+// new setting where a session option would have had to wait for the composition to end.
+- (void)wubiCodeHintPreferenceDidChange:(NSNotification *)notification
+{
+    (void)notification;
+    if (_serverActive && _session != nullptr && !_sessionSnapshot.preedit.empty())
     {
         [self refreshCandidatePanelPreservingSelection];
     }
@@ -310,7 +337,7 @@ static NSHashTable *LiveDictionaryControllers()
     options.paths = paths;
     options.scheme = preferences.scheme;
     options.shuangpin_profile = GetShuangpinProfile(preferences.shuangpinSchema);
-    options.autocorrect = preferences.autocorrectEnabled;
+    options.autocorrect_types = QuanpinAutocorrectTypesFor(preferences.autocorrectEnabled);
     options.helpcode = preferences.helpcodeEnabled;
     options.helpcode_schema = preferences.helpcodeSchema;
     options.chinese_punctuation = preferences.chinesePunctuationEnabled;
@@ -964,11 +991,20 @@ static NSHashTable *LiveDictionaryControllers()
     const bool annotateHelpcodes = (_sessionOptions.helpcode && SchemeUsesHelpcodes(_sessionSnapshot.scheme)) &&
                                    MetasequoiaInputFlag(_sessionSnapshot.scheme == SchemeType::Shuangpin ? @"shuangpinHelpcodeHints" : @"quanpinHelpcodeHints", YES) &&
                                    metasequoia::mac::HelpcodesAnnotateLocalMode(localMode);
+    // The preedit of a wubi composition is the code as typed, which is what each candidate's own
+    // code is measured against. A local input mode synthesises its candidates and the pinyin
+    // fallback answers with pinyin keys, and in neither case do the letters left over lead
+    // anywhere, so the hint is withheld by handing the display an empty code.
+    const bool annotateWubiCodes = _sessionSnapshot.scheme == SchemeType::Wubi &&
+                                   localMode == metasequoia::LocalInputMode::None &&
+                                   !_sessionSnapshot.answered_by_pinyin_fallback &&
+                                   [MetasequoiaPreferencesWindowController storedWubiCodeHintEnabled];
+    const std::string wubiTypedCode = annotateWubiCodes ? _sessionSnapshot.preedit : std::string{};
     NSUInteger candidateIndex = 0;
     for (const WordItem &candidate : _sessionSnapshot.candidates)
     {
         NSString *display = MetasequoiaStringFromUtf8(metasequoia::mac::CandidateDisplayText(
-            candidate, _sessionSnapshot.scheme, annotateHelpcodes, _activeHelpcodeKeymap.get()));
+            candidate, _sessionSnapshot.scheme, annotateHelpcodes, _activeHelpcodeKeymap.get(), wubiTypedCode));
         NSString *convertedDisplay = MetasequoiaChineseOutputString(display, traditionalOutput);
         if (MetasequoiaInputFlag(@"candidateTranslation"))
         {

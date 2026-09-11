@@ -116,6 +116,8 @@ NSString *const kWubiAutoCommitUniquePreferenceKey = @"MetasequoiaImeWubiAutoCom
 // know, and the download side refuses a snapshot whose key count does not match, so
 // syncing this early would break settings sync entirely rather than just this option.
 NSString *const kWubiMixedPinyinPreferenceKey = @"MetasequoiaImeWubiMixedPinyin";
+// Absent from the cloud snapshot for the same reason as the key above.
+NSString *const kWubiCodeHintPreferenceKey = @"MetasequoiaImeWubiCodeHint";
 NSString *const kShuangpinKeymapPreferenceKey = @"MetasequoiaImeShuangpinKeymapEnabled";
 NSString *const kLocalInputModesPreferenceKey = @"MetasequoiaImeLocalInputModesEnabled";
 
@@ -343,6 +345,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSButton *_floatingToolbarButton;
     NSButton *_wubiAutoCommitButton;
     NSButton *_wubiMixedPinyinButton;
+    NSButton *_wubiCodeHintButton;
     NSButton *_resetLearningButton;
     NSTextField *_statusLabel;
     NSTextField *_versionLabel;
@@ -901,6 +904,21 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                         object:@(enabled)];
 }
 
+// On unless it was turned off: a wubi table is read by code, and a candidate list that shows the
+// keys still to press is what every wubi frontend puts in front of a typist.
++ (BOOL)storedWubiCodeHintEnabled
+{
+    id value = [[NSUserDefaults standardUserDefaults] objectForKey:kWubiCodeHintPreferenceKey];
+    return value == nil ? YES : [value boolValue];
+}
+
++ (void)setWubiCodeHintEnabled:(BOOL)enabled
+{
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kWubiCodeHintPreferenceKey];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaWubiCodeHintDidChangeNotification"
+                                                        object:@(enabled)];
+}
+
 + (BOOL)storedWubiAutoCommitUniqueEnabled
 {
     return [[NSUserDefaults standardUserDefaults] boolForKey:kWubiAutoCommitUniquePreferenceKey];
@@ -1357,10 +1375,19 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                   action:@selector(wubiMixedPinyinChanged:)];
     _wubiMixedPinyinButton.accessibilityLabel = @"编码打不出时用拼音候选";
     _wubiMixedPinyinButton.toolTip = @"五笔词库答不上当前编码时，用同一串字母查全拼。词库答得上的编码不受影响。";
+    _wubiCodeHintButton = [NSButton checkboxWithTitle:@"候选显示剩余编码"
+                                               target:self
+                                               action:@selector(wubiCodeHintChanged:)];
+    _wubiCodeHintButton.accessibilityLabel = @"候选显示剩余编码";
+    _wubiCodeHintButton.toolTip = @"在候选后面标出还要再打哪几个字母才能单独打出它。已经打完整码的候选不标。";
     NSTextField *wubiSchemeLabel = [NSTextField labelWithString:@"86 五笔"];
     wubiSchemeLabel.textColor = [NSColor secondaryLabelColor];
     NSBox *wubiOptionsCard = CardWithViews(
-        @[ PreferenceRow(@"编码方案", wubiSchemeLabel), _wubiAutoCommitButton, _wubiMixedPinyinButton ], 8.0);
+        @[
+            PreferenceRow(@"编码方案", wubiSchemeLabel), _wubiAutoCommitButton, _wubiMixedPinyinButton,
+            _wubiCodeHintButton
+        ],
+        8.0);
     wubiOptionsCard.accessibilityLabel = @"五笔选项卡片";
     NSView *wubiPage = PreferencesPage(@"五笔设置", @"调整 86 五笔的输入与上屏行为。",
                                        @[ backToKeyboardButton, SectionLabel(@"输入行为"), wubiOptionsCard ]);
@@ -1930,6 +1957,9 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _wubiAutoCommitButton.state = [MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled]
                                       ? NSControlStateValueOn
                                       : NSControlStateValueOff;
+    _wubiCodeHintButton.state = [MetasequoiaPreferencesWindowController storedWubiCodeHintEnabled]
+                                    ? NSControlStateValueOn
+                                    : NSControlStateValueOff;
 }
 
 - (void)refreshDictionaryStatus
@@ -2249,6 +2279,12 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:button.state == NSControlStateValueOn];
 }
 
+- (void)wubiCodeHintChanged:(id)sender
+{
+    NSButton *button = sender;
+    [MetasequoiaPreferencesWindowController setWubiCodeHintEnabled:button.state == NSControlStateValueOn];
+}
+
 - (void)wubiAutoCommitUniqueChanged:(id)sender
 {
     NSButton *button = (NSButton *)sender;
@@ -2330,6 +2366,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
              kInputModeShortcutPreferenceKey,
              kWubiAutoCommitUniquePreferenceKey,
              kWubiMixedPinyinPreferenceKey,
+             kWubiCodeHintPreferenceKey,
              kShuangpinKeymapPreferenceKey,
              kLocalInputModesPreferenceKey,
              MetasequoiaAppearancePreferencesKey,
@@ -2378,6 +2415,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                  object:@([MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled])];
     [notifications postNotificationName:@"MetasequoiaWubiAutoCommitUniqueDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled])];
+    [notifications postNotificationName:@"MetasequoiaWubiCodeHintDidChangeNotification"
+                                 object:@([MetasequoiaPreferencesWindowController storedWubiCodeHintEnabled])];
     [notifications postNotificationName:@"MetasequoiaShuangpinKeymapDidChangeNotification"
                                  object:@([MetasequoiaPreferencesWindowController storedShuangpinKeymapEnabled])];
     [notifications postNotificationName:@"MetasequoiaFullWidthInputDidChangeNotification"

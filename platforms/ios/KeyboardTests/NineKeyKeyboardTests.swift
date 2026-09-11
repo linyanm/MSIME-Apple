@@ -926,6 +926,57 @@ final class NineKeyKeyboardTests: XCTestCase {
     }
   }
 
+  // An unfinished wubi code answers with the codes it can still become, so the strip has to say
+  // which keys single each candidate out. The code rides along the snapshot; the strip draws its
+  // tail past what has been typed.
+  func testWubiCandidatesCarryAndShowTheCodeLeftToType() throws {
+    let bridge = MetasequoiaInputSessionBridge()
+    _ = bridge.switchToWubi()
+    _ = bridge.handleCharacter("w")
+    let snapshot = bridge.handleCharacter("q")
+    XCTAssertEqual(snapshot.candidateCodes.count, snapshot.candidates.count)
+    let leading = try XCTUnwrap(snapshot.candidateCodes.first)
+    XCTAssertEqual(leading, "wq", "The code that was typed in full did not lead the list.")
+    XCTAssertTrue(
+      snapshot.candidateCodes.contains { $0.count > 2 && $0.hasPrefix("wq") },
+      "The snapshot carried no candidate reached by a longer code.")
+    _ = bridge.cancel()
+
+    XCTAssertEqual(WubiCodeHintPreference.hint(code: "wqb", typed: "wq"), "b")
+    XCTAssertEqual(WubiCodeHintPreference.hint(code: "wq", typed: "wq"), "")
+    XCTAssertEqual(WubiCodeHintPreference.hint(code: "wqb", typed: ""), "")
+    // What the mixed-pinyin fallback produces: keyed by spelling, and those letters lead nowhere in
+    // wubi, so the candidate is left unannotated.
+    XCTAssertEqual(WubiCodeHintPreference.hint(code: "ni'hao", typed: "nihao"), "")
+
+    let previous = InputSchemePreference.scheme
+    let previousHint = WubiCodeHintPreference.isEnabled
+    defer {
+      InputSchemePreference.scheme = previous
+      WubiCodeHintPreference.isEnabled = previousHint
+    }
+    XCTAssertTrue(previousHint, "The wubi code hint did not ship on.")
+    InputSchemePreference.scheme = .wubi
+    let controller = KeyboardViewController()
+    controller.loadViewIfNeeded()
+    func type(_ code: String) throws {
+      for character in code {
+        let key = try XCTUnwrap(descendants(controller.view).first {
+          $0.accessibilityLabel == "字母 \(String(character).uppercased())"
+        } as? UIButton)
+        key.sendActions(for: .primaryActionTriggered)
+      }
+    }
+    try type("wq")
+    let annotated = try descendants(controller.view).compactMap { $0 as? UIButton }.filter {
+      ($0.accessibilityIdentifier ?? "").hasPrefix("candidate-")
+    }
+    XCTAssertFalse(annotated.isEmpty, "Typing a wubi code produced no candidates.")
+    XCTAssertTrue(
+      annotated.contains { ($0.accessibilityLabel ?? "").contains("还需输入") },
+      "No candidate on the strip said which keys were left to press.")
+  }
+
   func testAdditionalEngineSchemesAndLocalProviders() throws {
     let bridge = MetasequoiaInputSessionBridge()
     _ = bridge.switchToWubi()

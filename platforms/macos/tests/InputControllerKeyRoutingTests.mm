@@ -199,6 +199,25 @@ int main()
                 CandidateDisplayText(WordItem{"abcd", "你", 1}, SchemeType::Wubi, true) == "你",
             "Candidate display exposed auxiliary codes when the feature or scheme did not allow them.");
 
+    // A wubi candidate is annotated with the keys that still single it out, so the hint is the tail
+    // of its own code. Helpcodes have no say in it: they annotate a word with how to reach it in
+    // pinyin, which is a different question than which key finishes the code in hand.
+    using metasequoia::mac::WubiCodeHint;
+    require(CandidateDisplayText(WordItem{"wqb", "爷", 1}, SchemeType::Wubi, false, nullptr, "wq") == "爷 b" &&
+                CandidateDisplayText(WordItem{"wqbb", "父子", 1}, SchemeType::Wubi, true, lantian.get(), "wq") ==
+                    "父子 bb",
+            "A wubi candidate did not show the code that is left to type.");
+    require(CandidateDisplayText(WordItem{"wq", "你", 1}, SchemeType::Wubi, false, nullptr, "wq") == "你",
+            "A wubi candidate typed in full was annotated with an empty hint.");
+    require(CandidateDisplayText(WordItem{"wqb", "爷", 1}, SchemeType::Wubi, false, nullptr, "") == "爷",
+            "A wubi candidate was annotated with the hint switched off.");
+    // The pinyin fallback keys its candidates by spelling, and those letters do not lead to the word
+    // in wubi. The controller withholds the typed code there; this is the second line of defence.
+    require(WubiCodeHint(WordItem{"ni'hao", "你好", 1}, "nihao").empty(),
+            "A candidate keyed outside the typed code was annotated as though it extended it.");
+    require(WubiCodeHint(WordItem{"wqb", "爷", 1}, "wq") == "b" && WubiCodeHint(WordItem{"wqb", "爷", 1}, "").empty(),
+            "The wubi hint did not report the keys that are left to press.");
+
     const auto dictionarySuffix = std::to_string(std::chrono::high_resolution_clock::now().time_since_epoch().count());
     const std::filesystem::path dictionaryDirectory =
         std::filesystem::temp_directory_path() / ("metasequoia-wubi-routing-" + dictionarySuffix);
