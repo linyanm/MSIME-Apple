@@ -5,7 +5,8 @@
 <!-- badges:start -->
 [![CI](https://img.shields.io/github/actions/workflow/status/metasequoiaime/MSIME-Apple/ci.yml?branch=develop&label=CI)](https://github.com/metasequoiaime/MSIME-Apple/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/metasequoiaime/MSIME-Apple/codeql.yml?branch=develop&label=CodeQL)](https://github.com/metasequoiaime/MSIME-Apple/actions/workflows/codeql.yml)
-[![Release](https://img.shields.io/github/v/release/metasequoiaime/MSIME-Apple?include_prereleases&label=release)](https://github.com/metasequoiaime/MSIME-Apple/releases)
+[![macOS](https://img.shields.io/github/v/release/metasequoiaime/MSIME-Apple?include_prereleases&filter=macos-*&label=macOS)](https://github.com/metasequoiaime/MSIME-Apple/releases)
+[![iOS](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmetasequoiaime%2FMSIME-Apple%2Fdevelop%2Fplatforms%2Fios%2Fproject.yml&query=%24.settings.base.MARKETING_VERSION&prefix=v&label=iOS&color=inactive)](docs/ios-distribution.md)
 [![License](https://img.shields.io/github/license/metasequoiaime/MSIME-Apple)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/metasequoiaime/MSIME-Apple?style=flat)](https://github.com/metasequoiaime/MSIME-Apple/stargazers)
 <!-- badges:end -->
