@@ -15,7 +15,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var fullSymbolsWidth: NSLayoutConstraint?
   private var bottomLanguageWidth: NSLayoutConstraint?
   private var bottomLanguageButton: UIButton?
-  private var appliedLayout: KeyboardLayoutPreset?
+  private var appliedLayout: KeyboardGeometry?
 
   private var keyboardHeightConstraint: NSLayoutConstraint?
   private let session = MetasequoiaInputSessionBridge()
@@ -119,8 +119,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   // The composition sits on its own line above the candidates. Both rows are reserved whether or
   // not anything is being composed, so no row appears or disappears mid-typing.
   // Not private: the height assertions derive from it rather than restating the sum.
-  static let compositionRowHeight: CGFloat = 24
-  private static let candidateStripHeight: CGFloat = 62
+  static let compositionRowHeight: CGFloat = 32
+  private static let candidateStripHeight: CGFloat = compositionRowHeight + 38
 
   private var feedbackStrength: KeyboardHapticStrength?
   private var feedbackGenerator: UIImpactFeedbackGenerator?
@@ -454,7 +454,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     container.addSubview(compositionRow)
 
     var preeditConfiguration = UIButton.Configuration.plain()
-    preeditConfiguration.contentInsets = .zero
+    preeditConfiguration.contentInsets = NSDirectionalEdgeInsets(
+      top: 4, leading: 8, bottom: 4, trailing: 8)
     // Truncate the tail. The head of a spelling is what tells the typist where a long composition
     // went wrong, so dropping it is dropping the useful half.
     preeditConfiguration.titleLineBreakMode = .byTruncatingTail
@@ -597,7 +598,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     scriptShortcut.addAction(UIAction { [weak self] _ in
       guard let self else { return }
       if inputScheme == .thoughtfulReply { showKeyboardAI(); return }
-      if KeyboardLayoutPreference.selected == .doubao { showKeyboardVoice(); return }
+      if KeyboardLayoutPreference.voiceShortcutEnabled { showKeyboardVoice(); return }
       usesTraditionalOutput.toggle()
       ChineseOutputPreference.usesTraditional = usesTraditionalOutput
       renderCandidateStrip()
@@ -630,7 +631,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       label: usesTraditionalOutput ? "切换到简体" : "切换到繁体", id: "scriptShortcut")
     scriptShortcut.isEnabled = !(isChineseMode && inputScheme.isJapanese)
     scriptShortcut.accessibilityValue = scriptShortcut.isEnabled ? (usesTraditionalOutput ? "繁体" : "简体") : "日语不使用简繁转换"
-    if KeyboardLayoutPreference.selected == .doubao {
+    if KeyboardLayoutPreference.voiceShortcutEnabled {
       configure(scriptShortcut, title: nil, symbol: "waveform", label: "语音结果", id: "layoutVoiceShortcut")
       scriptShortcut.isEnabled = true
       scriptShortcut.accessibilityValue = nil
@@ -643,8 +644,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     }
     configure(skinShortcut, title: nil, symbol: "tshirt", label: "切换皮肤", id: "skinShortcut")
     skinShortcut.accessibilityValue = KeyboardSkinPreference.selected.title
-    configure(layoutShortcut, title: nil, symbol: "square.grid.3x3", label: "切换布局", id: "layoutShortcut")
-    layoutShortcut.accessibilityValue = KeyboardLayoutPreference.selected.title
+    configure(layoutShortcut, title: nil, symbol: "slider.horizontal.3", label: "键盘设置", id: "layoutShortcut")
+    layoutShortcut.accessibilityValue = "默认键位"
     configure(moreShortcut, title: nil, symbol: nil, label: "更多快捷设置", id: "moreShortcut")
     moreMenu = UIMenu(children: [
       UIAction(title: "剪贴板历史", image: UIImage(systemName: "doc.on.clipboard")) { [weak self] _ in
@@ -1612,8 +1613,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
   private func updateLetterRowInsets() {
     guard letterRowViews.count > 1, let row = letterRowViews[1] as? UIStackView else { return }
-    let inset: CGFloat = KeyboardLayoutPreference.selected.centeredLetters && inputScheme != .microsoft
-      ? max(0, view.bounds.width - 10) * CGFloat(KeyboardLayoutPreference.selected.letterInsetRatio) : 0
+    let inset: CGFloat = KeyboardLayoutPreference.geometry.centeredLetters && inputScheme != .microsoft
+      ? max(0, view.bounds.width - 10) * CGFloat(KeyboardLayoutPreference.geometry.letterInsetRatio) : 0
     let margins = UIEdgeInsets(top: 0, left: inset, bottom: 0, right: inset)
     if row.layoutMargins != margins {
       row.isLayoutMarginsRelativeArrangement = true
@@ -1623,7 +1624,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
   private func applyLayoutPreferences() {
     guard actionRow != nil else { return }
-    let layout = KeyboardLayoutPreference.selected
+    let layout = KeyboardLayoutPreference.geometry
     updateLetterRowInsets()
     guard appliedLayout != layout else { return }
     appliedLayout = layout
@@ -1643,10 +1644,10 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     }
     nineKeyActionWidths[0].isActive = false
     nineKeyActionWidths[0] = nineKeySymbolsButton.widthAnchor.constraint(equalTo: nineKeyContainer.widthAnchor, multiplier: layout.sidebarRatio)
-    standardActionWidths[0].constant = layout == .msime ? 48.4 : 40
+    standardActionWidths[0].constant = 48.4
     standardActionWidths[1].constant = 44
-    standardActionWidths[2].constant = layout == .msime ? 59.4 : 48
-    quickPunctuationWidth?.constant = layout == .msime ? 44 : 28
+    standardActionWidths[2].constant = 59.4
+    quickPunctuationWidth?.constant = 44
     updateShortcutButtons()
   }
 
@@ -1656,7 +1657,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     microsoftFinalKey?.isHidden = !(isChineseMode && inputScheme == .microsoft && !session.isInLocalMode)
     let kana = isChineseMode && inputScheme == .japaneseNineKey && !session.isInLocalMode
     japaneseKeys?.isHidden = !kana || showsSymbols
-    japaneseHeight?.constant = KeyboardLayoutPreference.selected.rowSpacing * 2
+    japaneseHeight?.constant = KeyboardLayoutPreference.rowSpacing * 2
     japaneseHeight?.isActive = kana && !showsSymbols
     japaneseKeys?.applyLayout()
     let nineKey = isChineseMode && inputScheme == .nineKey && !session.isInLocalMode
@@ -1689,7 +1690,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         globeWidthConstraint = actionGlobeButton.widthAnchor.constraint(equalToConstant: 44)
         globeWidthConstraint?.isActive = true
       }
-      let layout = KeyboardLayoutPreference.selected
+      let layout = KeyboardLayoutPreference.geometry
       nineKeySymbolsButton.isHidden = !(usesNineKeyLayout || (layout.showsFullKeyboardSymbols && !showsSymbols))
       fullSymbolsWidth?.isActive = !nineKeySymbolsButton.isHidden && !usesNineKeyLayout
       bottomLanguageButton?.isHidden = false
@@ -2153,15 +2154,33 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private func showLayoutPicker() {
     closeKeyboardService()
     closeKeyboardPicker()
-    let picker = KeyboardLayoutPickerView(selected: KeyboardLayoutPreference.selected, nineKey: inputScheme == .nineKey, onSelect: { [weak self] layout in
-      guard let self else { return }
-      KeyboardLayoutPreference.selected = layout
-      closeKeyboardPicker()
-      applyLayoutPreferences()
-      updateKeyboardLayout()
-      updateShortcutButtons()
-      playInputClick()
-    }, onClose: { [weak self] in self?.closeKeyboardPicker() })
+    // The settings screen occupies the whole keyboard surface. Keeping the shortcut bar visible
+    // underneath makes the screen look like a translucent sheet and leaves a second toolbar at
+    // the bottom of the settings controls.
+    shortcutBar.isHidden = true
+    let picker = KeyboardLayoutPickerView(
+      keySpacing: KeyboardLayoutPreference.keySpacing,
+      rowSpacing: KeyboardLayoutPreference.rowSpacing,
+      voiceEnabled: KeyboardLayoutPreference.voiceShortcutEnabled,
+      onKeySpacing: { [weak self] spacing in
+        KeyboardLayoutPreference.keySpacing = spacing
+        self?.applyLayoutPreferences()
+      },
+      onRowSpacing: { [weak self] spacing in
+        KeyboardLayoutPreference.rowSpacing = spacing
+        self?.applyLayoutPreferences()
+      },
+      // Only the shortcut bar changes shape with this setting, so it is refreshed on its own. Going
+      // through updateKeyboardLayout would rebuild the keys and drop a composition in progress.
+      onVoice: { [weak self] enabled in
+        KeyboardLayoutPreference.voiceShortcutEnabled = enabled
+        self?.updateShortcutButtons()
+      },
+      onClose: { [weak self] in
+        guard let self else { return }
+        updateKeyboardLayout()
+        closeKeyboardPicker()
+      })
     picker.accessibilityIdentifier = "keyboardLayoutPicker"
     picker.accessibilityViewIsModal = true
     picker.translatesAutoresizingMaskIntoConstraints = false
@@ -2207,12 +2226,6 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       guard let self else { return }
       closeKeyboardPicker()
       if isChineseMode { toggleInputMode() }
-    }, onSelectSkin: { [weak self] skin in
-      guard let self else { return }
-      KeyboardFeedbackPreference.defaults.set(skin.rawValue, forKey: KeyboardSkinPreference.key)
-      closeKeyboardPicker()
-      applyKeyboardSkin()
-      playInputClick()
     }, onSettings: { [weak self] in
       self?.showMorePicker()
     }, onClose: { [weak self] in self?.closeKeyboardPicker() })
@@ -2262,6 +2275,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     if let picker = layoutPicker {
       picker.removeFromSuperview()
       layoutPicker = nil
+      shortcutBar.isHidden = false
       UIAccessibility.post(notification: .screenChanged, argument: layoutShortcut)
     }
     if let picker = morePicker {

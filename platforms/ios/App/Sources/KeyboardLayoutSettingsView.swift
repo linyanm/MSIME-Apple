@@ -1,43 +1,60 @@
 import SwiftUI
 
 struct KeyboardLayoutSettingsView: View {
-  @State private var selected = KeyboardLayoutPreference.selected
-  @State private var nineKey = InputSchemePreference.scheme == .nineKey
+  @State private var keySpacing = KeyboardLayoutPreference.keySpacing
+  @State private var rowSpacing = KeyboardLayoutPreference.rowSpacing
+  @State private var voice = KeyboardLayoutPreference.voiceShortcutEnabled
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 18) {
-        Text("换输入法，不换打字习惯").font(.title2.bold())
-        Text("选择熟悉的键位排列，颜色继续使用当前皮肤。")
-          .foregroundStyle(.secondary)
-        Picker("预览键盘", selection: $nineKey) {
-          Text("26 键").tag(false)
-          Text("9 键").tag(true)
-        }.pickerStyle(.segmented).accessibilityIdentifier("layoutPreviewMode")
-        ForEach(KeyboardLayoutPreset.allCases, id: \.self) { preset in
-          Button {
-            selected = preset
-            KeyboardLayoutPreference.selected = preset
-          } label: {
-            VStack(alignment: .leading, spacing: 10) {
-              HStack {
-                Text(preset.title).font(.headline)
-                Spacer()
-                Image(systemName: selected == preset ? "checkmark.circle.fill" : "circle")
-                  .foregroundStyle(selected == preset ? MetasequoiaTheme.accent : .secondary)
-              }
-              Text(preset.detail).font(.caption).foregroundStyle(.secondary)
-              KeyboardSkinPreview(skin: KeyboardSkinPreference.selected, nineKey: nineKey, layout: preset)
-            }.padding(14)
-              .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-              .overlay(RoundedRectangle(cornerRadius: 18).stroke(selected == preset ? MetasequoiaTheme.accent : .clear, lineWidth: 2))
-          }.buttonStyle(.plain).accessibilityIdentifier("layoutPreset_\(preset.rawValue)")
-            .accessibilityValue(selected == preset ? "已选择" : "未选择")
+    Form {
+      Section {
+        spacingRow("按键间距", value: $keySpacing, range: 3...6, identifier: "appKeySpacingSlider") {
+          KeyboardLayoutPreference.keySpacing = $0
         }
-        Text("布局调整按键排列和间距，不会切换输入方案或改变皮肤。语音入口用于打开已识别的语音结果。")
-          .font(.footnote).foregroundStyle(.secondary)
-      }.padding(20)
-    }.background(MetasequoiaTheme.canvas)
-      .navigationTitle("键盘布局").navigationBarTitleDisplayMode(.inline)
-      .onAppear { selected = KeyboardLayoutPreference.selected }
+        spacingRow("行间距", value: $rowSpacing, range: 4...10, identifier: "appRowSpacingSlider") {
+          KeyboardLayoutPreference.rowSpacing = $0
+        }
+      } header: {
+        Text("按键间距")
+      } footer: {
+        // 布局预设只在键盘内切换,这里不再重复提供,避免让间距设置看起来像布局选择器。
+        Text("间距只改变键位外观，不影响输入方案。键盘布局在键盘的布局按钮里切换。")
+      }
+      Section {
+        Toggle("顶部语音入口", isOn: $voice).accessibilityIdentifier("appVoiceShortcutSwitch")
+      } header: {
+        Text("快捷入口")
+      } footer: {
+        Text("语音入口用于打开已识别的语音结果。")
+      }
+    }
+    .tint(MetasequoiaTheme.accent)
+    .navigationTitle("键盘设置").navigationBarTitleDisplayMode(.inline)
+    .onChange(of: voice) { KeyboardLayoutPreference.voiceShortcutEnabled = $0 }
+    .onAppear {
+      keySpacing = KeyboardLayoutPreference.keySpacing
+      rowSpacing = KeyboardLayoutPreference.rowSpacing
+      voice = KeyboardLayoutPreference.voiceShortcutEnabled
+    }
+  }
+
+  private func spacingRow(
+    _ title: String,
+    value: Binding<Double>,
+    range: ClosedRange<Double>,
+    identifier: String,
+    store: @escaping (Double) -> Void
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      HStack {
+        Text(title)
+        Spacer()
+        Text(String(format: "%.1f", value.wrappedValue)).font(.callout).monospacedDigit()
+          .foregroundStyle(.secondary)
+      }
+      Slider(
+        value: Binding(get: { value.wrappedValue }, set: { value.wrappedValue = $0; store($0) }),
+        in: range
+      ).accessibilityIdentifier(identifier).accessibilityLabel(title)
+    }
   }
 }

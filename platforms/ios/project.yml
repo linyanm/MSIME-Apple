@@ -17,13 +17,13 @@ settings:
     # project shipped 0.45.x, so any iOS artifact would have carried a version that matched nothing.
     MARKETING_VERSION: 0.48.6 # x-release-please-version
     # ML Kit Digital Ink 4.x provides x86_64 simulator binaries.
-    EXCLUDED_ARCHS[sdk=iphonesimulator*]: arm64
     SWIFT_VERSION: 6.0
     IPHONEOS_DEPLOYMENT_TARGET: 15.0
     # Xcode 26 no longer falls back to the target name when a target leaves PRODUCT_NAME unset, so a
     # target without it links as a bare `-l` and builds products named `.xctest` or `-Runner.app`.
     # Targets that publish a different product name still override this below.
     PRODUCT_NAME: $(TARGET_NAME)
+    OTHER_LDFLAGS: $(inherited) -ObjC
     DEVELOPMENT_TEAM: LXCL4Z68GU
 
 targets:

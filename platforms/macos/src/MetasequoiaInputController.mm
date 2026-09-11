@@ -28,7 +28,6 @@
 #include "InputControllerKeyRouting.h"
 #include <metasequoia/session.h>
 #include "quanpin/quanpin_utils.h"
-#include "../../../vendor/MetasequoiaImeEngine/contracts/punctuation/policy.h"
 
 #import <Carbon/Carbon.h>
 
@@ -38,6 +37,10 @@
 
 namespace
 {
+bool IsEnginePunctuationCharacter(char character)
+{
+    return std::string(",.?!;:\"'()[]<>\\`$^_").find(character) != std::string::npos;
+}
 constexpr NSTimeInterval kDictionaryRetryDelay = 2.0;
 
 // The Engine split its single autocorrect flag into a per-type mask. The one preference this app
@@ -714,7 +717,7 @@ static NSHashTable *LiveDictionaryControllers()
             }
             // Keep the host's routing predicate tied to the Engine punctuation contract. The
             // Session still owns translation and stateful quote/book-title behaviour.
-            else if (metasequoia::punctuation_contract::is_supported(static_cast<char>(character)))
+            else if (IsEnginePunctuationCharacter(static_cast<char>(character)))
             {
                 result = _session->punctuation(static_cast<char>(character));
             }

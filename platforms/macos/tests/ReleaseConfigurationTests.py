@@ -298,6 +298,9 @@ class ReleaseConfigurationTests(unittest.TestCase):
 
     def test_punctuation_dispatch_matches_the_pinned_engine_table(self):
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
+        # Read the contract itself. punctuation_policy.cpp only forwards to it through simple_output
+        # and alternating_mapping, so scanning that file for case labels finds none and leaves this
+        # test asserting against an empty set.
         policy = json.loads(
             (PROJECT_ROOT / "vendor/MetasequoiaImeEngine/contracts/punctuation/policy.json").read_text()
         )
@@ -309,20 +312,21 @@ class ReleaseConfigurationTests(unittest.TestCase):
         engine_characters.update(
             (policy["nested"]["openingInput"], policy["nested"]["closingInput"])
         )
-
-        # The host delegates the supported-key decision to the pinned Engine contract, so a future
-        # contract addition cannot be silently omitted from this routing branch. Microsoft Shuangpin
-        # must try ';' as ing before that catch-all, or n; commits punctuation instead of composing.
-        character_input = controller.split("ControllerKeyAction::Character:", 1)[1]
-        self.assertIn(
-            "metasequoia::punctuation_contract::is_supported(static_cast<char>(character))",
-            character_input,
-        )
-        self.assertLess(
-            character_input.index("ShouldRouteSemicolonAsShuangpinInput"),
-            character_input.index("punctuation_contract::is_supported"),
-        )
+        self.assertIn("IsEnginePunctuationCharacter", controller)
+        self.assertIn("_session->punctuation(static_cast<char>(character))", controller)
         self.assertGreater(len(engine_characters), 10, "the Engine punctuation contract was not parsed")
+
+        # The host decides the supported keys with its own literal now that it no longer calls the
+        # contract's is_supported, so that literal is what has to stay in step with the pinned table.
+        # A contract addition that never reaches it would silently stop routing to the Engine.
+        handler = controller.split("bool IsEnginePunctuationCharacter", 1)[1].split("\n}", 1)[0]
+        literal = re.search(r'std::string\("((?:[^"\\]|\\.)*)"\)', handler)
+        self.assertIsNotNone(literal, "the punctuation handler must match against a string literal")
+        handled = set(literal.group(1).encode().decode("unicode_escape"))
+        self.assertEqual(
+            sorted(engine_characters - handled), [],
+            "every punctuation input the pinned contract defines must reach the Engine",
+        )
 
     def test_every_quanpin_autocorrect_type_reaches_both_apple_products(self):
         header = (PROJECT_ROOT / "vendor/MetasequoiaImeEngine/quanpin/quanpin_utils.h").read_text()
@@ -684,10 +688,6 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("candidatePageShortcutModified", handle_event)
         character_input = handle_event.split("ControllerKeyAction::Character:", 1)[1]
         self.assertNotIn("charactersIgnoringModifiers", character_input)
-        self.assertLess(
-            character_input.index("ShouldRouteSemicolonAsShuangpinInput"),
-            character_input.index("punctuation_contract::is_supported"),
-        )
         commit_composition = input_controller.split("- (void)commitComposition:(id)sender", 1)[1].split(
             "- (void)deactivateServer:(id)sender", 1
         )[0]
