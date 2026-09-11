@@ -73,7 +73,8 @@ SessionPreferences ReadSessionPreferences()
         scheme,
         shuangpinSchema,
         [MetasequoiaPreferencesWindowController storedAutocorrectEnabled] == YES,
-        [MetasequoiaPreferencesWindowController storedHelpcodeEnabled] == YES,
+        MetasequoiaInputFlag(scheme == SchemeType::Shuangpin ? @"shuangpinHelpcodeEnabled" : @"quanpinHelpcodeEnabled",
+                            [MetasequoiaPreferencesWindowController storedHelpcodeEnabled]) == YES,
         metasequoia::mac::HelpcodeSchemaIdentifier(static_cast<int>(helpcodeSchema)),
         [MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled] == YES,
         metasequoia::mac::NormalizeCandidatePanelStyle(
@@ -952,6 +953,7 @@ static NSHashTable *LiveDictionaryControllers()
     const BOOL traditionalOutput =
         [self traditionalChineseOutputActive] && metasequoia::mac::ScriptConversionAppliesToLocalMode(localMode);
     const bool annotateHelpcodes = (_sessionOptions.helpcode && SchemeUsesHelpcodes(_sessionSnapshot.scheme)) &&
+                                   MetasequoiaInputFlag(_sessionSnapshot.scheme == SchemeType::Shuangpin ? @"shuangpinHelpcodeHints" : @"quanpinHelpcodeHints", YES) &&
                                    metasequoia::mac::HelpcodesAnnotateLocalMode(localMode);
     NSUInteger candidateIndex = 0;
     for (const WordItem &candidate : _sessionSnapshot.candidates)

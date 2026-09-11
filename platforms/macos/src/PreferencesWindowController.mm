@@ -294,6 +294,9 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSView *_wubiSettingsRow;
     NSButton *_autocorrectButton;
     NSButton *_helpcodeButton;
+    NSButton *_shuangpinHelpcodeEnabledButton;
+    NSButton *_quanpinHelpcodeHintsButton;
+    NSButton *_shuangpinHelpcodeHintsButton;
     NSButton *_localInputModesButton;
     NSPopUpButton *_quanpinHelpcodeSchemaButton;
     NSPopUpButton *_shuangpinHelpcodeSchemaButton;
@@ -1462,7 +1465,14 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
     _skinSettings = [[MetasequoiaSkinSettingsView alloc] initWithFrame:NSZeroRect];
 
-    _helpcodeButton = [NSButton checkboxWithTitle:@"启用辅助码" target:self action:@selector(helpcodeChanged:)];
+    _helpcodeButton = [NSButton checkboxWithTitle:@"全拼辅助码" target:self action:@selector(schemeHelpcodeChanged:)];
+    _helpcodeButton.identifier = @"quanpinHelpcodeEnabled";
+    _shuangpinHelpcodeEnabledButton = [NSButton checkboxWithTitle:@"双拼辅助码" target:self action:@selector(schemeHelpcodeChanged:)];
+    _shuangpinHelpcodeEnabledButton.identifier = @"shuangpinHelpcodeEnabled";
+    _quanpinHelpcodeHintsButton = [NSButton checkboxWithTitle:@"在候选窗口中显示全拼辅助码" target:self action:@selector(schemeHelpcodeChanged:)];
+    _quanpinHelpcodeHintsButton.identifier = @"quanpinHelpcodeHints";
+    _shuangpinHelpcodeHintsButton = [NSButton checkboxWithTitle:@"在候选窗口中显示双拼辅助码" target:self action:@selector(schemeHelpcodeChanged:)];
+    _shuangpinHelpcodeHintsButton.identifier = @"shuangpinHelpcodeHints";
     _localInputModesButton = [NSButton checkboxWithTitle:@"启用本地输入模式（Shift+U/T/K/J）"
                                                   target:self
                                                   action:@selector(localInputModesChanged:)];
@@ -1513,12 +1523,12 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
     NSView *helpcodePage = PreferencesPage(
         @"辅助码", @"为全拼与双拼分别选择辅助码方案。",
-        @[ CardWithViews(
-            @[
-                _helpcodeButton, CardSeparator(), PreferenceRow(@"全拼辅助码方案", _quanpinHelpcodeSchemaButton),
-                CardSeparator(), PreferenceRow(@"双拼辅助码方案", _shuangpinHelpcodeSchemaButton)
-            ],
-            12.0) ]);
+        @[
+            CardWithViews(@[ _shuangpinHelpcodeEnabledButton,
+                PreferenceRow(@"双拼辅助码方案", _shuangpinHelpcodeSchemaButton), _shuangpinHelpcodeHintsButton ], 12.0),
+            CardWithViews(@[ _helpcodeButton,
+                PreferenceRow(@"全拼辅助码方案", _quanpinHelpcodeSchemaButton), _quanpinHelpcodeHintsButton ], 12.0)
+        ]);
     helpcodePage.accessibilityLabel = @"辅助码设置页";
     NSBox *learningCard = CardWithViews(
         @[
@@ -1861,8 +1871,13 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _autocorrectButton.state = [MetasequoiaPreferencesWindowController storedAutocorrectEnabled]
                                    ? NSControlStateValueOn
                                    : NSControlStateValueOff;
-    _helpcodeButton.state =
-        [MetasequoiaPreferencesWindowController storedHelpcodeEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
+    const BOOL legacyHelpcode = [MetasequoiaPreferencesWindowController storedHelpcodeEnabled];
+    _helpcodeButton.state = MetasequoiaInputFlag(@"quanpinHelpcodeEnabled", legacyHelpcode);
+    _shuangpinHelpcodeEnabledButton.state = MetasequoiaInputFlag(@"shuangpinHelpcodeEnabled", legacyHelpcode);
+    _quanpinHelpcodeHintsButton.state = MetasequoiaInputFlag(@"quanpinHelpcodeHints", YES);
+    _shuangpinHelpcodeHintsButton.state = MetasequoiaInputFlag(@"shuangpinHelpcodeHints", YES);
+    _quanpinHelpcodeHintsButton.enabled = _helpcodeButton.state == NSControlStateValueOn;
+    _shuangpinHelpcodeHintsButton.enabled = _shuangpinHelpcodeEnabledButton.state == NSControlStateValueOn;
     _localInputModesButton.state = [MetasequoiaPreferencesWindowController storedLocalInputModesEnabled]
                                        ? NSControlStateValueOn
                                        : NSControlStateValueOff;
@@ -1871,7 +1886,7 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     [_shuangpinHelpcodeSchemaButton
         selectItemAtIndex:[MetasequoiaPreferencesWindowController storedShuangpinHelpcodeSchema]];
     _quanpinHelpcodeSchemaButton.enabled = _helpcodeButton.state == NSControlStateValueOn;
-    _shuangpinHelpcodeSchemaButton.enabled = _helpcodeButton.state == NSControlStateValueOn;
+    _shuangpinHelpcodeSchemaButton.enabled = _shuangpinHelpcodeEnabledButton.state == NSControlStateValueOn;
     _chinesePunctuationButton.state = [MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled]
                                           ? NSControlStateValueOn
                                           : NSControlStateValueOff;
@@ -1992,6 +2007,13 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 {
     NSButton *button = (NSButton *)sender;
     [MetasequoiaPreferencesWindowController setLocalInputModesEnabled:button.state == NSControlStateValueOn];
+    [self refreshControls];
+}
+
+- (void)schemeHelpcodeChanged:(NSButton *)sender
+{
+    MetasequoiaSetInputBehavior(sender.identifier, sender.state == NSControlStateValueOn);
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"MetasequoiaHelpcodeDidChangeNotification" object:nil];
     [self refreshControls];
 }
 
