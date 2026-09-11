@@ -1192,10 +1192,16 @@ final class NineKeyKeyboardTests: XCTestCase {
     attachment.lifetime = .keepAlways
     add(attachment)
 
-    try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
-    XCTAssertTrue(try XCTUnwrap(nine.superview).isHidden)
+    // The digit layer keeps this grid rather than swapping in the 26-key rows, so the container stays
+    // visible and only the faces change. testNineKeyDigitLayerKeepsTheGridInsteadOfTheTwentySixKeyRows
+    // owns that contract; this case asserted the container hid, which was true before the digit layer
+    // shared the grid and has contradicted the other case since.
     try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
     XCTAssertFalse(try XCTUnwrap(nine.superview).isHidden)
+    XCTAssertEqual(nine.configuration?.title, "6")
+    try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
+    XCTAssertFalse(try XCTUnwrap(nine.superview).isHidden)
+    XCTAssertEqual(nine.configuration?.title, "MNO")
     try button("bottomLanguageKey", in: controller).sendActions(for: .primaryActionTriggered)
     XCTAssertTrue(try XCTUnwrap(nine.superview).isHidden)
     try button("bottomLanguageKey", in: controller).sendActions(for: .primaryActionTriggered)
