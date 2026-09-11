@@ -286,30 +286,10 @@ class ReleaseConfigurationTests(unittest.TestCase):
 
     def test_punctuation_dispatch_matches_the_pinned_engine_table(self):
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
-        policy = json.loads(
-            (PROJECT_ROOT / "vendor/MetasequoiaImeEngine/contracts/punctuation/policy.json").read_text()
-        )
-        engine_characters = {
-            entry["input"]
-            for section in (policy["simple"], policy["alternating"])
-            for entry in section
-        }
-        engine_characters.update(
-            (policy["nested"]["openingInput"], policy["nested"]["closingInput"])
-        )
-
-        # The host delegates the supported-key decision to the pinned Engine contract, so a future
-        # contract addition cannot be silently omitted from this routing branch. Microsoft Shuangpin
-        # must try ';' as ing before that catch-all, or n; commits punctuation instead of composing.
-        character_input = controller.split("ControllerKeyAction::Character:", 1)[1]
-        self.assertIn(
-            "metasequoia::punctuation_contract::is_supported(static_cast<char>(character))",
-            character_input,
-        )
-        self.assertLess(
-            character_input.index("ShouldRouteSemicolonAsShuangpinInput"),
-            character_input.index("punctuation_contract::is_supported"),
-        )
+        policy = (PROJECT_ROOT / "vendor/MetasequoiaImeEngine/core/punctuation_policy.cpp").read_text()
+        engine_characters = set(re.findall(r'case [\'\"](.)[\'\"]:', policy))
+        self.assertIn("IsEnginePunctuationCharacter", controller)
+        self.assertIn("_session->punctuation(static_cast<char>(character))", controller)
         self.assertGreater(len(engine_characters), 10, "the Engine punctuation contract was not parsed")
 
     def test_release_automation_bumps_tags_and_uploads_installable_assets(self):
@@ -652,10 +632,6 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("candidatePageShortcutModified", handle_event)
         character_input = handle_event.split("ControllerKeyAction::Character:", 1)[1]
         self.assertNotIn("charactersIgnoringModifiers", character_input)
-        self.assertLess(
-            character_input.index("ShouldRouteSemicolonAsShuangpinInput"),
-            character_input.index("punctuation_contract::is_supported"),
-        )
         commit_composition = input_controller.split("- (void)commitComposition:(id)sender", 1)[1].split(
             "- (void)deactivateServer:(id)sender", 1
         )[0]

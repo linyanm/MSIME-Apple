@@ -2,42 +2,40 @@ import SwiftUI
 
 struct KeyboardLayoutSettingsView: View {
   @State private var selected = KeyboardLayoutPreference.selected
-  @State private var nineKey = InputSchemePreference.scheme == .nineKey
+  @State private var voice = KeyboardLayoutPreference.voiceShortcutEnabled
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 18) {
-        Text("换输入法，不换打字习惯").font(.title2.bold())
-        Text("选择熟悉的键位排列，颜色继续使用当前皮肤。")
-          .foregroundStyle(.secondary)
-        Picker("预览键盘", selection: $nineKey) {
-          Text("26 键").tag(false)
-          Text("9 键").tag(true)
-        }.pickerStyle(.segmented).accessibilityIdentifier("layoutPreviewMode")
-        ForEach(KeyboardLayoutPreset.allCases, id: \.self) { preset in
+    Form {
+      Section("键盘布局") {
+        ForEach(KeyboardLayoutPreset.allCases, id: \.self) { layout in
           Button {
-            selected = preset
-            KeyboardLayoutPreference.selected = preset
+            selected = layout
+            KeyboardLayoutPreference.selected = layout
           } label: {
-            VStack(alignment: .leading, spacing: 10) {
-              HStack {
-                Text(preset.title).font(.headline)
-                Spacer()
-                Image(systemName: selected == preset ? "checkmark.circle.fill" : "circle")
-                  .foregroundStyle(selected == preset ? MetasequoiaTheme.accent : .secondary)
+            HStack {
+              VStack(alignment: .leading, spacing: 3) {
+                Text(layout.title).font(.body.weight(.semibold))
+                Text(layout.detail).font(.caption).foregroundStyle(.secondary)
               }
-              Text(preset.detail).font(.caption).foregroundStyle(.secondary)
-              KeyboardSkinPreview(skin: KeyboardSkinPreference.selected, nineKey: nineKey, layout: preset)
-            }.padding(14)
-              .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-              .overlay(RoundedRectangle(cornerRadius: 18).stroke(selected == preset ? MetasequoiaTheme.accent : .clear, lineWidth: 2))
-          }.buttonStyle(.plain).accessibilityIdentifier("layoutPreset_\(preset.rawValue)")
-            .accessibilityValue(selected == preset ? "已选择" : "未选择")
+              Spacer()
+              if selected == layout { Image(systemName: "checkmark").foregroundStyle(MetasequoiaTheme.accent) }
+            }
+          }
+          .buttonStyle(.plain)
+          .accessibilityIdentifier("appLayout-\(layout.rawValue)")
         }
-        Text("布局调整按键排列和间距，不会切换输入方案或改变皮肤。语音入口用于打开已识别的语音结果。")
-          .font(.footnote).foregroundStyle(.secondary)
-      }.padding(20)
-    }.background(MetasequoiaTheme.canvas)
-      .navigationTitle("键盘布局").navigationBarTitleDisplayMode(.inline)
-      .onAppear { selected = KeyboardLayoutPreference.selected }
+      }
+      Section("快捷入口") {
+        Toggle("顶部语音入口", isOn: $voice).accessibilityIdentifier("appVoiceShortcutSwitch")
+      } footer: {
+        Text("布局只改变键位外观和间距，不影响输入方案。")
+      }
+    }
+    .tint(MetasequoiaTheme.accent)
+    .navigationTitle("键盘设置").navigationBarTitleDisplayMode(.inline)
+    .onChange(of: voice) { KeyboardLayoutPreference.voiceShortcutEnabled = $0 }
+    .onAppear {
+      selected = KeyboardLayoutPreference.selected
+      voice = KeyboardLayoutPreference.voiceShortcutEnabled
+    }
   }
 }

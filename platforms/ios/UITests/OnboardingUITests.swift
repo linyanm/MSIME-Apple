@@ -69,43 +69,41 @@ final class OnboardingUITests: XCTestCase {
   }
 
   @MainActor
-  func testLayoutPresetSelectionPersists() {
+  func testKeyboardSpacingSettingsPersist() throws {
     let app = XCUIApplication()
     app.launchArguments = ["-hasCompletedOnboarding", "YES"]
     app.launch()
     app.buttons["keyboardLayoutLink"].tap()
-    let mode = app.segmentedControls["layoutPreviewMode"]
-    let first = app.buttons["layoutPreset_msime"]
-    var previewHeights: [CGFloat] = []
-    for title in ["26 键", "9 键"] {
-      mode.buttons[title].tap()
-      previewHeights.append(first.frame.height)
-      XCTAssertGreaterThan(first.frame.height, 280, "完整布局预览不能使用压缩缩略图高度")
-      let shot = XCTAttachment(screenshot: app.screenshot())
-      shot.name = "Full layout preview \(title)"; shot.lifetime = .deleteOnSuccess; add(shot)
+    let keys = app.sliders["appKeySpacingSlider"]
+    let rows = app.sliders["appRowSpacingSlider"]
+    XCTAssertTrue(keys.waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["layoutPreset_msime"].exists)
+    let voice = app.switches["appVoiceShortcutSwitch"]
+    let originalVoice = voice.value as? String
+    func position(_ slider: XCUIElement) throws -> CGFloat {
+      let raw = try XCTUnwrap(slider.value as? String)
+      let value = try XCTUnwrap(Double(raw.replacingOccurrences(of: "%", with: "")))
+      if raw.contains("%") { return CGFloat(value / 100) }
+      let minimum = slider.identifier == "appKeySpacingSlider" ? 3.0 : 4.0
+      let maximum = slider.identifier == "appKeySpacingSlider" ? 6.0 : 10.0
+      return CGFloat((value - minimum) / (maximum - minimum))
     }
-    XCTAssertEqual(previewHeights[0], previewHeights[1], accuracy: 1)
-    let wechat = app.buttons["layoutPreset_wechat"]
-    for _ in 0..<6 {
-      if wechat.isHittable { break }
-      app.swipeUp()
+    let originalKeys = try position(keys), originalRows = try position(rows)
+    defer {
+      keys.adjust(toNormalizedSliderPosition: originalKeys)
+      rows.adjust(toNormalizedSliderPosition: originalRows)
+      if voice.value as? String != originalVoice { voice.tap() }
     }
-    wechat.tap()
-    XCTAssertEqual(wechat.value as? String, "已选择")
+    keys.adjust(toNormalizedSliderPosition: originalKeys > 0.5 ? 0 : 1)
+    rows.adjust(toNormalizedSliderPosition: originalRows > 0.5 ? 0 : 1)
+    let changedKeys = try position(keys), changedRows = try position(rows)
+    voice.tap()
+    let changedVoice = voice.value as? String
     app.navigationBars.buttons.element(boundBy: 0).tap()
     app.buttons["keyboardLayoutLink"].tap()
-    for _ in 0..<6 {
-      if wechat.isHittable { break }
-      app.swipeUp()
-    }
-    XCTAssertEqual(wechat.value as? String, "已选择")
-    let screenshot = XCTAttachment(screenshot: app.screenshot())
-    screenshot.name = "Layout presets selection"
-    screenshot.lifetime = .deleteOnSuccess
-    add(screenshot)
-    app.navigationBars.buttons.element(boundBy: 0).tap()
-    app.buttons["keyboardLayoutLink"].tap()
-    app.buttons["layoutPreset_msime"].tap()
+    XCTAssertEqual(try position(keys), changedKeys, accuracy: 0.01)
+    XCTAssertEqual(try position(rows), changedRows, accuracy: 0.01)
+    XCTAssertEqual(voice.value as? String, changedVoice)
   }
 
   @MainActor

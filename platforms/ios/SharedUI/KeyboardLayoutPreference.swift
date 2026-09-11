@@ -30,9 +30,40 @@ enum KeyboardLayoutPreset: String, CaseIterable {
 
 enum KeyboardLayoutPreference {
   static let key = "keyboard.layout.preset"
-  private static var defaults: UserDefaults { UserDefaults(suiteName: InputSchemePreference.appGroupIdentifier) ?? .standard }
+  static var defaults: UserDefaults { UserDefaults(suiteName: InputSchemePreference.appGroupIdentifier) ?? .standard }
+  static let keySpacingKey = "keyboard.spacing.keys"
+  static let rowSpacingKey = "keyboard.spacing.rows"
+  static let voiceShortcutKey = "keyboard.shortcut.voice"
+  // Old presets supply upgrade defaults only. Key placement no longer depends on them.
+  static var keySpacing: Double {
+    get { spacing(key: keySpacingKey, fallback: selected.keySpacing, range: 3...6) }
+    set { defaults.set(min(6, max(3, newValue)), forKey: keySpacingKey) }
+  }
+  static var rowSpacing: Double {
+    get { spacing(key: rowSpacingKey, fallback: selected.rowSpacing, range: 4...10) }
+    set { defaults.set(min(10, max(4, newValue)), forKey: rowSpacingKey) }
+  }
+  static var voiceShortcutEnabled: Bool {
+    get { defaults.object(forKey: voiceShortcutKey) == nil ? selected == .doubao : defaults.bool(forKey: voiceShortcutKey) }
+    set { defaults.set(newValue, forKey: voiceShortcutKey) }
+  }
+  static var geometry: KeyboardGeometry { KeyboardGeometry(keySpacing: keySpacing, rowSpacing: rowSpacing) }
+  private static func spacing(key: String, fallback: Double, range: ClosedRange<Double>) -> Double {
+    guard let value = defaults.object(forKey: key) as? NSNumber, value.doubleValue.isFinite else { return fallback }
+    return min(range.upperBound, max(range.lowerBound, value.doubleValue))
+  }
   static var selected: KeyboardLayoutPreset {
     get { KeyboardLayoutPreset(rawValue: defaults.string(forKey: key) ?? "") ?? .msime }
     set { defaults.set(newValue.rawValue, forKey: key) }
   }
+}
+
+struct KeyboardGeometry: Equatable {
+  let keySpacing: Double
+  let rowSpacing: Double
+  var sidebarRatio: Double { 0.14 }
+  var letterInsetRatio: Double { 0 }
+  var centeredLetters: Bool { false }
+  var showsBottomLanguage: Bool { true }
+  var showsFullKeyboardSymbols: Bool { false }
 }
