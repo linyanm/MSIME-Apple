@@ -1181,10 +1181,10 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _chinesePunctuationButton = [NSButton checkboxWithTitle:@"使用中文标点"
                                                      target:self
                                                      action:@selector(chinesePunctuationChanged:)];
-    _inputModeShortcutButton = [NSButton checkboxWithTitle:@"Shift 切换中英文（Shift+Space 也可）"
+    _inputModeShortcutButton = [NSButton checkboxWithTitle:@"Shift+Space 切换中英文"
                                                     target:self
                                                     action:@selector(inputModeShortcutChanged:)];
-    _inputModeShortcutButton.accessibilityLabel = @"Shift 切换中英文";
+    _inputModeShortcutButton.accessibilityLabel = @"Shift+Space 切换中英文";
     _fullWidthInputButton = [NSButton checkboxWithTitle:@"Option+Shift+H 切换全半角"
                                                  target:self
                                                  action:@selector(fullWidthInputChanged:)];
@@ -1352,8 +1352,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSBox *translationCard = CardWithViews(
         @[
             _candidateTranslationButton, PreferenceRow(@"在线服务", _translationProviderButton),
-            PreferenceRow(@"目标语言", _translationLanguageButton),
-            _translationTencentIdRow, _translationTencentKeyRow, _translationEndpointRow
+            PreferenceRow(@"目标语言", _translationLanguageButton), _translationTencentIdRow, _translationTencentKeyRow,
+            _translationEndpointRow
         ],
         8.0);
     NSView *shortcutsPage = PreferencesPage(@"快捷键", @"设置候选翻页与输入状态切换快捷键。", @[ shortcutCard ]);
@@ -1494,11 +1494,17 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
 
     _helpcodeButton = [NSButton checkboxWithTitle:@"全拼辅助码" target:self action:@selector(schemeHelpcodeChanged:)];
     _helpcodeButton.identifier = @"quanpinHelpcodeEnabled";
-    _shuangpinHelpcodeEnabledButton = [NSButton checkboxWithTitle:@"双拼辅助码" target:self action:@selector(schemeHelpcodeChanged:)];
+    _shuangpinHelpcodeEnabledButton = [NSButton checkboxWithTitle:@"双拼辅助码"
+                                                           target:self
+                                                           action:@selector(schemeHelpcodeChanged:)];
     _shuangpinHelpcodeEnabledButton.identifier = @"shuangpinHelpcodeEnabled";
-    _quanpinHelpcodeHintsButton = [NSButton checkboxWithTitle:@"在候选窗口中显示全拼辅助码" target:self action:@selector(schemeHelpcodeChanged:)];
+    _quanpinHelpcodeHintsButton = [NSButton checkboxWithTitle:@"在候选窗口中显示全拼辅助码"
+                                                       target:self
+                                                       action:@selector(schemeHelpcodeChanged:)];
     _quanpinHelpcodeHintsButton.identifier = @"quanpinHelpcodeHints";
-    _shuangpinHelpcodeHintsButton = [NSButton checkboxWithTitle:@"在候选窗口中显示双拼辅助码" target:self action:@selector(schemeHelpcodeChanged:)];
+    _shuangpinHelpcodeHintsButton = [NSButton checkboxWithTitle:@"在候选窗口中显示双拼辅助码"
+                                                         target:self
+                                                         action:@selector(schemeHelpcodeChanged:)];
     _shuangpinHelpcodeHintsButton.identifier = @"shuangpinHelpcodeHints";
     _localInputModesButton = [NSButton checkboxWithTitle:@"启用本地输入模式（Shift+U/T/K/J）"
                                                   target:self
@@ -1548,14 +1554,20 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _resetLearningButton.contentTintColor = [NSColor systemRedColor];
     _resetLearningButton.accessibilityLabel = @"清除学习数据";
 
-    NSView *helpcodePage = PreferencesPage(
-        @"辅助码", @"为全拼与双拼分别选择辅助码方案。",
-        @[
-            CardWithViews(@[ _shuangpinHelpcodeEnabledButton,
-                PreferenceRow(@"双拼辅助码方案", _shuangpinHelpcodeSchemaButton), _shuangpinHelpcodeHintsButton ], 12.0),
-            CardWithViews(@[ _helpcodeButton,
-                PreferenceRow(@"全拼辅助码方案", _quanpinHelpcodeSchemaButton), _quanpinHelpcodeHintsButton ], 12.0)
-        ]);
+    NSView *helpcodePage = PreferencesPage(@"辅助码", @"为全拼与双拼分别选择辅助码方案。", @[
+        CardWithViews(
+            @[
+                _shuangpinHelpcodeEnabledButton, PreferenceRow(@"双拼辅助码方案", _shuangpinHelpcodeSchemaButton),
+                _shuangpinHelpcodeHintsButton
+            ],
+            12.0),
+        CardWithViews(
+            @[
+                _helpcodeButton, PreferenceRow(@"全拼辅助码方案", _quanpinHelpcodeSchemaButton),
+                _quanpinHelpcodeHintsButton
+            ],
+            12.0)
+    ]);
     helpcodePage.accessibilityLabel = @"辅助码设置页";
     NSBox *learningCard = CardWithViews(
         @[

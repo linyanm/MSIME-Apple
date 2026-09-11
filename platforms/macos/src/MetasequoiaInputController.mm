@@ -86,7 +86,7 @@ SessionPreferences ReadSessionPreferences()
         shuangpinSchema,
         [MetasequoiaPreferencesWindowController storedAutocorrectEnabled] == YES,
         MetasequoiaInputFlag(scheme == SchemeType::Shuangpin ? @"shuangpinHelpcodeEnabled" : @"quanpinHelpcodeEnabled",
-                            [MetasequoiaPreferencesWindowController storedHelpcodeEnabled]) == YES,
+                             [MetasequoiaPreferencesWindowController storedHelpcodeEnabled]) == YES,
         metasequoia::mac::HelpcodeSchemaIdentifier(static_cast<int>(helpcodeSchema)),
         [MetasequoiaPreferencesWindowController storedChinesePunctuationEnabled] == YES,
         metasequoia::mac::NormalizeCandidatePanelStyle(
@@ -560,15 +560,6 @@ static NSHashTable *LiveDictionaryControllers()
             return YES;
     }
     const NSEventModifierFlags inputModeModifiers = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
-    // Some clients deliver a bare Shift press as a key-down event. Treat it as the
-    // configured input-mode toggle (while keeping Shift+Space supported below).
-    if ([MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled] &&
-        (event.keyCode == 56 || event.keyCode == 60) && inputModeModifiers == NSEventModifierFlagShift)
-    {
-        if (!event.isARepeat)
-            [self setEnglishInputMode:![MetasequoiaPreferencesWindowController storedEnglishInputMode] client:sender];
-        return YES;
-    }
     // Both toggles swallow their repeats. Holding the chord past the system repeat delay used to
     // flip the persisted preference once per repeat and land on whichever parity the repeat count
     // reached, which is the same reason the voice shortcut above guards on isARepeat.
@@ -988,9 +979,12 @@ static NSHashTable *LiveDictionaryControllers()
     const metasequoia::LocalInputMode localMode = _sessionSnapshot.local_mode;
     const BOOL traditionalOutput =
         [self traditionalChineseOutputActive] && metasequoia::mac::ScriptConversionAppliesToLocalMode(localMode);
-    const bool annotateHelpcodes = (_sessionOptions.helpcode && SchemeUsesHelpcodes(_sessionSnapshot.scheme)) &&
-                                   MetasequoiaInputFlag(_sessionSnapshot.scheme == SchemeType::Shuangpin ? @"shuangpinHelpcodeHints" : @"quanpinHelpcodeHints", YES) &&
-                                   metasequoia::mac::HelpcodesAnnotateLocalMode(localMode);
+    const bool annotateHelpcodes =
+        (_sessionOptions.helpcode && SchemeUsesHelpcodes(_sessionSnapshot.scheme)) &&
+        MetasequoiaInputFlag(_sessionSnapshot.scheme == SchemeType::Shuangpin ? @"shuangpinHelpcodeHints"
+                                                                              : @"quanpinHelpcodeHints",
+                             YES) &&
+        metasequoia::mac::HelpcodesAnnotateLocalMode(localMode);
     // The preedit of a wubi composition is the code as typed, which is what each candidate's own
     // code is measured against. A local input mode synthesises its candidates and the pinyin
     // fallback answers with pinyin keys, and in neither case do the letters left over lead
