@@ -741,6 +741,46 @@ int main()
         require([((NSPopUpButton *)translationLanguageView).itemTitles containsObject:@"西班牙语"],
                 "The translation languages did not reach past the three the services shipped with.");
 
+        // Each provider shows only what it needs. Leaving a vendor's key fields under the account
+        // model reads as though it wanted them, which is how this shipped the first time.
+        NSPopUpButton *translationProviderButton = (NSPopUpButton *)translationProviderView;
+        NSView *tencentIdRow = FindViewWithAccessibilityLabel(controller.window.contentView, @"腾讯云 SecretId 行");
+        NSView *endpointRow = FindViewWithAccessibilityLabel(controller.window.contentView, @"DeepLX Endpoint 行");
+        NSView *accountStatus = FindViewWithAccessibilityLabel(controller.window.contentView, @"候选翻译账号状态行");
+        require(tencentIdRow != nil && endpointRow != nil && accountStatus != nil,
+                "The translation card did not expose a row for each provider's requirements.");
+        const auto rowHidden = [](NSView *view) { return view.hidden; };
+        for (NSInteger index = 0; index < translationProviderButton.numberOfItems; ++index)
+        {
+            [translationProviderButton selectItemAtIndex:index];
+            require([NSApp sendAction:translationProviderButton.action
+                                   to:translationProviderButton.target
+                                 from:translationProviderButton],
+                    "Choosing a translation provider was not acted on.");
+            const BOOL account = index == 0;
+            const BOOL tencent = index == 1;
+            const BOOL deeplx = index == 2;
+            require(rowHidden(tencentIdRow) == !tencent,
+                    "The Tencent credential rows did not follow the chosen provider.");
+            require(rowHidden(endpointRow) == !deeplx, "The DeepLX endpoint row did not follow the chosen provider.");
+            require(rowHidden(accountStatus) == !account,
+                    "The account status line did not follow the chosen provider.");
+        }
+        // Signed out, the row also carries the way to sign in: the entry lives on another page, and
+        // naming a requirement without a route to it is how this sent someone hunting for a button
+        // that was never on that page.
+        NSView *signInView = FindViewWithAccessibilityLabel(controller.window.contentView, @"登录水杉账号");
+        require([signInView isKindOfClass:[NSButton class]],
+                "The account provider named a requirement without offering the way to meet it.");
+        require(((NSButton *)signInView).target != nil && ((NSButton *)signInView).action != nullptr,
+                "The sign-in button was not wired to anything.");
+
+        [translationProviderButton selectItemAtIndex:0];
+        require([NSApp sendAction:translationProviderButton.action
+                               to:translationProviderButton.target
+                             from:translationProviderButton],
+                "Restoring the account provider was not acted on.");
+
         NSView *hudView = FindViewWithAccessibilityLabel(controller.window.contentView, @"切换中英文时显示提示");
         require([hudView isKindOfClass:[NSButton class]] && ((NSButton *)hudView).state == NSControlStateValueOn,
                 "The settings window did not reflect the stored input-mode badge preference.");
