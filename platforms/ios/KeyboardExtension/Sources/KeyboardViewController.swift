@@ -580,6 +580,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     let compositionRow = UIView()
     compositionRow.accessibilityIdentifier = "compositionRow"
     compositionRow.translatesAutoresizingMaskIntoConstraints = false
+    // The preedit button is centred here with no height of its own, so anything that makes it taller
+    // than this row lands on the candidates underneath. Keep whatever overflows inside the row.
+    compositionRow.clipsToBounds = true
     container.addSubview(compositionRow)
 
     var preeditConfiguration = UIButton.Configuration.plain()
@@ -592,7 +595,11 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     preeditConfiguration.titleTextAttributesTransformer =
       UIConfigurationTextAttributesTransformer { attributes in
         var attributes = attributes
-        attributes.font = .preferredFont(forTextStyle: .subheadline)
+        // Cap what Dynamic Type may do to this. The button is centred in a fixed-height row with no
+        // bound on its own height, so at the larger text sizes it outgrew the row and painted down
+        // over the candidates. 17pt plus the 8pt of insets stays inside compositionRowHeight.
+        attributes.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
+          for: .systemFont(ofSize: 15), maximumPointSize: 17)
         return attributes
       }
     preeditButton.configuration = preeditConfiguration
