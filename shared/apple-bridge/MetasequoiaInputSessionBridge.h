@@ -24,6 +24,10 @@ typedef NS_ENUM(NSInteger, MetasequoiaFrequencyAdjustmentMode) {
 @property(nonatomic, copy, readonly, nullable) NSString *commitText;
 @property(nonatomic, copy, readonly) NSString *preedit;
 @property(nonatomic, copy, readonly) NSArray<NSString *> *candidates;
+/// The dictionary key each candidate was found by, in the same order and of the same count. A wubi
+/// code shorter than four letters answers with the codes it can still become, and this is what says
+/// which keys single a candidate out.
+@property(nonatomic, copy, readonly) NSArray<NSString *> *candidateCodes;
 /// Set when the key was handled but something behind it failed, such as a local input mode whose
 /// table is missing. Input stays usable, so a frontend reports this rather than failing.
 @property(nonatomic, copy, readonly, nullable) NSString *diagnosticText;

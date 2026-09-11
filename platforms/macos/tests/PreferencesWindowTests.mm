@@ -245,6 +245,12 @@ int main()
                 "Mixed wubi input was on before anyone asked for it.");
         require(![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled],
                 "The disabled Wubi auto-commit preference was not stored.");
+        require([MetasequoiaPreferencesWindowController storedWubiCodeHintEnabled],
+                "The Wubi code hint was off without anyone turning it off.");
+        [MetasequoiaPreferencesWindowController setWubiCodeHintEnabled:NO];
+        require(![MetasequoiaPreferencesWindowController storedWubiCodeHintEnabled],
+                "The disabled Wubi code-hint preference was not stored.");
+        [MetasequoiaPreferencesWindowController setWubiCodeHintEnabled:YES];
 
         PreferencesFakeUpdateDriver *updateDriver = [[PreferencesFakeUpdateDriver alloc] init];
         updateDriver.canCheckForUpdates = YES;
@@ -449,6 +455,19 @@ int main()
                     [MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled],
                 "The Wubi mixed-pinyin option did not persist its enabled state.");
         [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:NO];
+
+        // The code hint is the one wubi option that ships on, so the box opens checked and the
+        // click being tested is the one that turns it off.
+        NSView *wubiCodeHintView = FindViewWithAccessibilityLabel(controller.window.contentView, @"候选显示剩余编码");
+        require([wubiCodeHintView isKindOfClass:[NSButton class]] &&
+                    ((NSButton *)wubiCodeHintView).state == NSControlStateValueOn,
+                "The Wubi detail page did not reflect the stored code-hint preference.");
+        NSButton *wubiCodeHintButton = (NSButton *)wubiCodeHintView;
+        wubiCodeHintButton.state = NSControlStateValueOff;
+        require([NSApp sendAction:wubiCodeHintButton.action to:wubiCodeHintButton.target from:wubiCodeHintButton] &&
+                    ![MetasequoiaPreferencesWindowController storedWubiCodeHintEnabled],
+                "The Wubi code-hint option did not persist its disabled state.");
+        [MetasequoiaPreferencesWindowController setWubiCodeHintEnabled:YES];
 
         NSButton *backToKeyboardButton = FindButtonWithTitle(controller.window.contentView, @"返回键盘输入");
         [backToKeyboardButton performClick:nil];
@@ -876,6 +895,7 @@ int main()
         [MetasequoiaPreferencesWindowController setEnglishInputMode:YES];
         [MetasequoiaPreferencesWindowController setWubiAutoCommitUniqueEnabled:YES];
         [MetasequoiaPreferencesWindowController setWubiMixedPinyinEnabled:YES];
+        [MetasequoiaPreferencesWindowController setWubiCodeHintEnabled:NO];
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"MetasequoiaImeShuangpinKeymapEnabled"];
         NSButton *restoreDefaultsButton = FindButtonWithTitle(controller.window.contentView, @"恢复默认设置");
         require(restoreDefaultsButton != nil, "The settings window did not expose the restore-defaults button.");
@@ -900,6 +920,7 @@ int main()
                 ![MetasequoiaPreferencesWindowController storedTraditionalChineseOutputEnabled] &&
                 ![MetasequoiaPreferencesWindowController storedWubiAutoCommitUniqueEnabled] &&
                 ![MetasequoiaPreferencesWindowController storedWubiMixedPinyinEnabled] &&
+                [MetasequoiaPreferencesWindowController storedWubiCodeHintEnabled] &&
                 ![[NSUserDefaults standardUserDefaults] boolForKey:@"MetasequoiaImeShuangpinKeymapEnabled"] &&
                 [[MetasequoiaPreferencesWindowController storedShuangpinSchema] isEqualToString:@"xiaohe"],
             "Restoring defaults did not restore every visible setting.");
@@ -926,6 +947,7 @@ int main()
             @"MetasequoiaImeTraditionalChineseOutput",
             @"MetasequoiaImeWubiAutoCommitUnique",
             @"MetasequoiaImeWubiMixedPinyin",
+            @"MetasequoiaImeWubiCodeHint",
             @"MetasequoiaImeShuangpinKeymapEnabled",
         ];
         for (NSString *key in preferenceKeys)

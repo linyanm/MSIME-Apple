@@ -97,6 +97,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var visiblePreedit = ""
   private var candidateRevision: UInt64 = 0
   private var visibleCandidates: [String] = []
+  // The code each visible candidate was found by, parallel to visibleCandidates.
+  private var visibleCandidateCodes: [String] = []
   private var visibleDiagnostic: String?
   private var diagnosticDismissTimer: Timer?
   private var shuangpinKeyHints: [String: String] = [:]
@@ -1482,7 +1484,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     closeKeyboardPicker()
     playInputClick()
     let panel = KeyboardCandidatePanelView(
-      candidates: visibleCandidates, preedit: visiblePreedit,
+      candidates: visibleCandidates,
+      hints: visibleCandidates.indices.map { wubiCodeHint(at: $0) }, preedit: visiblePreedit,
       display: { [weak self] in self?.chineseOutput($0) ?? $0 },
       onSelect: { [weak self] index in
         guard let self else { return }
@@ -1885,7 +1888,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     hasComposition = !snapshot.preedit.isEmpty
     if !hasComposition { applyLearningPreferences() }
     showDiagnostic(snapshot.diagnosticText)
-    updateCandidateStrip(preedit: snapshot.preedit, candidates: snapshot.candidates)
+    updateCandidateStrip(
+      preedit: snapshot.preedit, candidates: snapshot.candidates,
+      candidateCodes: snapshot.candidateCodes)
     updateSpellingStrip()
   }
 
@@ -1910,9 +1915,10 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     diagnosticDismissTimer = timer
   }
 
-  private func updateCandidateStrip(preedit: String, candidates: [String]) {
+  private func updateCandidateStrip(preedit: String, candidates: [String], candidateCodes: [String] = []) {
     visiblePreedit = preedit
     visibleCandidates = candidates
+    visibleCandidateCodes = candidateCodes
     // Any new candidate list is a different composition or a different set of matches, so the page
     // it was showing no longer describes anything.
     // A horizontal offset belongs to the previous matches, just like the page index.
@@ -1936,7 +1942,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     for (offset, candidate) in page.enumerated() {
       candidateStack.addArrangedSubview(
         makeCandidateButton(
-          candidate: candidate, number: offset + 1, index: offset))
+          candidate: candidate, hint: wubiCodeHint(at: offset), number: offset + 1, index: offset))
     }
     updateExpandControl()
 
@@ -1949,10 +1955,29 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
 
   // A touch keyboard has no number row to answer with, so the ordinal is spoken rather than drawn;
   // the index is the engine position the chip selects. The expand panel already showed bare text.
-  private func makeCandidateButton(candidate: String, number: Int, index: Int) -> UIButton {
+  // The keys that still single this candidate out, for a wubi composition that asked for them. A
+  // local mode synthesises its candidates and has no code behind them, and a candidate the
+  // mixed-pinyin fallback answered is keyed by spelling, which the prefix check drops on its own.
+  private func wubiCodeHint(at index: Int) -> String {
+    guard inputScheme == .wubi, !session.isInLocalMode, WubiCodeHintPreference.isEnabled,
+          visibleCandidateCodes.indices.contains(index) else { return "" }
+    return WubiCodeHintPreference.hint(code: visibleCandidateCodes[index], typed: visiblePreedit)
+  }
+
+  private func makeCandidateButton(candidate: String, hint: String, number: Int, index: Int) -> UIButton {
     let display = chineseOutput(candidate)
     var configuration = UIButton.Configuration.plain()
     configuration.title = display
+    if !hint.isEmpty {
+      configuration.attributedTitle = AttributedString(
+        display, attributes: AttributeContainer([.font: UIFont.preferredFont(forTextStyle: .body)]))
+        + AttributedString(
+          " " + hint,
+          attributes: AttributeContainer([
+            .font: UIFont.preferredFont(forTextStyle: .caption1),
+            .foregroundColor: KeyboardSkinPreference.selected.keyForeground.withAlphaComponent(0.55),
+          ]))
+    }
     configuration.baseForegroundColor = KeyboardSkinPreference.selected.keyForeground
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 4, leading: 9, bottom: 4, trailing: 9)
@@ -1968,7 +1993,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         self.playInputClick()
         self.render(self.session.selectCandidate(at: UInt(index)))
       })
-    button.accessibilityLabel = "候选词 \(number)：\(display)"
+    button.accessibilityLabel =
+      hint.isEmpty ? "候选词 \(number)：\(display)" : "候选词 \(number)：\(display)，还需输入 \(hint)"
     button.accessibilityIdentifier = "candidate-\(number)"
     if isChineseMode && !inputScheme.isJapanese && !session.isInLocalMode {
       let revision = candidateRevision

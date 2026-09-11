@@ -209,6 +209,10 @@ static NSHashTable *LiveDictionaryControllers()
                                                          name:notificationName
                                                        object:nil];
         }
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(wubiCodeHintPreferenceDidChange:)
+                                                     name:@"MetasequoiaWubiCodeHintDidChangeNotification"
+                                                   object:nil];
     }
     return self;
 }
@@ -243,6 +247,17 @@ static NSHashTable *LiveDictionaryControllers()
     [self refreshFloatingToolbar];
     if ([notification.name isEqualToString:MetasequoiaTraditionalChineseOutputDidChangeNotification] && _serverActive &&
         _session != nullptr && !_sessionSnapshot.preedit.empty())
+    {
+        [self refreshCandidatePanelPreservingSelection];
+    }
+}
+
+// The hint is drawn from the snapshot already on screen, so a composition in progress can take the
+// new setting where a session option would have had to wait for the composition to end.
+- (void)wubiCodeHintPreferenceDidChange:(NSNotification *)notification
+{
+    (void)notification;
+    if (_serverActive && _session != nullptr && !_sessionSnapshot.preedit.empty())
     {
         [self refreshCandidatePanelPreservingSelection];
     }
@@ -862,11 +877,20 @@ static NSHashTable *LiveDictionaryControllers()
         [self traditionalChineseOutputActive] && metasequoia::mac::ScriptConversionAppliesToLocalMode(localMode);
     const bool annotateHelpcodes = (_sessionOptions.helpcode && SchemeUsesHelpcodes(_sessionSnapshot.scheme)) &&
                                    metasequoia::mac::HelpcodesAnnotateLocalMode(localMode);
+    // The preedit of a wubi composition is the code as typed, which is what each candidate's own
+    // code is measured against. A local input mode synthesises its candidates and the pinyin
+    // fallback answers with pinyin keys, and in neither case do the letters left over lead
+    // anywhere, so the hint is withheld by handing the display an empty code.
+    const bool annotateWubiCodes = _sessionSnapshot.scheme == SchemeType::Wubi &&
+                                   localMode == metasequoia::LocalInputMode::None &&
+                                   !_sessionSnapshot.answered_by_pinyin_fallback &&
+                                   [MetasequoiaPreferencesWindowController storedWubiCodeHintEnabled];
+    const std::string wubiTypedCode = annotateWubiCodes ? _sessionSnapshot.preedit : std::string{};
     NSUInteger candidateIndex = 0;
     for (const WordItem &candidate : _sessionSnapshot.candidates)
     {
         NSString *display = MetasequoiaStringFromUtf8(metasequoia::mac::CandidateDisplayText(
-            candidate, _sessionSnapshot.scheme, annotateHelpcodes, _activeHelpcodeKeymap.get()));
+            candidate, _sessionSnapshot.scheme, annotateHelpcodes, _activeHelpcodeKeymap.get(), wubiTypedCode));
         NSString *convertedDisplay = MetasequoiaChineseOutputString(display, traditionalOutput);
         [data addObject:MetasequoiaIndexedCandidateString(convertedDisplay, candidateIndex)];
         ++candidateIndex;

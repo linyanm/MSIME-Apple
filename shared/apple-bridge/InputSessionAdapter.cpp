@@ -64,9 +64,11 @@ InputSnapshot MakeSnapshot(const Session &session, KeyResult result)
     const auto view = session.snapshot();
     snapshot.preedit = view.preedit;
     snapshot.candidates.reserve(view.candidates.size());
+    snapshot.candidate_codes.reserve(view.candidates.size());
     for (const auto &candidate : view.candidates)
     {
         snapshot.candidates.push_back(candidate.word);
+        snapshot.candidate_codes.push_back(candidate.pinyin);
     }
     return snapshot;
 }

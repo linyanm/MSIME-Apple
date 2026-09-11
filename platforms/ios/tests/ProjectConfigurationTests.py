@@ -341,8 +341,11 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
 
         # Without a page offset the chip numbers and the engine's own numbering agree, so a digit
         # and the chip carrying it name the same candidate again.
-        self.assertIn("makeCandidateButton(candidate: String, number: Int, index: Int)", controller)
-        self.assertIn("candidate: candidate, number: offset + 1, index: offset))", controller)
+        self.assertIn(
+            "makeCandidateButton(candidate: String, hint: String, number: Int, index: Int)", controller)
+        self.assertIn(
+            "candidate: candidate, hint: wubiCodeHint(at: offset), number: offset + 1, index: offset))",
+            controller)
         self.assertIn("self.render(self.session.selectCandidate(at: UInt(index)))", controller)
 
         # The control is for reaching what the strip cannot show, so it appears exactly then.
@@ -533,14 +536,22 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
     def test_candidate_surface_exposes_native_chips_numbered_only_for_voiceover(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
-        self.assertIn("candidate: candidate, number: offset + 1, index: offset", controller)
+        self.assertIn(
+            "candidate: candidate, hint: wubiCodeHint(at: offset), number: offset + 1, index: offset",
+            controller)
         self.assertIn("configuration.background.cornerRadius", controller)
 
         # A touch keyboard has no number row for the ordinal to answer to, so it is spoken rather
         # than drawn: the chip shows the candidate alone and VoiceOver still hears the position.
         self.assertIn("configuration.title = display", controller)
         self.assertNotIn('configuration.title = "\\(number)', controller)
-        self.assertIn('button.accessibilityLabel = "候选词 \\(number)：\\(display)"', controller)
+        self.assertIn('"候选词 \\(number)：\\(display)"', controller)
+
+        # The one thing drawn beside a candidate is the wubi code still to type, and only where it
+        # leads somewhere: the wubi scheme, the setting on, and no local mode synthesising the list.
+        self.assertIn("，还需输入 \\(hint)", controller)
+        self.assertIn("guard inputScheme == .wubi, !session.isInLocalMode, WubiCodeHintPreference.isEnabled",
+                      controller)
 
     def test_apostrophe_reaches_the_engine_before_punctuation_conversion(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
