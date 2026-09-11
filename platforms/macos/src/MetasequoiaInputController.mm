@@ -4,6 +4,7 @@
 #include "DictionaryRuntime.h"
 #include "../../../shared/apple-bridge/DictionarySessionLease.h"
 #import "FloatingToolbarPanel.h"
+#import "InputModeHUDPanel.h"
 #import "ChineseTextConversion.h"
 #include "CandidateFontSize.h"
 #import "CandidatePanel.h"
@@ -1176,6 +1177,15 @@ static NSHashTable *LiveDictionaryControllers()
     [_candidatePanel hide];
     [_shuangpinKeymapPanel orderOut:nil];
     [MetasequoiaPreferencesWindowController setEnglishInputMode:enabled];
+    // Every route into a mode switch -- Shift, Shift+Space, the toolbar, the input menu -- passes
+    // through here, so the badge is raised here rather than at each of them.
+    if ([MetasequoiaPreferencesWindowController storedInputModeHUDEnabled])
+    {
+        NSRect caretRect = NSZeroRect;
+        id client = sender != nil ? sender : self.client;
+        [client attributesForCharacterIndex:0 lineHeightRectangle:&caretRect];
+        [[MetasequoiaInputModeHUDPanel sharedPanel] showEnglishInputMode:enabled nearCaretRect:caretRect];
+    }
 }
 
 // Shift tapped on its own: with letters on screen it commits them as typed, which is how a word the
