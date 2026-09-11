@@ -2,6 +2,7 @@ import json
 import os
 import plistlib
 import re
+import shutil
 import subprocess
 import unittest
 from pathlib import Path
@@ -9,6 +10,20 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 MACOS_ROOT = PROJECT_ROOT / "platforms" / "macos"
+
+
+def requires(*tools):
+    """Skip a case that shells out to tooling only macOS has.
+
+    Almost everything in this file reads a file in the tree and asserts on its text, which needs no
+    Apple tooling and no build. contracts.yml therefore runs the whole file on Linux, minutes into a
+    pull request instead of after the macOS build that ctest waits for. The handful of cases below
+    genuinely need tiffutil, sips or zsh, and the macOS job is where they still run -- this skip
+    narrows the Linux run, it does not move coverage off macOS.
+    """
+
+    missing = [tool for tool in tools if shutil.which(tool) is None]
+    return unittest.skipIf(missing, f"{', '.join(missing)} unavailable; the macOS job runs this case")
 
 
 class ReleaseConfigurationTests(unittest.TestCase):
@@ -53,7 +68,51 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: true", workflow)
         # merge-release-pr.sh dispatches ci.yml and waits on that run with --exit-status, so a pull_request run on the same branch must land in a different concurrency group or it cancels the release.
         self.assertIn("${{ github.event_name }}", workflow.split("concurrency:", 1)[1].split("permissions:", 1)[0])
-        self.assertIn("on:\n  push:\n    branches:\n      - develop\n      - main\n  pull_request:\n", workflow)
+        self.assertIn("on:\n  push:\n    branches:\n      - develop\n      - main\n", workflow)
+        self.assertIn("\n  pull_request:\n", workflow)
+
+    def test_documentation_paths_are_skipped_by_a_workflow_that_reports_the_same_checks(self):
+        ci = (PROJECT_ROOT / ".github/workflows/ci.yml").read_text()
+        docs = (PROJECT_ROOT / ".github/workflows/ci-docs.yml").read_text()
+
+        def path_lists(workflow, key):
+            lists = []
+            for block in workflow.split(f"{key}:\n")[1:]:
+                entries = []
+                for line in block.splitlines():
+                    if not line.startswith("      - "):
+                        break
+                    entries.append(line.removeprefix("      - "))
+                lists.append(entries)
+            return lists
+
+        ignored = path_lists(ci, "paths-ignore")
+        answered = path_lists(docs, "paths")
+        # push and pull_request each carry the list; GitHub Actions has no YAML anchors to share one.
+        self.assertEqual(len(ignored), 2)
+        self.assertEqual(ignored[0], ignored[1])
+        self.assertEqual(answered, ignored, "ci-docs.yml must answer for exactly the paths ci.yml ignores")
+
+        # README.md, PRIVACY.md and the architecture document are asserted on by this very file, so they can only be ignored while something that is not the macOS job still runs it. That something is contracts.yml, and both workflows have to call it: ci-docs.yml for the ignored paths, ci.yml for everything else.
+        contracts = (PROJECT_ROOT / ".github/workflows/contracts.yml").read_text()
+        self.assertIn("uses: ./.github/workflows/contracts.yml", ci)
+        self.assertIn("uses: ./.github/workflows/contracts.yml", docs)
+        self.assertIn("python3 platforms/macos/tests/ReleaseConfigurationTests.py", contracts)
+        self.assertIn("runs-on: ubuntu-24.04", contracts)
+        for asserted_document in ("README.md", "PRIVACY.md", "docs/apple-platform-architecture.md"):
+            self.assertIn(asserted_document, ignored[0])
+
+        # Build inputs, not prose: CMake installs both into the bundle.
+        for build_input in ("LICENSE", "THIRD_PARTY_NOTICES.txt"):
+            self.assertNotIn(build_input, ignored[0])
+
+        # Branch protection requires check names, so the substitutes have to be named identically and must not spend a macOS runner to say nothing happened.
+        for required_check in ("name: macOS 15 ${{ matrix.architecture }}", "name: iOS Simulator"):
+            self.assertIn(required_check, ci)
+            self.assertIn(required_check, docs)
+        self.assertIn("architecture: [arm64, x86_64]", docs)
+        self.assertIn("uses: ./.github/workflows/quality.yml", docs)
+        self.assertNotIn("runs-on: macos", docs)
 
     def test_current_repository_links_use_the_canonical_apple_repository(self):
         canonical_repository = "https://github.com/metasequoiaime/MSIME-Apple"
@@ -79,6 +138,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
             f"{canonical_repository}/releases/latest/download/appcast.xml",
         )
 
+    @requires("tiffutil", "sips")
     def test_input_source_uses_a_dedicated_menu_icon(self):
         with (MACOS_ROOT / "resources/Info.plist").open("rb") as info_file:
             info = plistlib.load(info_file)
@@ -413,7 +473,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
                 action_reference = uses_line.removeprefix("uses:").strip().split()[0]
                 if action_reference.startswith("./"):
                     # Local reusable workflows are pinned by the caller's own commit.
-                    self.assertEqual(action_reference, "./.github/workflows/quality.yml")
+                    self.assertIn(action_reference, {"./.github/workflows/quality.yml", "./.github/workflows/contracts.yml"})
                     self.assertTrue((PROJECT_ROOT / action_reference).is_file())
                     continue
                 action, separator, revision = action_reference.partition("@")
@@ -909,6 +969,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("vendor/MetasequoiaImeEngine/helpcode/helpcodes", cmake)
         self.assertIn("Resources/helpcodes", cmake)
 
+    @requires("zsh")
     def test_release_scripts_have_valid_zsh_syntax(self):
         for relative_path in (
             "scripts/install-release.sh",
@@ -926,6 +987,7 @@ class ReleaseConfigurationTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    @requires("zsh")
     def test_package_script_refuses_ambiguously_named_unsigned_assets(self):
         environment = os.environ.copy()
         for variable in (

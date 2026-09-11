@@ -1,0 +1,30 @@
+name: Repository contracts
+
+# ReleaseConfigurationTests almost entirely reads files in the tree and asserts on their text: README.md against the features it promises, the Info.plist keys, the release workflow's steps and ordering, the packaging scripts. None of that needs Apple tooling, yet ctest only reaches it after the macOS build, so a README claim that no longer matches the code was reported around forty minutes into a pull request and cost a macOS runner to say so.
+#
+# Called by both ci.yml and ci-docs.yml so it runs on every pull request, and so a change to the documents it asserts on can skip the matrix without losing the assertions. The cases that genuinely need tiffutil, sips or zsh carry a @requires guard and stay covered by the macOS job.
+
+on:
+  workflow_call:
+  # Lets the text contracts be re-run on their own, without dispatching the full matrix.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Repository contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Not recursive: two cases read the Engine's punctuation contract and quanpin header, and the Engine's own submodules are hundreds of megabytes of audio dependencies that nothing here asserts on.
+          submodules: true
+          persist-credentials: false
+      - name: Install zsh
+        # test_release_scripts_have_valid_zsh_syntax and the packaging refusal case shell out to it. The runner image usually ships it; installing keeps the @requires guard from quietly skipping both on Linux.
+        run: command -v zsh >/dev/null || { sudo apt-get update && sudo apt-get install -y zsh; }
+      - name: Check the repository contracts
+        run: python3 platforms/macos/tests/ReleaseConfigurationTests.py
