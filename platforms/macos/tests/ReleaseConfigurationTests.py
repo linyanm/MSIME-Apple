@@ -99,18 +99,30 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertNotIn("<rect", menu_icon_svg)
 
         icon_path = MACOS_ROOT / "resources" / menu_icon
-        dpi_output = subprocess.check_output(
-            ["sips", "-g", "dpiWidth", "-g", "dpiHeight", str(icon_path)],
-            text=True,
+        # The input menu draws this through HIToolbox, which reads the TIFF's pages rather than the
+        # DPI metadata of a single one. A lone 2x page is taken for a 32-point image and cropped by
+        # the 16-point slot to whatever sits in its middle, which for this stroke arrives as a solid
+        # square. Apple's own input methods ship both pages; so does this.
+        pages = subprocess.check_output(["tiffutil", "-info", str(icon_path)], text=True)
+        self.assertEqual(
+            re.findall(r"Image Width: (\d+) Image Length: (\d+)", pages),
+            [("16", "16"), ("32", "32")],
         )
-        self.assertRegex(dpi_output, r"dpiWidth:\s*144(?:\.0+)?")
-        self.assertRegex(dpi_output, r"dpiHeight:\s*144(?:\.0+)?")
+        self.assertEqual(re.findall(r"Resolution: (\d+), (\d+)", pages), [("72", "72"), ("144", "144")])
+        # The shape is carried by the alpha channel, since the menu tints the icon as a template and
+        # a filled background would tint into a block.
+        self.assertEqual(pages.count("Alpha: Present"), 2)
 
         alpha_output = subprocess.check_output(
             ["sips", "-g", "hasAlpha", str(icon_path)],
             text=True,
         )
         self.assertRegex(alpha_output, r"hasAlpha:\s*yes")
+
+        # The tile is square, and the script that renders it from the SVG stays in the tree so the
+        # next edit to the stroke can reproduce both pages.
+        self.assertRegex(menu_icon_svg, r'viewBox="[\d.]+ [\d.]+ ([\d.]+) \1"')
+        self.assertTrue((MACOS_ROOT / "scripts" / "render_menu_icon.swift").is_file())
 
     def test_input_controller_survives_the_engine_helpcode_semantics(self):
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
