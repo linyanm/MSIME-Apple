@@ -1,4 +1,6 @@
 extern "C" void MSIMEShowBackendAccount(void);
+// Implemented in CandidateTranslationBridge.swift.
+extern "C" bool MSIMEBackendAccountSignedIn(void);
 
 #import "PreferencesWindowController.h"
 
@@ -10,6 +12,7 @@ extern "C" void MSIMEShowBackendAccount(void);
 #include "HelpcodeSchemaPreference.h"
 #include "InputControllerKeyRouting.h"
 #include "InputBehaviorPreferences.h"
+#include "CandidateTranslationLanguage.h"
 #include "InputSchemePreference.h"
 #import "CandidateSkinAppearance.h"
 #import "CandidateSkinPreviewView.h"
@@ -336,6 +339,8 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     NSView *_translationTencentIdRow;
     NSView *_translationTencentKeyRow;
     NSView *_translationEndpointRow;
+    NSView *_translationAccountRow;
+    NSTextField *_translationAccountLabel;
     MetasequoiaCandidatePreviewView *_candidatePreview;
     MetasequoiaSkinSettingsView *_skinSettings;
     NSButton *_candidateLearningButton;
@@ -1376,11 +1381,21 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _translationTencentIdRow = PreferenceRow(@"腾讯云 SecretId", _translationSecretIdField);
     _translationTencentKeyRow = PreferenceRow(@"腾讯云 SecretKey", _translationSecretKeyField);
     _translationEndpointRow = PreferenceRow(@"DeepLX Endpoint", _translationEndpointField);
+    _translationAccountLabel = [NSTextField labelWithString:@""];
+    _translationAccountLabel.textColor = [NSColor secondaryLabelColor];
+    _translationAccountLabel.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+    _translationAccountLabel.accessibilityLabel = @"候选翻译账号状态";
+    _translationAccountRow = PreferenceRow(@"", _translationAccountLabel);
+    // The rows are addressed by label so the settings test can watch each provider reveal its own.
+    _translationTencentIdRow.accessibilityLabel = @"腾讯云 SecretId 行";
+    _translationTencentKeyRow.accessibilityLabel = @"腾讯云 SecretKey 行";
+    _translationEndpointRow.accessibilityLabel = @"DeepLX Endpoint 行";
+    _translationAccountRow.accessibilityLabel = @"候选翻译账号状态行";
     NSBox *translationCard = CardWithViews(
         @[
             _candidateTranslationButton, PreferenceRow(@"在线服务", _translationProviderButton),
-            PreferenceRow(@"目标语言", _translationLanguageButton), _translationTencentIdRow, _translationTencentKeyRow,
-            _translationEndpointRow
+            PreferenceRow(@"目标语言", _translationLanguageButton), _translationAccountRow, _translationTencentIdRow,
+            _translationTencentKeyRow, _translationEndpointRow
         ],
         8.0);
     NSView *shortcutsPage = PreferencesPage(@"快捷键", @"设置候选翻页与输入状态切换快捷键。", @[ shortcutCard ]);
@@ -2252,19 +2267,36 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
         MetasequoiaInputFlag(@"candidateTranslation") ? NSControlStateValueOn : NSControlStateValueOff;
     _cloudCandidatesButton.state =
         MetasequoiaInputFlag(@"cloudCandidates") ? NSControlStateValueOn : NSControlStateValueOff;
-    [_translationProviderButton selectItemAtIndex:MetasequoiaInputInteger(@"translationProvider", 0, 0, 1)];
-    [_translationLanguageButton selectItemAtIndex:MetasequoiaInputInteger(@"translationLanguage", 0, 0, 2)];
-    _translationProviderButton.enabled = _candidateTranslationButton.state == NSControlStateValueOn;
-    _translationLanguageButton.enabled = _candidateTranslationButton.state == NSControlStateValueOn;
-    const BOOL tencent = _translationProviderButton.indexOfSelectedItem == 0;
-    _translationSecretIdField.enabled = _candidateTranslationButton.state == NSControlStateValueOn && tencent;
-    _translationSecretKeyField.enabled = _candidateTranslationButton.state == NSControlStateValueOn && tencent;
-    _translationEndpointField.enabled = _candidateTranslationButton.state == NSControlStateValueOn && !tencent;
+    [_translationProviderButton
+        selectItemAtIndex:MetasequoiaInputInteger(@"translationProvider", 0, 0,
+                                                  _translationProviderButton.numberOfItems - 1)];
+    [_translationLanguageButton
+        selectItemAtIndex:MetasequoiaInputInteger(@"translationLanguage", 0, 0,
+                                                  _translationLanguageButton.numberOfItems - 1)];
+    const BOOL translating = _candidateTranslationButton.state == NSControlStateValueOn;
+    _translationProviderButton.enabled = translating;
+    _translationLanguageButton.enabled = translating;
+    // Each provider shows only what it needs: the account model asks for nothing, and leaving a
+    // vendor's key fields under it reads as though it wanted them.
+    const auto provider = metasequoia::mac::CandidateTranslationProviderAt(
+        static_cast<std::size_t>(_translationProviderButton.indexOfSelectedItem));
+    const BOOL tencent = provider == metasequoia::mac::CandidateTranslationProvider::TencentMachineTranslation;
+    const BOOL deeplx = provider == metasequoia::mac::CandidateTranslationProvider::DeepLX;
+    const BOOL accountModel = provider == metasequoia::mac::CandidateTranslationProvider::AccountModel;
+    _translationSecretIdField.enabled = translating && tencent;
+    _translationSecretKeyField.enabled = translating && tencent;
+    _translationEndpointField.enabled = translating && deeplx;
     _translationTencentIdRow.hidden = !tencent;
     _translationTencentKeyRow.hidden = !tencent;
-    _translationEndpointRow.hidden = tencent;
-    _translationSecretIdField.placeholderString = tencent ? @"SecretId（腾讯云）" : @"DeepLX 不需要 SecretId";
-    _translationSecretKeyField.placeholderString = tencent ? @"SecretKey（腾讯云）" : @"DeepLX 不需要 SecretKey";
+    _translationEndpointRow.hidden = !deeplx;
+    _translationAccountRow.hidden = !accountModel;
+    // Signed out is the one thing that stops this provider, and it stops it silently, so the card
+    // says so rather than leaving someone to wonder why nothing appears beside their candidates.
+    _translationAccountLabel.stringValue = MSIMEBackendAccountSignedIn()
+                                               ? @"使用已登录的水杉账号，无需填写密钥。"
+                                               : @"需要先登录水杉账号，否则候选旁不会出现译文。";
+    _translationSecretIdField.placeholderString = @"SecretId（腾讯云）";
+    _translationSecretKeyField.placeholderString = @"SecretKey（腾讯云）";
 }
 
 - (void)translationCredentialChanged:(NSTextField *)sender

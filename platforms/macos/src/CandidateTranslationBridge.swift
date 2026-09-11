@@ -86,3 +86,11 @@ func translateCandidates(_ wordsJSON: UnsafePointer<CChar>, _ languageName: Unsa
   CandidateTranslationBridge.translate(words: words, languageName: String(cString: languageName),
                                        generation: generation)
 }
+
+// Whether an account is signed in, so the settings can say what a provider needs before anyone
+// turns it on. Reading the keychain is cheap and synchronous, and the token itself is not needed to
+// answer this much.
+@_cdecl("MSIMEBackendAccountSignedIn")
+func backendAccountSignedIn() -> Bool {
+  ((try? BackendKeychain().load()) ?? nil) != nil
+}
