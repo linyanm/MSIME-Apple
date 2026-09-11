@@ -1,4 +1,5 @@
 #import "CandidatePanel.h"
+#import "CandidateAppearancePreferences.h"
 #import "CandidateSkinAppearance.h"
 
 #include <cmath>
@@ -137,6 +138,9 @@
     NSInteger _selected;
     metasequoia::mac::ResolvedSkin _skin;
     NSImage *_decorationImage;
+    NSRect _anchorCaret;
+    NSPoint _fixedOrigin;
+    BOOL _hasAnchor;
 }
 
 - (instancetype)init
@@ -145,6 +149,7 @@
     if (self)
     {
         _data = @[];
+        _preedit = @"";
         _font = [NSFont systemFontOfSize:18];
         _selected = NSNotFound;
         _window = [[MetasequoiaCandidateWindow alloc]
@@ -173,12 +178,21 @@
                                                  selector:@selector(reloadSkin)
                                                      name:MetasequoiaCandidateSkinDidChangeNotification
                                                    object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(reloadSkin)
+                                                   name:MetasequoiaAppearanceDidChange
+                                                 object:nil];
+        [NSDistributedNotificationCenter.defaultCenter addObserver:self
+                                                          selector:@selector(reloadSkin)
+                                                              name:MetasequoiaAppearanceDidChange
+                                                            object:nil];
     }
     return self;
 }
 - (void)dealloc
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [NSDistributedNotificationCenter.defaultCenter removeObserver:self];
     [_window orderOut:nil];
 }
 - (NSPanel *)window
@@ -187,12 +201,21 @@
 }
 - (void)reloadSkin
 {
+    [NSUserDefaults.standardUserDefaults synchronize];
+    NSInteger legacySize = [NSUserDefaults.standardUserDefaults integerForKey:@"MetasequoiaImeCandidateFontSize"];
+    _font = MetasequoiaCandidateFont(MetasequoiaAppearanceInteger(
+        @"fontSize", legacySize >= 12 && legacySize <= 36 ? legacySize : _font.pointSize, 12, 36));
     _skin = MetasequoiaResolveStoredCandidateSkin(MetasequoiaAppearanceIsDark(_chrome.effectiveAppearance));
     _decorationImage = nil;
     if (_skin.decorationTopDip > 0.0 && !_skin.decorationPath.empty())
     {
         _decorationImage = [[NSImage alloc] initWithContentsOfFile:@(_skin.decorationPath.c_str())];
     }
+    [self layoutCandidates];
+}
+- (void)setPreedit:(NSString *)preedit
+{
+    _preedit = preedit ? [preedit copy] : @"";
     [self layoutCandidates];
 }
 - (void)setPanelType:(IMKCandidatePanelType)type
@@ -227,8 +250,9 @@
 }
 - (NSScreen *)screenForCaret
 {
+    NSRect caret = _hasAnchor && !MetasequoiaCandidateFollowsCaret() ? _anchorCaret : self.caretRect;
     for (NSScreen *screen in NSScreen.screens)
-        if (NSPointInRect(NSMakePoint(NSMinX(self.caretRect), NSMidY(self.caretRect)), screen.frame))
+        if (NSPointInRect(NSMakePoint(NSMinX(caret), NSMidY(caret)), screen.frame))
             return screen;
     return NSScreen.mainScreen;
 }
@@ -277,10 +301,16 @@
     if (paging)
         width = vertical ? MAX(width, 64) : width + 56;
     const CGFloat decorationHeight = _skin.decorationTopDip > 0.0 ? _skin.decorationTopDip : 0.0;
+    NSFont *preeditFont = MetasequoiaCandidateFont(MetasequoiaAppearanceInteger(@"preeditSize", 15, 10, 36));
+    const CGFloat preeditHeight =
+        _preedit.length ? ceil(preeditFont.ascender - preeditFont.descender + preeditFont.leading) + 10 : 0;
+    if (_preedit.length)
+        width =
+            MAX(width, MIN(availableWidth, [_preedit sizeWithAttributes:@{NSFontAttributeName : preeditFont}].width));
     const CGFloat minWidth = MAX(_skin.minWidthDip, MAX(_skin.decorationWidthDip, 20));
     NSSize size = NSMakeSize(MAX(width + 2 * inset, minWidth),
                              MAX((vertical ? _data.count : (_data.count > 0 ? 1 : 0)) * rowHeight + navigationHeight +
-                                     2 * inset + decorationHeight,
+                                     2 * inset + decorationHeight + preeditHeight,
                                  10));
     [_window setContentSize:size];
     _chrome.fillColor = MetasequoiaColorFromRgba(_skin.tokens.surface);
@@ -298,7 +328,17 @@
         [_chrome addSubview:_decorationView];
     }
     CGFloat x = inset;
-    const CGFloat contentTop = size.height - inset - decorationHeight;
+    const CGFloat contentTop = size.height - inset - decorationHeight - preeditHeight;
+    if (_preedit.length)
+    {
+        NSTextField *label = [NSTextField labelWithString:_preedit];
+        label.font = preeditFont;
+        label.textColor = MetasequoiaColorFromRgba(_skin.tokens.text);
+        label.lineBreakMode = NSLineBreakByTruncatingTail;
+        label.frame = NSMakeRect(inset, contentTop + 4, size.width - inset * 2, preeditHeight - 4);
+        label.accessibilityLabel = @"预编辑文本";
+        [_chrome addSubview:label];
+    }
     NSColor *selectedFill = MetasequoiaColorFromRgba(_skin.tokens.selected);
     NSColor *textColor = MetasequoiaColorFromRgba(_skin.tokens.text);
     NSColor *selectedText = MetasequoiaColorFromRgba(_skin.tokens.selectedText);
@@ -367,6 +407,8 @@
         return;
     }
     NSRect caret = self.caretRect;
+    if (_hasAnchor && !MetasequoiaCandidateFollowsCaret())
+        caret = _anchorCaret;
     if (!std::isfinite(caret.origin.x) || !std::isfinite(caret.origin.y) || !std::isfinite(caret.size.width) ||
         !std::isfinite(caret.size.height) || caret.size.height <= 0)
     {
@@ -381,11 +423,23 @@
     if (y < NSMinY(bounds))
         y = NSMaxY(caret) + 4;
     y = MIN(MAX(y, NSMinY(bounds)), MAX(NSMinY(bounds), NSMaxY(bounds) - size.height));
+    if (_hasAnchor && !MetasequoiaCandidateFollowsCaret())
+    {
+        x = MIN(MAX(_fixedOrigin.x, NSMinX(bounds)), MAX(NSMinX(bounds), NSMaxX(bounds) - size.width));
+        y = MIN(MAX(_fixedOrigin.y, NSMinY(bounds)), MAX(NSMinY(bounds), NSMaxY(bounds) - size.height));
+    }
+    else
+    {
+        _anchorCaret = caret;
+        _fixedOrigin = NSMakePoint(x, y);
+        _hasAnchor = YES;
+    }
     [_window setFrameOrigin:NSMakePoint(x, y)];
     [_window orderFrontRegardless];
 }
 - (void)hide
 {
+    _hasAnchor = NO;
     [_window orderOut:nil];
 }
 - (BOOL)isVisible

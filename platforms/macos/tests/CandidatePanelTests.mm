@@ -1,5 +1,6 @@
 #import "../src/CandidatePanel.h"
 #import "../src/CandidateSkinAppearance.h"
+#import "../src/CandidateAppearancePreferences.h"
 #include <stdexcept>
 
 static void Require(bool condition, const char *message)
@@ -109,6 +110,56 @@ int main()
         panel.caretRect = NSZeroRect;
         [panel show:kIMKLocateCandidatesBelowHint];
         Require(!panel.isVisible, "An invalid caret displayed a misplaced candidate window.");
+
+        NSDictionary *originalAppearance = MetasequoiaAppearancePreferences();
+        NSRect screen = NSScreen.mainScreen.visibleFrame;
+        panel.caretRect = NSMakeRect(NSMinX(screen) + 50, NSMidY(screen), 1, 20);
+        MetasequoiaSetAppearancePreference(@"followCaret", @NO);
+        [panel show:kIMKLocateCandidatesBelowHint];
+        NSPoint fixed = panel.candidateFrame.origin;
+        panel.caretRect = NSOffsetRect(panel.caretRect, 100, 30);
+        [panel show:kIMKLocateCandidatesBelowHint];
+        Require(NSEqualPoints(fixed, panel.candidateFrame.origin), "A fixed candidate window followed the caret.");
+        [panel hide];
+        [panel show:kIMKLocateCandidatesBelowHint];
+        Require(!NSEqualPoints(fixed, panel.candidateFrame.origin), "A new composition reused an old fixed anchor.");
+        fixed = panel.candidateFrame.origin;
+        MetasequoiaSetAppearancePreference(@"followCaret", @YES);
+        panel.caretRect = NSOffsetRect(panel.caretRect, 70, 20);
+        [panel show:kIMKLocateCandidatesBelowHint];
+        Require(!NSEqualPoints(fixed, panel.candidateFrame.origin), "Re-enabling follow caret did not move the panel.");
+        panel.preedit = @"ni'hao";
+        MetasequoiaSetAppearancePreference(@"preeditSize", @10);
+        CGFloat compactPreeditHeight = panel.candidateFrame.size.height;
+        MetasequoiaSetAppearancePreference(@"preeditSize", @36);
+        Require(panel.candidateFrame.size.height > compactPreeditHeight,
+                "Preedit size did not resize the real window.");
+        NSTextField *preedit = nil;
+        for (NSView *view in panel.window.contentView.subviews)
+            if ([view.accessibilityLabel isEqualToString:@"预编辑文本"])
+                preedit = (NSTextField *)view;
+        Require(preedit && preedit.font.pointSize == 36 && [preedit.stringValue isEqualToString:@"ni'hao"],
+                "The real preedit did not preserve the snapshot text and configured font size.");
+        MetasequoiaSetAppearancePreference(@"font", @"Menlo");
+        MetasequoiaSetAppearancePreference(@"fallbackFont", @"PingFangSC-Regular");
+        NSFont *font = MetasequoiaCandidateFont(24);
+        Require([font.familyName isEqualToString:@"Menlo"] && font.pointSize == 24,
+                "The chosen candidate font was not resolved.");
+        Require([font.fontDescriptor objectForKey:NSFontCascadeListAttribute] != nil,
+                "The supplementary font was not in the font cascade.");
+        MetasequoiaSetAppearancePreference(@"textColor", @[ @0.1, @0.2, @0.3 ]);
+        NSColor *text = MetasequoiaColorFromRgba(MetasequoiaResolveStoredCandidateSkin(NO).tokens.text);
+        Require(std::abs(text.redComponent - 0.1) < 0.001, "Text color did not override the candidate skin.");
+        MetasequoiaSetAppearancePreference(@"textColor", @[ @2, @0, @0 ]);
+        Require(MetasequoiaCandidateTextColor() == nil, "An invalid stored color was accepted.");
+        MetasequoiaSetAppearancePreference(@"theme", @2);
+        Require(MetasequoiaAppearanceIsDark([NSAppearance appearanceNamed:NSAppearanceNameAqua]),
+                "Forced dark theme was ignored.");
+        MetasequoiaSetAppearancePreference(@"theme", @1);
+        Require(!MetasequoiaAppearanceIsDark([NSAppearance appearanceNamed:NSAppearanceNameDarkAqua]),
+                "Forced light theme was ignored.");
+        [NSUserDefaults.standardUserDefaults setObject:originalAppearance forKey:MetasequoiaAppearancePreferencesKey];
+        [panel hide];
         [panel setCandidateData:@[]];
         Require(!panel.isVisible && panel.selectedCandidate == NSNotFound, "Empty data retained a visible selection.");
     }
