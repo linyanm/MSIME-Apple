@@ -600,7 +600,9 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("启用全拼自动纠错", preferences_controller)
         self.assertIn("storedHelpcodeEnabled", preferences_controller)
         self.assertIn("setHelpcodeEnabled", preferences_controller)
-        self.assertIn("启用辅助码", preferences_controller)
+        # One switch became two when quanpin and shuangpin got their own scheme lists.
+        self.assertIn("全拼辅助码", preferences_controller)
+        self.assertIn("双拼辅助码", preferences_controller)
         self.assertIn("storedQuanpinHelpcodeSchema", preferences_controller)
         self.assertIn("storedShuangpinHelpcodeSchema", preferences_controller)
         # Each preference owns one notification name here. The two schemas briefly shared MetasequoiaHelpcodeDidChangeNotification, whose payload is the enabled BOOL, so a subscriber reading -boolValue would have seen a schema index instead.

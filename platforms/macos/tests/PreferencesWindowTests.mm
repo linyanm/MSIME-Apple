@@ -702,10 +702,13 @@ int main()
                     frequencyStepButton.indexOfSelectedItem == 1 && !frequencyModeButton.enabled &&
                     !frequencyTriggerButton.enabled && !frequencyStepButton.enabled,
                 "The frequency controls did not reflect the stored pin/3/2 values and disabled learning state.");
-        NSView *helpcodeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"启用辅助码");
-        require([helpcodeView isKindOfClass:[NSButton class]],
-                "The settings window did not expose the helpcode control.");
+        // Quanpin and shuangpin carry their own helpcode switch, each governing its own scheme list.
+        NSView *helpcodeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"全拼辅助码");
+        NSView *shuangpinHelpcodeView = FindViewWithAccessibilityLabel(controller.window.contentView, @"双拼辅助码");
+        require([helpcodeView isKindOfClass:[NSButton class]] && [shuangpinHelpcodeView isKindOfClass:[NSButton class]],
+                "The settings window did not expose a helpcode control for each scheme.");
         NSButton *helpcodeButton = (NSButton *)helpcodeView;
+        NSButton *shuangpinHelpcodeButton = (NSButton *)shuangpinHelpcodeView;
         NSView *quanpinHelpcodeSchemaView =
             FindViewWithAccessibilityLabel(controller.window.contentView, @"全拼辅助码方案");
         NSView *shuangpinHelpcodeSchemaView =
@@ -906,10 +909,19 @@ int main()
                     [[NSUserDefaults standardUserDefaults] integerForKey:@"MetasequoiaImeQuanpinHelpcodeSchema"] == 4 &&
                     [[NSUserDefaults standardUserDefaults] integerForKey:@"MetasequoiaImeShuangpinHelpcodeSchema"] == 2,
                 "The helpcode scheme controls did not persist independent selections.");
+        // Turning one scheme's helpcodes off leaves the other's alone: they were split apart for
+        // exactly that, and one switch dimming both lists would be the old behaviour wearing a new
+        // label.
         helpcodeButton.state = NSControlStateValueOff;
         require([NSApp sendAction:helpcodeButton.action to:helpcodeButton.target from:helpcodeButton] &&
-                    !quanpinHelpcodeSchemaButton.enabled && !shuangpinHelpcodeSchemaButton.enabled,
-                "Disabling helpcodes left the scheme controls active.");
+                    !quanpinHelpcodeSchemaButton.enabled && shuangpinHelpcodeSchemaButton.enabled,
+                "Disabling quanpin helpcodes did not leave the shuangpin scheme control alone.");
+        shuangpinHelpcodeButton.state = NSControlStateValueOff;
+        require([NSApp sendAction:shuangpinHelpcodeButton.action
+                               to:shuangpinHelpcodeButton.target
+                             from:shuangpinHelpcodeButton] &&
+                    !shuangpinHelpcodeSchemaButton.enabled,
+                "Disabling shuangpin helpcodes left its scheme control active.");
 
         shortcutButton.state = NSControlStateValueOn;
         require([NSApp sendAction:shortcutButton.action to:shortcutButton.target from:shortcutButton],

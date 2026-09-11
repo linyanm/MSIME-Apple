@@ -325,6 +325,7 @@ if(METASEQUOIA_IME_BUILD_INPUT_METHOD)
             ${METASEQUOIA_MACOS_ROOT}/src/PreferencesWindowController.mm
             ${METASEQUOIA_MACOS_ROOT}/src/ShuangpinKeymapPanel.mm
             ${METASEQUOIA_MACOS_ROOT}/src/StringConversion.mm
+            ${METASEQUOIA_MACOS_ROOT}/src/TranslationClient.mm
             ${METASEQUOIA_MACOS_ROOT}/src/UpdateController.mm)
         target_compile_options(MetasequoiaCandidatePaginationTests PRIVATE -fobjc-arc -Wall -Wextra -Wpedantic -Werror)
         if(EXISTS "${dictionary_directory}/dict_japanese.dat")

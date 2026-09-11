@@ -29,6 +29,7 @@
 #include "InputControllerKeyRouting.h"
 #include "InputBehaviorPreferences.h"
 #include <metasequoia/session.h>
+#include "contracts/punctuation/policy.h"
 #include "quanpin/quanpin_utils.h"
 
 #import <Carbon/Carbon.h>
