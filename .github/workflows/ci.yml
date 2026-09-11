@@ -5,19 +5,25 @@ on:
     branches:
       - develop
       - main
-    # Documentation no build step reads and no suite asserts on. A change confined to these paths held a macOS 15 x86_64 runner for the full iOS interface suite to prove nothing, and the release build on main queued behind it. ci-docs.yml answers for the required checks on exactly this list, so those pull requests stay mergeable.
+    # Prose that no build step compiles. A change confined to these paths held a macOS 15 x86_64 runner for the full iOS interface suite to prove nothing, and the release build on main queued behind it. ci-docs.yml answers for the required checks on exactly this list, so those pull requests stay mergeable, and it calls contracts.yml as well -- README.md, PRIVACY.md and the architecture document are asserted on by ReleaseConfigurationTests, and that suite runs on Linux, so ignoring them here keeps the assertions and drops only the matrix.
     #
-    # What is deliberately absent matters more than what is here: ReleaseConfigurationTests greps README.md, PRIVACY.md, LICENSE, THIRD_PARTY_NOTICES.txt and docs/apple-platform-architecture.md, and those assertions only run inside the macOS job's ctest. Editing one of them has to run the matrix that checks it. A new documentation file is not ignored until it is added here, which fails toward running CI.
+    # LICENSE and THIRD_PARTY_NOTICES.txt stay off the list on purpose: CMake installs them into the bundle, so they are build inputs rather than prose. A new documentation file is not ignored until someone adds it here, which fails toward running CI.
     paths-ignore:
       - CHANGELOG.md
+      - PRIVACY.md
       - README.en.md
+      - README.md
+      - docs/apple-platform-architecture.md
       - docs/backend-integration.md
       - docs/ios-distribution.md
       - docs/plans/**
   pull_request:
     paths-ignore:
       - CHANGELOG.md
+      - PRIVACY.md
       - README.en.md
+      - README.md
+      - docs/apple-platform-architecture.md
       - docs/backend-integration.md
       - docs/ios-distribution.md
       - docs/plans/**
@@ -42,6 +48,10 @@ permissions:
 jobs:
   quality:
     uses: ./.github/workflows/quality.yml
+
+  # Minutes into the run rather than after the macOS build that ctest waits for. The macOS job still runs the same suite through ctest, including the cases this one skips for want of Apple tooling.
+  contracts:
+    uses: ./.github/workflows/contracts.yml
 
   macos:
     name: macOS 15 ${{ matrix.architecture }}
