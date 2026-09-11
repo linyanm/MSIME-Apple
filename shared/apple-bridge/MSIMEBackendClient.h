@@ -8,7 +8,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)isValidBaseURL:(NSString *)baseURL;
 - (void)reloadConfiguration;
 - (void)cancel;
-- (void)cloudCandidateForText:(NSString *)text japanese:(BOOL)japanese
-                 completion:(void (^)(NSString * _Nullable candidate))completion;
+- (void)cloudCandidateForText:(NSString *)text
+                     japanese:(BOOL)japanese
+                   completion:(void (^)(NSString *_Nullable candidate))completion;
 @end
 NS_ASSUME_NONNULL_END
