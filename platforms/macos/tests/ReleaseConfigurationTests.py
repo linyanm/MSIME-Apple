@@ -312,6 +312,23 @@ class ReleaseConfigurationTests(unittest.TestCase):
         )
         self.assertGreater(len(engine_characters), 10, "the Engine punctuation contract was not parsed")
 
+    def test_every_quanpin_autocorrect_type_reaches_both_apple_products(self):
+        header = (PROJECT_ROOT / "vendor/MetasequoiaImeEngine/quanpin/quanpin_utils.h").read_text()
+        engine_types = set(re.findall(r"inline constexpr unsigned (kAutocorrect\w+)", header))
+        self.assertGreaterEqual(len(engine_types), 2, "the Engine autocorrect mask was not parsed")
+
+        # The Engine replaced one autocorrect flag with a per-type mask whose default is 0. Both
+        # products decide that mask from their own preference, in two places that cannot see each
+        # other, and a type added upstream would be silently dropped by whichever one forgot it --
+        # switching a correction off for users who never changed a setting. Neither site may name a
+        # subset of what the pinned Engine offers.
+        controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
+        bridge = (PROJECT_ROOT / "shared/apple-bridge/InputSessionAdapter.cpp").read_text()
+        for name, source in (("macOS controller", controller), ("Apple bridge", bridge)):
+            named = set(re.findall(r"quanpin::(kAutocorrect\w+)", source))
+            self.assertEqual(named, engine_types, f"{name} does not cover every autocorrect type")
+            self.assertNotIn("options.autocorrect ", source, name)
+
     def test_release_automation_bumps_tags_and_uploads_installable_assets(self):
         config = json.loads((PROJECT_ROOT / "release-please-config.json").read_text())
         package = config["packages"]["."]
@@ -345,9 +362,12 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn("ios-testflight.xcarchive.zip", publish_script)
         # The .ipa is the asset a tester can actually re-sign and install, so it has to be uploaded
         # rather than only checked for existence — an earlier revision added it to one list and not
-        # the other.
+        # the other. There is only one list now: what is verified is what is uploaded, so the two
+        # cannot drift apart again.
         self.assertIn("ios-unsigned.ipa", publish_script)
-        self.assertIn('"$ios_ipa" "$ios_ipa.sha256")', publish_script.split("upload_args=", 1)[1])
+        self.assertIn('artifacts+=("$ios_archive" "$ios_archive.sha256" "$ios_ipa" "$ios_ipa.sha256")', publish_script)
+        self.assertIn('gh release upload "$TAG_NAME" --repo "$GH_REPO" "${artifacts[@]}"', publish_script)
+        self.assertNotIn("upload_args", publish_script)
         archive_script = (PROJECT_ROOT / "platforms/ios/scripts/package_ios_archive.sh").read_text()
         self.assertIn("CODE_SIGNING_ALLOWED=NO", archive_script)
         # The archive is worthless if it silently drops the extension the product exists for.
@@ -747,6 +767,34 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertIn(organization_policy, readme)
         self.assertFalse((PROJECT_ROOT / "SECURITY.md").exists())
         self.assertIn("PRIVACY.md", readme)
+
+    def test_a_manual_run_can_release_one_platform_on_its_own(self):
+        workflow = (PROJECT_ROOT / ".github/workflows/release.yml").read_text()
+
+        # Path classification only ever runs on a push, so before this the two products could not
+        # be released apart deliberately: it took a merge that happened to touch one of them.
+        self.assertIn("      platform:\n", workflow)
+        self.assertIn("          - macos\n          - ios\n", workflow)
+        # A dispatch that names no tag creates its own draft rather than requiring one to exist,
+        # and that is the step which puts the platform prefix on the tag.
+        self.assertIn(
+            "        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch'"
+            " && !inputs.bump_version && inputs.tag == '') }}\n",
+            workflow,
+        )
+        # Validating a requested draft must not run when there is no tag to validate.
+        self.assertIn(
+            "        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.bump_version"
+            " && inputs.tag != '' }}\n",
+            workflow,
+        )
+        # A platform that is not covered is never packaged, so nothing in the publishing script may
+        # reach for one of its files. The checksum block used to hash the macOS artifacts
+        # unconditionally and died on the missing name before the release was ever touched.
+        publisher = (MACOS_ROOT / "scripts/publish-release.sh").read_text()
+        verification = publisher.split("verify_checksum_manifest() {", 1)[1]
+        for guard in ('if [[ "$RELEASE_MACOS" == true ]]; then', 'if [[ "$RELEASE_IOS" == true ]]; then'):
+            self.assertIn(guard, verification)
 
     def test_testflight_signing_configuration_is_required_when_enabled(self):
         workflow = (PROJECT_ROOT / ".github/workflows/release.yml").read_text()
