@@ -429,6 +429,33 @@ final class NineKeyKeyboardTests: XCTestCase {
       "分词键不该有长按手势")
   }
 
+  func testKeyboardHeightFollowsTheSetting() throws {
+    let previous = KeyboardLayoutPreference.heightAdjustment
+    defer { KeyboardLayoutPreference.heightAdjustment = previous }
+
+    func height(for adjustment: Double) -> CGFloat {
+      KeyboardLayoutPreference.heightAdjustment = adjustment
+      let controller = KeyboardViewController()
+      controller.loadViewIfNeeded()
+      controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 292)
+      controller.view.layoutIfNeeded()
+      return controller.view.constraints.first { $0.identifier == "keyboardHeight" }?.constant ?? 0
+    }
+
+    let standard = height(for: 0)
+    XCTAssertGreaterThan(standard, 0)
+    // The keys divide whatever the keyboard claims, so a taller keyboard is what makes them easier
+    // to hit -- the setting exists for that, not for the strip.
+    XCTAssertEqual(height(for: 24), standard + 24, accuracy: 0.5)
+    XCTAssertEqual(height(for: -12), standard - 12, accuracy: 0.5)
+
+    // Out-of-range values are clamped by the preference rather than reaching the constraint.
+    KeyboardLayoutPreference.heightAdjustment = 500
+    XCTAssertEqual(KeyboardLayoutPreference.heightAdjustment, 48)
+    KeyboardLayoutPreference.heightAdjustment = -500
+    XCTAssertEqual(KeyboardLayoutPreference.heightAdjustment, -12)
+  }
+
   func testNineKeyDigitLayerKeepsTheGridInsteadOfTheTwentySixKeyRows() throws {
     let previousScheme = InputSchemePreference.scheme
     defer { InputSchemePreference.scheme = previousScheme }
