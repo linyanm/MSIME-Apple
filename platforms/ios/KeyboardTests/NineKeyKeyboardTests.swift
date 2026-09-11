@@ -403,6 +403,61 @@ final class NineKeyKeyboardTests: XCTestCase {
     }
   }
 
+  func testNineKeysCarryTheirLettersAndAHoldGesture() throws {
+    let previousScheme = InputSchemePreference.scheme
+    defer { InputSchemePreference.scheme = previousScheme }
+    InputSchemePreference.scheme = .nineKey
+    let controller = KeyboardViewController()
+    controller.loadViewIfNeeded()
+    controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 292)
+
+    // Nine-key treats 2-9 as pinyin, so a bare letter or digit has no other way in than a hold.
+    let expected = [2: "ABC", 3: "DEF", 4: "GHI", 5: "JKL", 6: "MNO", 7: "PQRS", 8: "TUV", 9: "WXYZ"]
+    for (digit, letters) in expected {
+      let key = try button("nineKey\(digit)", in: controller)
+      XCTAssertEqual(key.configuration?.title, letters, "九键 \(digit) 的键面字母")
+      XCTAssertEqual(key.tag, digit, "长按要靠 tag 认出是哪个键")
+      let holds = (key.gestureRecognizers ?? []).compactMap { $0 as? UILongPressGestureRecognizer }
+      XCTAssertEqual(holds.count, 1, "九键 \(digit) 需要且只需要一个长按手势")
+    }
+
+    // The word-split key carries no letters, so it offers nothing to hold for.
+    let split = try button("nineKey1", in: controller)
+    XCTAssertEqual(split.configuration?.title, "分词")
+    XCTAssertTrue(
+      (split.gestureRecognizers ?? []).compactMap { $0 as? UILongPressGestureRecognizer }.isEmpty,
+      "分词键不该有长按手势")
+  }
+
+  func testNineKeyDigitLayerKeepsTheGridInsteadOfTheTwentySixKeyRows() throws {
+    let previousScheme = InputSchemePreference.scheme
+    defer { InputSchemePreference.scheme = previousScheme }
+    InputSchemePreference.scheme = .nineKey
+    let controller = KeyboardViewController()
+    controller.loadViewIfNeeded()
+    controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 292)
+
+    XCTAssertEqual(try button("nineKey2", in: controller).configuration?.title, "ABC")
+    try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
+    controller.view.layoutIfNeeded()
+
+    // The grid stays and re-labels itself; handing over to the ten-across symbol rows is what this
+    // guards against, because a nine-key user chose three columns.
+    XCTAssertFalse(controller.view.subviews.isEmpty)
+    for digit in 1...9 {
+      XCTAssertEqual(try button("nineKey\(digit)", in: controller).configuration?.title, String(digit),
+                     "数字键面上九键 \(digit) 应显示数字")
+    }
+    let symbolDigits = descendants(controller.view).filter {
+      $0.accessibilityLabel == "符号 1" && !($0.superview?.isHidden ?? true)
+    }
+    XCTAssertTrue(symbolDigits.isEmpty, "九键的数字键面不应显示 26 键那排符号")
+
+    try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
+    controller.view.layoutIfNeeded()
+    XCTAssertEqual(try button("nineKey2", in: controller).configuration?.title, "ABC", "退出数字键面要恢复字母")
+  }
+
   func testKeyboardSettingsReplaceLayoutCardsAndVoiceIsIndependent() throws {
     let previousScheme = InputSchemePreference.scheme
     defer { InputSchemePreference.scheme = previousScheme }

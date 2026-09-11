@@ -54,6 +54,15 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var handwritingActionHeight: NSLayoutConstraint?
   private var layoutPicker: KeyboardLayoutPickerView?
   private var candidatePanel: KeyboardCandidatePanelView?
+  private var nineKeyHoldPopup: UIView?
+  // 九键网格的按键。按 123 时同一批键改显数字,而不是换成 26 键那排符号。
+  private struct NineKeyGridKey {
+    let button: UIButton
+    let digit: Int
+    let letters: String?
+    let numberHint: UILabel?
+  }
+  private var nineKeyGridKeys: [NineKeyGridKey] = []
   private var moreMenu: UIMenu?
   private let dismissShortcut = UIButton()
   private var letterButtons: [(button: UIButton, lowercase: String, hint: UILabel)] = []
@@ -371,17 +380,23 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     nineKeyGrid.spacing = 7
     nineKeyGrid.distribution = .fillEqually
     nineKeyContainer.addArrangedSubview(nineKeyGrid)
-    let groups = [["1", "ABC", "DEF"], ["GHI", "JKL", "MNO"], ["PQRS", "TUV", "WXYZ"]]
-    for (rowIndex, lettersInRow) in groups.enumerated() {
+    // Keys 2-9 read their letters from nineKeyLetters, which the hold gesture below also reads, so
+    // the printed legend and what a hold offers cannot drift apart. Key 1 carries no letters.
+    for rowIndex in 0..<3 {
       let row = makeRow()
-      for (column, letters) in lettersInRow.enumerated() {
+      for column in 0..<3 {
         let digit = rowIndex * 3 + column + 1
+        let letters = Self.nineKeyLetters[digit]
         let button = makeKey(
-          title: digit == 1 ? "分词" : letters,
-          accessibilityLabel: digit == 1 ? "拼音分词" : "\(digit) \(letters)"
+          title: letters ?? "分词",
+          accessibilityLabel: letters.map { "\(digit) \($0)" } ?? "拼音分词"
         ) { [weak self] in
-          if digit == 1 { self?.handleCharacter("'") }
-          else { self?.handleCharacter(String(digit)) }
+          guard let self else { return }
+          // While the digit layer is up these keys are a numeric keypad, so they output the digit
+          // instead of feeding it to the pinyin session.
+          if showsSymbols { handleSymbol(String(digit)) }
+          else if letters == nil { handleCharacter("'") }
+          else { handleCharacter(String(digit)) }
         }
         button.accessibilityIdentifier = "nineKey\(digit)"
         if var configuration = button.configuration {
@@ -396,8 +411,10 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         }
         button.titleLabel?.adjustsFontSizeToFitWidth = true
         button.titleLabel?.minimumScaleFactor = 0.7
-        if digit != 1 {
+        var numberHint: UILabel?
+        if let letters {
           let number = UILabel()
+          numberHint = number
           number.text = String(digit)
           number.font = .systemFont(ofSize: 10)
           number.textColor = KeyboardSkinPreference.selected.accent
@@ -409,7 +426,16 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
             number.topAnchor.constraint(equalTo: button.topAnchor, constant: 3),
             number.centerXAnchor.constraint(equalTo: button.centerXAnchor),
           ])
+          // 长按取这个键上印着的数字和字母。九键把 2-9 当拼音输入,单个字母和数字本身没有入口,
+          // 长按是它们唯一的来路。
+          button.tag = digit
+          let hold = UILongPressGestureRecognizer(target: self, action: #selector(handleNineKeyHold(_:)))
+          hold.minimumPressDuration = 0.3
+          button.addGestureRecognizer(hold)
+          button.accessibilityHint = "长按输入 \(digit) 或 \(letters)"
         }
+        nineKeyGridKeys.append(
+          NineKeyGridKey(button: button, digit: digit, letters: letters, numberHint: numberHint))
         row.addArrangedSubview(button)
       }
       nineKeyGrid.addArrangedSubview(row)
@@ -438,6 +464,109 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     nineKeyContainer.addArrangedSubview(controls)
     controls.widthAnchor.constraint(equalTo: sidebar.widthAnchor).isActive = true
     return nineKeyContainer
+  }
+
+  /// 九键网格在拼音键面与数字键面之间切换。
+  ///
+  /// The same buttons carry both layers: the grid geometry a nine-key user picked is what the digit
+  /// layer should keep, and rebuilding a second grid would leave two sources for the key legends.
+  private func applyNineKeyDigitLayer(_ digits: Bool) {
+    for key in nineKeyGridKeys {
+      key.button.configuration?.title = digits ? String(key.digit) : (key.letters ?? "分词")
+      key.button.accessibilityLabel =
+        digits
+        ? "数字 \(key.digit)"
+        : (key.letters.map { "\(key.digit) \($0)" } ?? "拼音分词")
+      // The corner hint names the digit a letter key also types; on the digit layer the face is
+      // already the digit, so it would just print it twice.
+      key.numberHint?.isHidden = digits
+      key.button.accessibilityHint = digits ? nil : key.letters.map { "长按输入 \(key.digit) 或 \($0)" }
+    }
+  }
+
+  private static let nineKeyLetters: [Int: String] = [
+    2: "ABC", 3: "DEF", 4: "GHI", 5: "JKL", 6: "MNO", 7: "PQRS", 8: "TUV", 9: "WXYZ",
+  ]
+
+  @objc private func handleNineKeyHold(_ gesture: UILongPressGestureRecognizer) {
+    guard gesture.state == .began, let key = gesture.view as? UIButton,
+      let letters = Self.nineKeyLetters[key.tag]
+    else { return }
+    showNineKeyHoldOptions(from: key, digit: key.tag, letters: letters)
+  }
+
+  private func showNineKeyHoldOptions(from key: UIButton, digit: Int, letters: String) {
+    dismissNineKeyHoldOptions()
+    playInputClick()
+    let skin = KeyboardSkinPreference.selected
+    // A full-surface backdrop so a tap anywhere else dismisses the row instead of typing.
+    let backdrop = UIView()
+    backdrop.accessibilityIdentifier = "nineKeyHoldBackdrop"
+    backdrop.backgroundColor = .clear
+    backdrop.translatesAutoresizingMaskIntoConstraints = false
+    backdrop.addGestureRecognizer(
+      UITapGestureRecognizer(target: self, action: #selector(dismissNineKeyHoldOptionsGesture)))
+
+    let options = UIStackView()
+    options.axis = .horizontal
+    options.spacing = 4
+    options.distribution = .fillEqually
+    options.accessibilityIdentifier = "nineKeyHoldOptions"
+    options.backgroundColor = skin.background
+    options.layer.cornerRadius = 10
+    options.layer.borderWidth = 1
+    options.layer.borderColor = skin.accent.withAlphaComponent(0.3).cgColor
+    options.isLayoutMarginsRelativeArrangement = true
+    options.layoutMargins = UIEdgeInsets(top: 5, left: 5, bottom: 5, right: 5)
+    options.translatesAutoresizingMaskIntoConstraints = false
+
+    for option in [String(digit)] + letters.lowercased().map(String.init) {
+      let item = makeKey(title: option, accessibilityLabel: "输入 \(option)") { [weak self] in
+        self?.commitNineKeyHoldOption(option)
+      }
+      item.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+      item.accessibilityIdentifier = "nineKeyHoldOption-\(option)"
+      item.widthAnchor.constraint(equalToConstant: 36).isActive = true
+      item.heightAnchor.constraint(equalToConstant: 38).isActive = true
+      options.addArrangedSubview(item)
+    }
+
+    view.addSubview(backdrop)
+    backdrop.addSubview(options)
+    // Centring on the key yields to the edge insets, so the row stays inside the keyboard when the
+    // held key is in the first or last column.
+    let centred = options.centerXAnchor.constraint(equalTo: key.centerXAnchor)
+    centred.priority = .defaultHigh
+    NSLayoutConstraint.activate([
+      backdrop.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      backdrop.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      backdrop.topAnchor.constraint(equalTo: view.topAnchor),
+      backdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      options.bottomAnchor.constraint(equalTo: key.topAnchor, constant: -6),
+      centred,
+      options.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 6),
+      options.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -6),
+    ])
+    nineKeyHoldPopup = backdrop
+    UIAccessibility.post(notification: .layoutChanged, argument: options)
+  }
+
+  private func commitNineKeyHoldOption(_ text: String) {
+    playInputClick()
+    // The letter or digit is output, not pinyin input, so an open composition is committed first
+    // rather than having the character appended to it.
+    render(session.finishComposition())
+    insertOwnText(text)
+    dismissNineKeyHoldOptions()
+  }
+
+  @objc private func dismissNineKeyHoldOptionsGesture() {
+    dismissNineKeyHoldOptions()
+  }
+
+  private func dismissNineKeyHoldOptions() {
+    nineKeyHoldPopup?.removeFromSuperview()
+    nineKeyHoldPopup = nil
   }
 
   private func makeCandidateStrip() -> UIView {
@@ -809,10 +938,16 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private func makeSymbolRow(_ symbols: [String]) -> UIStackView {
     let row = makeRow()
     for symbol in symbols {
-      row.addArrangedSubview(
-        makeKey(title: symbol, accessibilityLabel: "符号 \(symbol)") { [weak self] in
-          self?.handleSymbol(symbol)
-        })
+      let key = makeKey(title: symbol, accessibilityLabel: "符号 \(symbol)") { [weak self] in
+        self?.handleSymbol(symbol)
+      }
+      // Ten keys to a row leave about 32pt each, and the plain configuration's default 12pt on each
+      // side leaves 8pt for a glyph that needs 12. The title line break mode is byClipping, so the
+      // shortfall took the right-hand third off every digit rather than shrinking it. The letter
+      // rows already zero this; the symbol rows never did. Row spacing is fillEqually, so the keys
+      // keep their size and only the glyph gains the room.
+      key.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0)
+      row.addArrangedSubview(key)
     }
     return row
   }
@@ -1225,6 +1360,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     _ = session.setLearningEnabled(DictionaryLearningPreference.enabled)
     _ = session.setFuzzyPinyinRules(FuzzyPinyinPreference.activeRules)
     session.setWubiMixedPinyin(WubiMixedPinyinPreference.isEnabled)
+    _ = session.setEnglishMixedCandidates(EnglishMixedCandidatesPreference.isEnabled)
   }
 
   private func applyInputScheme() -> MetasequoiaInputSnapshot {
@@ -1667,13 +1803,19 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     if writes { handwriting.activate() }
     handwritingActionHeight?.isActive = writes
     letterRowViews.forEach { $0.isHidden = showsSymbols || nineKey || writes || kana }
-    nineKeyContainer.isHidden = showsSymbols || !nineKey
-    nineKeyRows.forEach { $0.isHidden = showsSymbols || !nineKey }
+    // Nine-key keeps its own grid for the digit layer rather than handing over to the 26-key symbol
+    // rows, which would put a ten-across keypad under a keyboard the user chose for three columns.
+    let nineKeyDigits = nineKey && showsSymbols
+    nineKeyContainer.isHidden = !nineKey
+    nineKeyRows.forEach { $0.isHidden = !nineKey }
+    applyNineKeyDigitLayer(nineKeyDigits)
     let hasSpellings = !session.nineKeySpellings().isEmpty
     spellingScrollView.isHidden = !hasSpellings
     punctuationStack.isHidden = hasSpellings
     if actionRow != nil {
-      let usesNineKeyLayout = nineKey && !showsSymbols
+      // The digit layer keeps the same grid, so the action row keeps its nine-key arrangement and
+      // the grid keeps its height; only the key legends change.
+      let usesNineKeyLayout = nineKey
       nineKeyHeight.isActive = usesNineKeyLayout
       let globeIndex = usesNineKeyLayout ? 5 : 2
       if actionRow.arrangedSubviews.firstIndex(of: actionGlobeButton) != globeIndex {
@@ -1707,7 +1849,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       symbolDeleteWidth?.isActive = showsSymbols
       NSLayoutConstraint.activate(usesNineKeyLayout ? nineKeyActionWidths : standardActionWidths)
     }
-    symbolRowViews.forEach { $0.isHidden = !showsSymbols }
+    symbolRowViews.forEach { $0.isHidden = !showsSymbols || (isChineseMode && inputScheme == .nineKey && !session.isInLocalMode) }
     for (row, height) in standardRowHeights { height.isActive = !row.isHidden }
     if var configuration = layoutToggleButton?.configuration {
       configuration.title = showsSymbols ? (kana ? "あいう" : (nineKey ? "九键" : "ABC")) : "123"
@@ -2267,6 +2409,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   }
 
   private func closeKeyboardPicker() {
+    dismissNineKeyHoldOptions()
     if let panel = candidatePanel {
       panel.removeFromSuperview()
       candidatePanel = nil

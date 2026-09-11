@@ -76,6 +76,12 @@ class InputSessionAdapter
     bool set_frequency_adjustment(FrequencyAdjustmentOptions options);
     FrequencyAdjustmentOptions frequency_adjustment() const;
     void set_wubi_mixed_pinyin(bool enabled);
+    // Offers words from the packaged English dictionary alongside the Chinese candidates, so a latin
+    // word can be committed without leaving the Chinese keyboard. The Engine applies this to Quanpin
+    // and Shuangpin only, and only to an all-lowercase prefix. Returns false during composition,
+    // like the other options the Engine reads from SessionOptions.
+    bool set_english_mixed_candidates(bool enabled);
+    bool english_mixed_candidates() const;
     RuntimePaths runtime_paths() const;
     bool idle() const;
     PersonalDictionaryEditResult edit_personal_word(const std::optional<PersonalDictionaryEntry> &previous,
@@ -105,6 +111,7 @@ class InputSessionAdapter
     std::uint32_t fuzzy_pinyin_rules_ = 0;
     FrequencyAdjustmentOptions frequency_{FrequencyAdjustmentMode::Promote, 1, 1};
     bool wubi_mixed_pinyin_ = false;
+    bool english_mixed_candidates_ = false;
     std::unique_ptr<Impl> impl_;
 };
 } // namespace metasequoia::apple
