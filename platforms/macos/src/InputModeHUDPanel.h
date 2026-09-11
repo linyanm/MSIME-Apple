@@ -4,6 +4,12 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+/// The Metasequoia forest green, and the ink that reads on top of it. Matching
+/// platforms/ios/SharedUI/MetasequoiaTheme.swift, including its two shades: the light-mode green is
+/// dark enough for white on top, the dark-mode one is light enough that white would fail on it.
+FOUNDATION_EXPORT NSColor *MetasequoiaForestColor(void);
+FOUNDATION_EXPORT NSColor *MetasequoiaOnForestColor(void);
+
 /// 中 or 英 -- the state being switched to, as one character.
 FOUNDATION_EXPORT NSString *MetasequoiaInputModeHUDText(BOOL englishInputMode);
 
@@ -22,6 +28,9 @@ FOUNDATION_EXPORT BOOL MetasequoiaIsUsableCaretRect(NSRect caretRect);
 - (void)showEnglishInputMode:(BOOL)englishInputMode nearCaretRect:(NSRect)caretRect;
 /// Visible for tests: the text currently on the badge, or nil when it is hidden.
 @property(nonatomic, copy, readonly, nullable) NSString *displayedText;
+/// Whether the logo was found in the bundle. It is absent when the panel is built outside the app,
+/// as a test binary does, and the badge then shows the character alone.
+@property(nonatomic, readonly) BOOL showsLogo;
 @end
 
 NS_ASSUME_NONNULL_END

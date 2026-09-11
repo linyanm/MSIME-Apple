@@ -16,7 +16,8 @@ void Require(bool condition, const char *message)
     }
 }
 
-constexpr CGFloat kSide = 64.0;
+constexpr CGFloat kWidth = 100.0;
+constexpr CGFloat kHeight = 56.0;
 } // namespace
 
 int main()
@@ -30,14 +31,14 @@ int main()
                     "The badge did not name the mode it was switched to.");
 
             const NSRect screen = NSMakeRect(0.0, 0.0, 1440.0, 900.0);
-            const NSSize panel = NSMakeSize(kSide, kSide);
+            const NSSize panel = NSMakeSize(kWidth, kHeight);
 
             // A caret in open screen puts the badge under it, centred on it.
             const NSRect caret = NSMakeRect(700.0, 500.0, 2.0, 20.0);
             const NSRect under = MetasequoiaInputModeHUDFrame(caret, panel, screen);
             Require(NSMaxY(under) < NSMinY(caret), "The badge covered the line being typed.");
             Require(std::abs(NSMidX(under) - NSMidX(caret)) < 0.5, "The badge was not centred on the caret.");
-            Require(NSWidth(under) == kSide && NSHeight(under) == kSide, "The badge changed size.");
+            Require(NSWidth(under) == kWidth && NSHeight(under) == kHeight, "The badge changed size.");
 
             // No room underneath: it goes above rather than off the bottom of the screen.
             const NSRect lowCaret = NSMakeRect(700.0, 12.0, 2.0, 20.0);
@@ -76,6 +77,22 @@ int main()
             Require([hud.displayedText isEqualToString:@"英"], "Switching to English did not show 英.");
             [hud showEnglishInputMode:NO nearCaretRect:NSMakeRect(700.0, 500.0, 2.0, 20.0)];
             Require([hud.displayedText isEqualToString:@"中"], "Switching back did not replace the badge text.");
+
+            // The badge wears the product's own green with ink that reads on it, rather than a
+            // system HUD material that says nothing about which input method spoke.
+            NSColor *forest = [MetasequoiaForestColor() colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+            NSColor *ink = [MetasequoiaOnForestColor() colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+            Require(forest != nil && ink != nil, "The theme colours did not resolve.");
+            Require(std::abs(forest.greenComponent - forest.redComponent) > 0.1 &&
+                        forest.greenComponent > forest.blueComponent,
+                    "The badge background was not the forest green.");
+            const CGFloat contrast = std::abs(ink.brightnessComponent - forest.brightnessComponent);
+            Require(contrast > 0.4, "The badge text would not read against its background.");
+            // The logo is a bundle resource, so a test binary has none to find and the badge falls
+            // back to the character alone rather than reserving an empty slot for it.
+            Require(hud.showsLogo == ([[NSBundle bundleForClass:[MetasequoiaInputModeHUDPanel class]]
+                                          imageForResource:@"MetasequoiaIMEMenuIcon"] != nil),
+                    "The badge disagreed with the bundle about whether it has a logo.");
             [hud orderOut:nil];
         }
         catch (const std::exception &error)
