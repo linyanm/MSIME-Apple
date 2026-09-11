@@ -2132,14 +2132,29 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     // underneath makes the screen look like a translucent sheet and leaves a second toolbar at
     // the bottom of the settings controls.
     shortcutBar.isHidden = true
-    let picker = KeyboardLayoutPickerView(selected: KeyboardLayoutPreference.selected, nineKey: inputScheme == .nineKey, onSelect: { [weak self] layout in
-      guard let self else { return }
-      KeyboardLayoutPreference.selected = layout
-      applyLayoutPreferences()
-      updateKeyboardLayout()
-      closeKeyboardPicker()
-      playInputClick()
-    }, onClose: { [weak self] in self?.closeKeyboardPicker() })
+    let picker = KeyboardLayoutPickerView(
+      keySpacing: KeyboardLayoutPreference.keySpacing,
+      rowSpacing: KeyboardLayoutPreference.rowSpacing,
+      voiceEnabled: KeyboardLayoutPreference.voiceShortcutEnabled,
+      onKeySpacing: { [weak self] spacing in
+        KeyboardLayoutPreference.keySpacing = spacing
+        self?.applyLayoutPreferences()
+      },
+      onRowSpacing: { [weak self] spacing in
+        KeyboardLayoutPreference.rowSpacing = spacing
+        self?.applyLayoutPreferences()
+      },
+      // Only the shortcut bar changes shape with this setting, so it is refreshed on its own. Going
+      // through updateKeyboardLayout would rebuild the keys and drop a composition in progress.
+      onVoice: { [weak self] enabled in
+        KeyboardLayoutPreference.voiceShortcutEnabled = enabled
+        self?.updateShortcutButtons()
+      },
+      onClose: { [weak self] in
+        guard let self else { return }
+        updateKeyboardLayout()
+        closeKeyboardPicker()
+      })
     picker.accessibilityIdentifier = "keyboardLayoutPicker"
     picker.accessibilityViewIsModal = true
     picker.translatesAutoresizingMaskIntoConstraints = false

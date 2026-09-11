@@ -1,27 +1,67 @@
 import UIKit
 
+/// 键位间距与语音入口的键盘内设置面板。
+///
+/// This replaced a grid of layout preset cards. Key placement no longer derives from a preset --
+/// presets survive only as upgrade defaults for the spacing values -- so picking one changed
+/// nothing the user could see. The spacing the geometry actually reads is editable here instead.
 final class KeyboardLayoutPickerView: UIView {
-  init(selected: KeyboardLayoutPreset, nineKey: Bool, onSelect: @escaping (KeyboardLayoutPreset) -> Void, onClose: @escaping () -> Void) {
+  init(keySpacing: Double, rowSpacing: Double, voiceEnabled: Bool,
+       onKeySpacing: @escaping (Double) -> Void,
+       onRowSpacing: @escaping (Double) -> Void,
+       onVoice: @escaping (Bool) -> Void,
+       onClose: @escaping () -> Void) {
     super.init(frame: .zero); accessibilityIdentifier = "keyboardLayoutPicker"
     let skin = KeyboardSkinPreference.selected; backgroundColor = skin.background
-    let title = UILabel(); title.text = "选择键盘布局"; title.font = .systemFont(ofSize: 17, weight: .semibold); title.textColor = skin.keyForeground
+    let title = UILabel(); title.text = "键盘设置"; title.font = .systemFont(ofSize: 17, weight: .semibold); title.textColor = skin.keyForeground
     let close = UIButton(type: .system); close.setImage(UIImage(systemName: "chevron.left"), for: .normal); close.tintColor = skin.accent; close.accessibilityIdentifier = "closeLayoutPicker"; close.accessibilityLabel = "返回键盘"; close.addAction(UIAction { _ in onClose() }, for: .primaryActionTriggered)
-    let scroll = UIScrollView(); scroll.alwaysBounceVertical = false
-    let rows = UIStackView(); rows.axis = .vertical; rows.spacing = 12
-    for index in stride(from: 0, to: KeyboardLayoutPreset.allCases.count, by: 2) {
-      let row = UIStackView(); row.spacing = 12; row.distribution = .fillEqually
-      for layout in KeyboardLayoutPreset.allCases[index..<min(index + 2, KeyboardLayoutPreset.allCases.count)] {
-        let card = KeyboardKeyButton(); card.accessibilityIdentifier = "layoutCard-\(layout.rawValue)"; card.accessibilityLabel = layout.title; card.accessibilityValue = layout == selected ? "已选中" : ""; if layout == selected { card.accessibilityTraits.insert(.selected) }; card.backgroundColor = skin.keyBackground; card.layer.cornerRadius = 14; card.layer.borderWidth = layout == selected ? 2 : 1; card.layer.borderColor = (layout == selected ? skin.accent : UIColor.separator).cgColor
-        let label = UILabel(); label.text = layout.title + (layout == selected ? "  ✓" : ""); label.font = .systemFont(ofSize: 14, weight: .semibold); label.textColor = skin.keyForeground
-        let preview = KeyboardSkinMiniature(skin: skin, nineKey: nineKey)
-        for item in [label, preview] { item.translatesAutoresizingMaskIntoConstraints = false; item.isUserInteractionEnabled = false; card.addSubview(item) }
-        NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 10), label.topAnchor.constraint(equalTo: card.topAnchor, constant: 10), label.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -8), preview.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 8), preview.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -8), preview.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 8), preview.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -8), preview.heightAnchor.constraint(equalTo: preview.widthAnchor, multiplier: KeyboardSkinMiniature.heightToWidthRatio)])
-        card.addAction(UIAction { _ in onSelect(layout) }, for: .primaryActionTriggered); row.addArrangedSubview(card)
-      }
-      if row.arrangedSubviews.count == 1 { row.addArrangedSubview(UIView()) }; rows.addArrangedSubview(row)
-    }
-    for item in [title, close, scroll] { item.translatesAutoresizingMaskIntoConstraints = false; addSubview(item) }; rows.translatesAutoresizingMaskIntoConstraints = false; scroll.addSubview(rows)
-    NSLayoutConstraint.activate([close.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10), close.topAnchor.constraint(equalTo: topAnchor), close.widthAnchor.constraint(equalToConstant: 44), close.heightAnchor.constraint(equalToConstant: 44), title.centerXAnchor.constraint(equalTo: centerXAnchor), title.centerYAnchor.constraint(equalTo: close.centerYAnchor), scroll.topAnchor.constraint(equalTo: close.bottomAnchor), scroll.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14), scroll.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14), scroll.bottomAnchor.constraint(equalTo: bottomAnchor), rows.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 12), rows.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -12), rows.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor), rows.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor), rows.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor)])
+
+    let keys = Self.spacingRow(title: "按键间距", identifier: "keySpacingSlider", value: keySpacing,
+                               range: 3...6, skin: skin, onChange: onKeySpacing)
+    let rows = Self.spacingRow(title: "行间距", identifier: "rowSpacingSlider", value: rowSpacing,
+                               range: 4...10, skin: skin, onChange: onRowSpacing)
+
+    let voiceLabel = UILabel(); voiceLabel.text = "顶部语音入口"; voiceLabel.font = .systemFont(ofSize: 14, weight: .medium); voiceLabel.textColor = skin.keyForeground
+    let voiceSwitch = UISwitch(); voiceSwitch.isOn = voiceEnabled; voiceSwitch.onTintColor = skin.accent; voiceSwitch.accessibilityIdentifier = "voiceShortcutSwitch"; voiceSwitch.accessibilityLabel = "顶部语音入口"
+    voiceSwitch.addAction(UIAction { action in
+      guard let toggle = action.sender as? UISwitch else { return }
+      onVoice(toggle.isOn)
+    }, for: .valueChanged)
+    let voice = UIStackView(arrangedSubviews: [voiceLabel, UIView(), voiceSwitch]); voice.alignment = .center; voice.spacing = 8
+
+    let stack = UIStackView(arrangedSubviews: [keys, rows, voice]); stack.axis = .vertical; stack.spacing = 16
+    for item in [title, close, stack] { item.translatesAutoresizingMaskIntoConstraints = false; addSubview(item) }
+    NSLayoutConstraint.activate([
+      close.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+      close.topAnchor.constraint(equalTo: topAnchor),
+      close.widthAnchor.constraint(equalToConstant: 44),
+      close.heightAnchor.constraint(equalToConstant: 44),
+      title.centerXAnchor.constraint(equalTo: centerXAnchor),
+      title.centerYAnchor.constraint(equalTo: close.centerYAnchor),
+      stack.topAnchor.constraint(equalTo: close.bottomAnchor, constant: 12),
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 18),
+      stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -18),
+      stack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -12),
+    ])
   }
+
   required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+  private static func spacingRow(title: String, identifier: String, value: Double,
+                                 range: ClosedRange<Double>, skin: KeyboardSkin,
+                                 onChange: @escaping (Double) -> Void) -> UIStackView {
+    let caption = UILabel(); caption.text = title; caption.font = .systemFont(ofSize: 14, weight: .medium); caption.textColor = skin.keyForeground
+    let amount = UILabel(); amount.font = .monospacedDigitSystemFont(ofSize: 14, weight: .regular); amount.textColor = skin.keyForeground.withAlphaComponent(0.7)
+    amount.text = String(format: "%.1f", value)
+    let header = UIStackView(arrangedSubviews: [caption, UIView(), amount]); header.alignment = .firstBaseline; header.spacing = 8
+    let slider = UISlider(); slider.minimumValue = Float(range.lowerBound); slider.maximumValue = Float(range.upperBound)
+    slider.value = Float(value); slider.minimumTrackTintColor = skin.accent; slider.accessibilityIdentifier = identifier; slider.accessibilityLabel = title
+    slider.addAction(UIAction { action in
+      guard let slider = action.sender as? UISlider else { return }
+      amount.text = String(format: "%.1f", Double(slider.value))
+      onChange(Double(slider.value))
+    }, for: .valueChanged)
+    let row = UIStackView(arrangedSubviews: [header, slider]); row.axis = .vertical; row.spacing = 4
+    return row
+  }
 }
