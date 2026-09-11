@@ -429,6 +429,11 @@ metasequoia::apple::DictionaryInstallation ConfigureDataDirectory(bool refresh =
     _adapter->set_wubi_mixed_pinyin(enabled);
 }
 
+- (BOOL)setEnglishMixedCandidates:(BOOL)enabled
+{
+    return _adapter->set_english_mixed_candidates(enabled);
+}
+
 - (BOOL)setLearningEnabled:(BOOL)enabled
 {
     _requestedLearning = enabled;

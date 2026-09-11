@@ -55,6 +55,7 @@ typedef NS_ENUM(NSInteger, MetasequoiaFrequencyAdjustmentMode) {
                       triggerCount:(NSInteger)triggerCount
                         linearStep:(NSInteger)linearStep;
 - (void)setWubiMixedPinyin:(BOOL)enabled;
+- (BOOL)setEnglishMixedCandidates:(BOOL)enabled;
 - (BOOL)suspendDictionarySession;
 - (BOOL)resumeDictionarySessionWithError:(NSError **)error NS_SWIFT_NAME(resumeDictionarySession());
 // Call on the session-owning thread. This token describes the current logical

@@ -1110,6 +1110,27 @@ final class OnboardingUITests: XCTestCase {
   }
 
   @MainActor
+  func testNineKeySchemeSurvivesRelaunch() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-hasCompletedOnboarding", "YES"]
+    app.launch()
+    defer { restoreSchemeVisibility(in: app) }
+    app.buttons["inputSettingsLink"].tap()
+    let nine = app.switches["enabledInputScheme_nineKey"]
+    XCTAssertTrue(nine.waitForExistence(timeout: 5))
+    if nine.value as? String == "0" { nine.tap() }
+    XCTAssertTrue(wait(nine, until: "value == '1'"))
+    app.buttons["inputScheme_nineKey"].tap()
+    XCTAssertEqual(app.buttons["inputScheme_nineKey"].value as? String, "已选择")
+    app.terminate()
+    app.launch()
+    app.buttons["inputSettingsLink"].tap()
+    XCTAssertTrue(app.buttons["inputScheme_nineKey"].waitForExistence(timeout: 5))
+    XCTAssertEqual(app.buttons["inputScheme_nineKey"].value as? String, "已选择",
+                   "九键在重新启动后必须仍是选中的方案")
+  }
+
+  @MainActor
   func testInputSchemeVisibilityPersistsAndFallsBack() {
     let app = XCUIApplication()
     app.launchArguments = ["-hasCompletedOnboarding", "YES"]

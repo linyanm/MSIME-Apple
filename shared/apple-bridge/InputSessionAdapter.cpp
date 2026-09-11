@@ -12,14 +12,16 @@ class InputSessionAdapter::Impl
   public:
     explicit Impl(const RuntimePaths &runtime_paths, SchemeType scheme = SchemeType::Quanpin,
                   std::string profile = "xiaohe", bool learning = false, std::uint32_t fuzzy = 0,
-                  FrequencyAdjustmentOptions frequency = {FrequencyAdjustmentMode::Promote, 1, 1})
-        : paths{runtime_paths}, session{MakeOptions(paths, scheme, profile, learning, fuzzy, frequency)},
+                  FrequencyAdjustmentOptions frequency = {FrequencyAdjustmentMode::Promote, 1, 1},
+                  bool english_mixed = false)
+        : paths{runtime_paths}, session{MakeOptions(paths, scheme, profile, learning, fuzzy, frequency, english_mixed)},
           profile_name{std::move(profile)}
     {
     }
 
     static SessionOptions MakeOptions(const RuntimePaths &paths, SchemeType scheme, const std::string &profile,
-                                      bool learning, std::uint32_t fuzzy, FrequencyAdjustmentOptions frequency)
+                                      bool learning, std::uint32_t fuzzy, FrequencyAdjustmentOptions frequency,
+                                      bool english_mixed)
     {
         SessionOptions session_options;
         session_options.paths = paths;
@@ -33,6 +35,9 @@ class InputSessionAdapter::Impl
         session_options.learning = learning;
         session_options.fuzzy_pinyin.rules = fuzzy;
         session_options.frequency = learning ? frequency : FrequencyAdjustmentOptions{};
+        // Mixes English words into the Chinese candidates. The Engine keeps its own guards: Quanpin
+        // and Shuangpin only, an all-lowercase prefix, and at least english.minimum_prefix letters.
+        session_options.english.mixed_candidates = english_mixed;
         // The iOS product ships the locked main, English and expressive databases.
         LocalModeOptions options;
         options.unicode = true;
@@ -80,14 +85,14 @@ InputSessionAdapter::InputSessionAdapter() : InputSessionAdapter(RuntimePaths::l
 
 InputSessionAdapter::InputSessionAdapter(const RuntimePaths &paths)
     : impl_(std::make_unique<Impl>(paths, SchemeType::Quanpin, "xiaohe", learning_enabled_, fuzzy_pinyin_rules_,
-                                   frequency_))
+                                   frequency_, english_mixed_candidates_))
 {
 }
 
 void InputSessionAdapter::replace_session(SchemeType scheme, std::string profile, bool nine_key)
 {
     impl_ = std::make_unique<Impl>(impl_->paths, scheme, std::move(profile), learning_enabled_, fuzzy_pinyin_rules_,
-                                   frequency_);
+                                   frequency_, english_mixed_candidates_);
     impl_->nine_key = nine_key;
     impl_->session.set_nine_key_enabled(nine_key);
     impl_->session.set_wubi_mixed_pinyin(wubi_mixed_pinyin_);
@@ -188,6 +193,24 @@ void InputSessionAdapter::set_wubi_mixed_pinyin(bool enabled)
         return;
     wubi_mixed_pinyin_ = enabled;
     impl_->session.set_wubi_mixed_pinyin(enabled);
+}
+
+bool InputSessionAdapter::set_english_mixed_candidates(bool enabled)
+{
+    if (enabled == english_mixed_candidates_)
+        return true;
+    // The Engine takes this through SessionOptions, so the session is rebuilt rather than retuned.
+    const auto current = impl_->session.snapshot();
+    if (!current.preedit.empty() || current.local_mode != LocalInputMode::None)
+        return false;
+    english_mixed_candidates_ = enabled;
+    replace_session(current.scheme, impl_->profile_name, impl_->nine_key);
+    return true;
+}
+
+bool InputSessionAdapter::english_mixed_candidates() const
+{
+    return english_mixed_candidates_;
 }
 
 bool InputSessionAdapter::set_fuzzy_pinyin_rules(std::uint32_t rules)
