@@ -1165,7 +1165,11 @@ final class OnboardingUITests: XCTestCase {
     // Same two steps as the hide above: the switch commits first and the scheme list is rebuilt
     // from it, so waiting on the button alone races a rebuild that has not been asked for yet.
     // Toggling back also follows a screenshot, which leaves the app busy for a moment longer.
-    XCTAssertTrue(wait(nine, until: "value == '1'"))
+    // The switch itself needs the same budget as the rebuild that follows it, not the default 5s. The
+    // case passed in 59.9s on develop and failed here at 94.274s on a contended Intel runner, on this
+    // line: the tap lands, the screenshot above is still settling, and 5s runs out before SwiftUI
+    // reports the new value.
+    XCTAssertTrue(wait(nine, until: "value == '1'", timeout: 15))
     XCTAssertTrue(wait(app.buttons["inputScheme_nineKey"], until: "isEnabled == true", timeout: 15))
   }
 
