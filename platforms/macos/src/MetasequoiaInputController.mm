@@ -4,6 +4,7 @@
 #include "DictionaryRuntime.h"
 #include "../../../shared/apple-bridge/DictionarySessionLease.h"
 #import "FloatingToolbarPanel.h"
+#import "InputModeHUDPanel.h"
 #import "ChineseTextConversion.h"
 #include "CandidateFontSize.h"
 #import "CandidatePanel.h"
@@ -158,6 +159,7 @@ static NSHashTable *LiveDictionaryControllers()
     id<MetasequoiaVoiceService> _voiceService;
     NSUInteger _voiceGeneration;
     id _voiceMouseMonitor;
+    metasequoia::mac::SolitaryShiftTracker _solitaryShift;
 }
 
 // Main-thread publication first checks every composition, then releases every
@@ -512,10 +514,19 @@ static NSHashTable *LiveDictionaryControllers()
 
 - (BOOL)handleEvent:(NSEvent *)event client:(id)sender
 {
+    if (event.type == NSEventTypeFlagsChanged)
+    {
+        [self handleSolitaryShiftFlags:event client:sender];
+        // Shift produces no text, and swallowing the flag change would keep it from the client that
+        // still needs to know the key is down -- shift-clicking a selection, for one.
+        return NO;
+    }
     if (event.type != NSEventTypeKeyDown)
     {
         return NO;
     }
+    // Whatever this key turns out to be, Shift was not tapped on its own.
+    _solitaryShift.keyDown();
     const NSEventModifierFlags voiceModifiers =
         event.modifierFlags & (NSEventModifierFlagControl | NSEventModifierFlagOption | NSEventModifierFlagCommand |
                                NSEventModifierFlagShift);
@@ -1166,6 +1177,40 @@ static NSHashTable *LiveDictionaryControllers()
     [_candidatePanel hide];
     [_shuangpinKeymapPanel orderOut:nil];
     [MetasequoiaPreferencesWindowController setEnglishInputMode:enabled];
+    // Every route into a mode switch -- Shift, Shift+Space, the toolbar, the input menu -- passes
+    // through here, so the badge is raised here rather than at each of them.
+    if ([MetasequoiaPreferencesWindowController storedInputModeHUDEnabled])
+    {
+        NSRect caretRect = NSZeroRect;
+        id client = sender != nil ? sender : self.client;
+        [client attributesForCharacterIndex:0 lineHeightRectangle:&caretRect];
+        [[MetasequoiaInputModeHUDPanel sharedPanel] showEnglishInputMode:enabled nearCaretRect:caretRect];
+    }
+}
+
+// Shift tapped on its own: with letters on screen it commits them as typed, which is how a word the
+// dictionary does not carry leaves in the middle of Chinese input; with nothing composing it
+// switches between Chinese and English.
+- (void)handleSolitaryShiftFlags:(NSEvent *)event client:(id)sender
+{
+    if (!_solitaryShift.flagsChanged(event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask,
+                                     event.timestamp))
+    {
+        return;
+    }
+    const bool composing = _session != nullptr && !_sessionSnapshot.preedit.empty();
+    switch (metasequoia::mac::ActionForSolitaryShift(
+        [MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled], composing))
+    {
+    case metasequoia::mac::SolitaryShiftAction::CommitComposition:
+        [self commitComposition:sender];
+        break;
+    case metasequoia::mac::SolitaryShiftAction::ToggleInputMode:
+        [self setEnglishInputMode:![MetasequoiaPreferencesWindowController storedEnglishInputMode] client:sender];
+        break;
+    case metasequoia::mac::SolitaryShiftAction::Ignore:
+        break;
+    }
 }
 
 - (void)floatingToolbarDidRequestToggleInputMode:(MetasequoiaFloatingToolbarPanel *)toolbar
@@ -1264,6 +1309,8 @@ static NSHashTable *LiveDictionaryControllers()
 - (NSUInteger)recognizedEvents:(id)sender
 {
     (void)sender;
-    return NSEventMaskKeyDown;
+    // Shift on its own never arrives as a key: the only record of it is the pair of flag changes
+    // around it, so those have to be recognised for the tap to be seen at all.
+    return NSEventMaskKeyDown | NSEventMaskFlagsChanged;
 }
 @end

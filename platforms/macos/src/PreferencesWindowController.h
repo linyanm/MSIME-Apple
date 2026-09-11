@@ -50,6 +50,8 @@ bool MetasequoiaShouldShowPreferences(int argc, const char *argv[]);
 + (BOOL)storedEnglishInputMode;
 + (void)setEnglishInputMode:(BOOL)enabled;
 + (BOOL)storedInputModeShortcutEnabled;
++ (BOOL)storedInputModeHUDEnabled;
++ (void)setInputModeHUDEnabled:(BOOL)enabled;
 + (void)setInputModeShortcutEnabled:(BOOL)enabled;
 + (BOOL)storedFullWidthInputEnabled;
 + (void)setFullWidthInputEnabled:(BOOL)enabled;
