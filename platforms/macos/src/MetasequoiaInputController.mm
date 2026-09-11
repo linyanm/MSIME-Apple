@@ -533,6 +533,15 @@ static NSHashTable *LiveDictionaryControllers()
             return YES;
     }
     const NSEventModifierFlags inputModeModifiers = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+    // Some clients deliver a bare Shift press as a key-down event. Treat it as the
+    // configured input-mode toggle (while keeping Shift+Space supported below).
+    if ([MetasequoiaPreferencesWindowController storedInputModeShortcutEnabled] &&
+        (event.keyCode == 56 || event.keyCode == 60) && inputModeModifiers == NSEventModifierFlagShift)
+    {
+        if (!event.isARepeat)
+            [self setEnglishInputMode:![MetasequoiaPreferencesWindowController storedEnglishInputMode] client:sender];
+        return YES;
+    }
     // Both toggles swallow their repeats. Holding the chord past the system repeat delay used to
     // flip the persisted preference once per repeat and land on whichever parity the repeat count
     // reached, which is the same reason the voice shortcut above guards on isARepeat.

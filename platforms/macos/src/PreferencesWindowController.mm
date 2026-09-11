@@ -1163,10 +1163,10 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
     _chinesePunctuationButton = [NSButton checkboxWithTitle:@"使用中文标点"
                                                      target:self
                                                      action:@selector(chinesePunctuationChanged:)];
-    _inputModeShortcutButton = [NSButton checkboxWithTitle:@"Shift+Space 切换中英文"
+    _inputModeShortcutButton = [NSButton checkboxWithTitle:@"Shift 切换中英文（Shift+Space 也可）"
                                                     target:self
                                                     action:@selector(inputModeShortcutChanged:)];
-    _inputModeShortcutButton.accessibilityLabel = @"Shift+Space 切换中英文";
+    _inputModeShortcutButton.accessibilityLabel = @"Shift 切换中英文";
     _fullWidthInputButton = [NSButton checkboxWithTitle:@"Option+Shift+H 切换全半角"
                                                  target:self
                                                  action:@selector(fullWidthInputChanged:)];
