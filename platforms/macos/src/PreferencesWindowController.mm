@@ -1346,12 +1346,14 @@ NSView *PreferencesPage(NSString *title, NSString *summary, NSArray<NSView *> *c
                                                   action:@selector(inputBehaviorChanged:)];
     _cloudCandidatesButton.identifier = @"cloudCandidates";
     _translationProviderButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
-    [_translationProviderButton addItemsWithTitles:@[ @"腾讯云", @"DeepLX（自部署）" ]];
+    [_translationProviderButton addItemsWithTitles:@[ @"水杉账号 AI", @"腾讯云", @"DeepLX（自部署）" ]];
+    _translationProviderButton.accessibilityLabel = @"候选翻译在线服务";
     _translationProviderButton.identifier = @"translationProvider";
     _translationProviderButton.target = self;
     _translationProviderButton.action = @selector(translationProviderChanged:);
     _translationLanguageButton = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
-    [_translationLanguageButton addItemsWithTitles:@[ @"英语", @"日语", @"韩语" ]];
+    [_translationLanguageButton addItemsWithTitles:@[ @"英语", @"日语", @"韩语", @"西班牙语", @"法语", @"德语" ]];
+    _translationLanguageButton.accessibilityLabel = @"候选翻译目标语言";
     _translationLanguageButton.identifier = @"translationLanguage";
     _translationLanguageButton.target = self;
     _translationLanguageButton.action = @selector(inputBehaviorChanged:);
