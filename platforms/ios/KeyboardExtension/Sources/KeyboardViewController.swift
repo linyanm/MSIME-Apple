@@ -195,7 +195,11 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       skinBackdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
     installKeyboard()
-    let height = view.heightAnchor.constraint(equalToConstant: 260 + Self.compositionRowHeight)
+    // Start at the height the setting asks for. updatePreferredKeyboardHeight settles it once the
+    // orientation is known; starting at the stock value would show one height and then jump.
+    let height = view.heightAnchor.constraint(
+      equalToConstant: 260 + Self.compositionRowHeight
+        + CGFloat(KeyboardLayoutPreference.heightAdjustment))
     height.priority = .init(999)
     height.identifier = "keyboardHeight"
     height.isActive = true
@@ -2300,9 +2304,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     // The composition line added a row to the candidate strip; the keyboard grew by it rather than
     // taking the space out of the keys.
     let extra = Self.compositionRowHeight
-    let height: CGFloat = handwriting.isHidden
+    let base: CGFloat = handwriting.isHidden
       ? (landscape ? 216 + extra : 260 + extra)
       : (landscape ? 260 + extra : 360 + extra)
+    // The rows divide whatever height the keyboard claims, so this reaches the key faces too --
+    // which is the point, since a key too small to hit is what this setting answers.
+    let height = base + CGFloat(KeyboardLayoutPreference.heightAdjustment)
     if keyboardHeightConstraint?.constant != height { keyboardHeightConstraint?.constant = height }
   }
 
@@ -2338,6 +2345,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     let picker = KeyboardLayoutPickerView(
       keySpacing: KeyboardLayoutPreference.keySpacing,
       rowSpacing: KeyboardLayoutPreference.rowSpacing,
+      height: KeyboardLayoutPreference.heightAdjustment,
       voiceEnabled: KeyboardLayoutPreference.voiceShortcutEnabled,
       onKeySpacing: { [weak self] spacing in
         KeyboardLayoutPreference.keySpacing = spacing
@@ -2346,6 +2354,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       onRowSpacing: { [weak self] spacing in
         KeyboardLayoutPreference.rowSpacing = spacing
         self?.applyLayoutPreferences()
+      },
+      // Applied live so the panel is being resized under the finger that is dragging the slider,
+      // which is the only way to judge the height being picked.
+      onHeight: { [weak self] adjustment in
+        KeyboardLayoutPreference.heightAdjustment = adjustment
+        self?.updatePreferredKeyboardHeight()
       },
       // Only the shortcut bar changes shape with this setting, so it is refreshed on its own. Going
       // through updateKeyboardLayout would rebuild the keys and drop a composition in progress.

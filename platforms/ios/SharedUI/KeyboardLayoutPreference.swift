@@ -34,6 +34,7 @@ enum KeyboardLayoutPreference {
   static let keySpacingKey = "keyboard.spacing.keys"
   static let rowSpacingKey = "keyboard.spacing.rows"
   static let voiceShortcutKey = "keyboard.shortcut.voice"
+  static let heightAdjustmentKey = "keyboard.height.adjustment"
   // Old presets supply upgrade defaults only. Key placement no longer depends on them.
   static var keySpacing: Double {
     get { spacing(key: keySpacingKey, fallback: selected.keySpacing, range: 3...6) }
@@ -42,6 +43,16 @@ enum KeyboardLayoutPreference {
   static var rowSpacing: Double {
     get { spacing(key: rowSpacingKey, fallback: selected.rowSpacing, range: 4...10) }
     set { defaults.set(min(10, max(4, newValue)), forKey: rowSpacingKey) }
+  }
+  /// 键盘整体高度相对默认值的增减,单位 pt。
+  ///
+  /// A keyboard extension states its own height, and the built-in one is the only reference a typist
+  /// has for what is comfortable, so the useful range is around that rather than a free-for-all: too
+  /// short leaves nothing to aim at, too tall eats the conversation above it. The value is added to
+  /// whichever height the current orientation and panel already asked for.
+  static var heightAdjustment: Double {
+    get { spacing(key: heightAdjustmentKey, fallback: 0, range: -12...48) }
+    set { defaults.set(min(48, max(-12, newValue)), forKey: heightAdjustmentKey) }
   }
   static var voiceShortcutEnabled: Bool {
     get { defaults.object(forKey: voiceShortcutKey) == nil ? selected == .doubao : defaults.bool(forKey: voiceShortcutKey) }
