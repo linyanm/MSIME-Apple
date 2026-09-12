@@ -304,9 +304,14 @@ final class NineKeyKeyboardTests: XCTestCase {
           key.sendActions(for: .primaryActionTriggered)
         }
       }
+      // The chips are reused across keystrokes and build this menu only when it is opened, so the
+      // button's static children are a placeholder. Ask for the elements the way the menu will.
       let candidate = try button("candidate-1", in: controller)
-      XCTAssertEqual(candidate.menu?.children.map(\.title), ["优先显示", "固定到首位", "取消固定", "删除词条…"])
-      XCTAssertEqual((candidate.menu?.children.last as? UIMenu)?.children.first?.title, "确认删除此词条")
+      XCTAssertTrue(candidate.menu?.children.first is UIDeferredMenuElement,
+                    "候选菜单应延迟到展开时构建")
+      let elements = controller.candidateMenuElements(at: 0)
+      XCTAssertEqual(elements.map(\.title), ["优先显示", "固定到首位", "取消固定", "删除词条…"])
+      XCTAssertEqual((elements.last as? UIMenu)?.children.first?.title, "确认删除此词条")
     }
   }
 
@@ -1303,7 +1308,11 @@ final class NineKeyKeyboardTests: XCTestCase {
           XCTAssertTrue(try XCTUnwrap(button("candidate-1", in: controller).configuration?.title).contains("你好"))
         } else if phase == "cleared" {
           try button("nineKeyClear", in: controller).sendActions(for: .primaryActionTriggered)
-          XCTAssertFalse(descendants(controller.view).contains { $0.accessibilityIdentifier == "candidate-1" })
+          // The chips are reused rather than rebuilt, so an emptied strip hides them instead of
+          // removing them. What matters is that none of them is showing.
+          XCTAssertTrue(descendants(controller.view).allSatisfy {
+            $0.accessibilityIdentifier?.hasPrefix("candidate-") != true || $0.isHidden
+          })
         }
         controller.view.layoutIfNeeded()
         for (key, expected) in zip(keys, frames) {

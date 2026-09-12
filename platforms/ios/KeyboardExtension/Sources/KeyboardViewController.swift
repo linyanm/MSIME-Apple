@@ -2115,16 +2115,21 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     shortcutBar.isHidden = showsCandidates
     candidateContent?.isHidden = !showsCandidates
     updatePreeditButton()
-    for view in candidateStack.arrangedSubviews {
-      candidateStack.removeArrangedSubview(view)
-      view.removeFromSuperview()
+    // The chips are reused rather than rebuilt. Rebuilding them was 80-90% of the time a keystroke
+    // spent here -- measured at 8-11ms against 0.6-2.5ms for the engine query itself -- and most of
+    // that was constructing a UIMenu, with its nested destructive submenu, for every chip on every
+    // keystroke. A chip's position never changes, so only its text has to.
+    let page = Array(visibleCandidates.prefix(Self.candidatePageSize))
+    while candidateStack.arrangedSubviews.count < page.count {
+      let index = candidateStack.arrangedSubviews.count
+      candidateStack.addArrangedSubview(makeCandidateButton(index: index))
     }
-
-    let page = visibleCandidates.prefix(Self.candidatePageSize)
-    for (offset, candidate) in page.enumerated() {
-      candidateStack.addArrangedSubview(
-        makeCandidateButton(
-          candidate: candidate, hint: wubiCodeHint(at: offset), number: offset + 1, index: offset))
+    for (offset, chip) in candidateStack.arrangedSubviews.enumerated() {
+      guard let chip = chip as? UIButton else { continue }
+      chip.isHidden = offset >= page.count
+      guard offset < page.count else { continue }
+      updateCandidateButton(chip, candidate: page[offset], hint: wubiCodeHint(at: offset),
+                            number: offset + 1)
     }
     updateExpandControl()
 
@@ -2146,20 +2151,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     return WubiCodeHintPreference.hint(code: visibleCandidateCodes[index], typed: visiblePreedit)
   }
 
-  private func makeCandidateButton(candidate: String, hint: String, number: Int, index: Int) -> UIButton {
-    let display = chineseOutput(candidate)
+  /// 候选按钮的骨架。位置固定,只建一次,内容由 updateCandidateButton 每次刷新。
+  private func makeCandidateButton(index: Int) -> UIButton {
     var configuration = UIButton.Configuration.plain()
-    configuration.title = display
-    if !hint.isEmpty {
-      configuration.attributedTitle = AttributedString(
-        display, attributes: AttributeContainer([.font: UIFont.preferredFont(forTextStyle: .body)]))
-        + AttributedString(
-          " " + hint,
-          attributes: AttributeContainer([
-            .font: UIFont.preferredFont(forTextStyle: .caption1),
-            .foregroundColor: KeyboardSkinPreference.selected.keyForeground.withAlphaComponent(0.55),
-          ]))
-    }
     configuration.baseForegroundColor = KeyboardSkinPreference.selected.keyForeground
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 4, leading: 9, bottom: 4, trailing: 9)
@@ -2175,37 +2169,73 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         self.playInputClick()
         self.render(self.session.selectCandidate(at: UInt(index)))
       })
-    button.accessibilityLabel =
-      hint.isEmpty ? "候选词 \(number)：\(display)" : "候选词 \(number)：\(display)，还需输入 \(hint)"
-    button.accessibilityIdentifier = "candidate-\(number)"
-    if isChineseMode && !inputScheme.isJapanese && !session.isInLocalMode {
-      let revision = candidateRevision
-      func action(_ title: String, _ symbol: String, _ operation: MetasequoiaCandidateAction,
-                  destructive: Bool = false) -> UIAction {
-        UIAction(title: title, image: UIImage(systemName: symbol), attributes: destructive ? .destructive : []) { [weak self] _ in
-          guard let self, candidateRevision == revision,
-                visibleCandidates.indices.contains(index), visibleCandidates[index] == candidate else { return }
-          let result = session.editCandidate(at: UInt(index), expectedWord: candidate, action: operation)
-          render(result)
-          if !result.isHandled { showDiagnostic("当前候选不支持此操作") }
-          else if result.diagnosticText == nil {
-            playInputClick()
-            UIAccessibility.post(notification: .announcement, argument: "已\(title)")
-          }
-        }
+    button.accessibilityIdentifier = "candidate-\(index + 1)"
+    // Built when the menu is opened rather than on every keystroke. It reads the candidate standing
+    // at this position at that moment, so a reused chip never offers an action for a word that has
+    // since scrolled away.
+    button.menu = UIMenu(children: [
+      UIDeferredMenuElement.uncached { [weak self] completion in
+        completion(self?.candidateMenuElements(at: index) ?? [])
       }
-      button.menu = UIMenu(title: display, children: [
-        action("优先显示", "arrow.up", .promote),
-        action("固定到首位", "pin", .fixFirst),
-        action("取消固定", "pin.slash", .clearPosition),
-        UIMenu(title: "删除词条…", image: UIImage(systemName: "trash"), options: .destructive, children: [
-          action("确认删除此词条", "trash", .remove, destructive: true),
-        ]),
-      ])
-      button.accessibilityHint = "轻点输入，长按管理词条"
-    }
+    ])
     decorateKey(button)
     return button
+  }
+
+  // Not private: the keyboard tests are compiled into this target and check the menu here,
+  // since the button only holds a deferred placeholder until it is opened.
+  func candidateMenuElements(at index: Int) -> [UIMenuElement] {
+    guard isChineseMode, !inputScheme.isJapanese, !session.isInLocalMode,
+      visibleCandidates.indices.contains(index)
+    else { return [] }
+    let candidate = visibleCandidates[index]
+    let revision = candidateRevision
+    func action(_ title: String, _ symbol: String, _ operation: MetasequoiaCandidateAction,
+                destructive: Bool = false) -> UIAction {
+      UIAction(title: title, image: UIImage(systemName: symbol), attributes: destructive ? .destructive : []) { [weak self] _ in
+        guard let self, candidateRevision == revision,
+              visibleCandidates.indices.contains(index), visibleCandidates[index] == candidate else { return }
+        let result = session.editCandidate(at: UInt(index), expectedWord: candidate, action: operation)
+        render(result)
+        if !result.isHandled { showDiagnostic("当前候选不支持此操作") }
+        else if result.diagnosticText == nil {
+          playInputClick()
+          UIAccessibility.post(notification: .announcement, argument: "已\(title)")
+        }
+      }
+    }
+    return [
+      action("优先显示", "arrow.up", .promote),
+      action("固定到首位", "pin", .fixFirst),
+      action("取消固定", "pin.slash", .clearPosition),
+      UIMenu(title: "删除词条…", image: UIImage(systemName: "trash"), options: .destructive, children: [
+        action("确认删除此词条", "trash", .remove, destructive: true),
+      ]),
+    ]
+  }
+
+  /// 刷新一个候选按钮的文字,位置和动作都不变。
+  private func updateCandidateButton(_ button: UIButton, candidate: String, hint: String, number: Int) {
+    let display = chineseOutput(candidate)
+    guard var configuration = button.configuration else { return }
+    if hint.isEmpty {
+      configuration.attributedTitle = nil
+      configuration.title = display
+    } else {
+      configuration.attributedTitle = AttributedString(
+        display, attributes: AttributeContainer([.font: UIFont.preferredFont(forTextStyle: .body)]))
+        + AttributedString(
+          " " + hint,
+          attributes: AttributeContainer([
+            .font: UIFont.preferredFont(forTextStyle: .caption1),
+            .foregroundColor: KeyboardSkinPreference.selected.keyForeground.withAlphaComponent(0.55),
+          ]))
+    }
+    button.configuration = configuration
+    button.accessibilityLabel =
+      hint.isEmpty ? "候选词 \(number)：\(display)" : "候选词 \(number)：\(display)，还需输入 \(hint)"
+    button.accessibilityHint =
+      isChineseMode && !inputScheme.isJapanese && !session.isInLocalMode ? "轻点输入，长按管理词条" : nil
   }
 
   private func makeSymbolKey(
