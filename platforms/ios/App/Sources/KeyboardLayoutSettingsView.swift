@@ -4,8 +4,19 @@ struct KeyboardLayoutSettingsView: View {
   @State private var keySpacing = KeyboardLayoutPreference.keySpacing
   @State private var rowSpacing = KeyboardLayoutPreference.rowSpacing
   @State private var voice = KeyboardLayoutPreference.voiceShortcutEnabled
+  @State private var height = KeyboardLayoutPreference.heightAdjustment
   var body: some View {
     Form {
+      Section {
+        spacingRow("键盘高度", value: $height, range: -12...48, identifier: "appKeyboardHeightSlider",
+                   format: { $0 > 0 ? "+\(Int($0))" : "\(Int($0))" }) {
+          KeyboardLayoutPreference.heightAdjustment = $0
+        }
+      } header: {
+        Text("键盘高度")
+      } footer: {
+        Text("在系统键盘高度的基础上增减，按键会跟着变高。调整后重新唤出键盘生效。")
+      }
       Section {
         spacingRow("按键间距", value: $keySpacing, range: 3...6, identifier: "appKeySpacingSlider") {
           KeyboardLayoutPreference.keySpacing = $0
@@ -34,6 +45,7 @@ struct KeyboardLayoutSettingsView: View {
       keySpacing = KeyboardLayoutPreference.keySpacing
       rowSpacing = KeyboardLayoutPreference.rowSpacing
       voice = KeyboardLayoutPreference.voiceShortcutEnabled
+      height = KeyboardLayoutPreference.heightAdjustment
     }
   }
 
@@ -42,13 +54,14 @@ struct KeyboardLayoutSettingsView: View {
     value: Binding<Double>,
     range: ClosedRange<Double>,
     identifier: String,
+    format: @escaping (Double) -> String = { String(format: "%.1f", $0) },
     store: @escaping (Double) -> Void
   ) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       HStack {
         Text(title)
         Spacer()
-        Text(String(format: "%.1f", value.wrappedValue)).font(.callout).monospacedDigit()
+        Text(format(value.wrappedValue)).font(.callout).monospacedDigit()
           .foregroundStyle(.secondary)
       }
       Slider(

@@ -304,9 +304,14 @@ final class NineKeyKeyboardTests: XCTestCase {
           key.sendActions(for: .primaryActionTriggered)
         }
       }
+      // The chips are reused across keystrokes and build this menu only when it is opened, so the
+      // button's static children are a placeholder. Ask for the elements the way the menu will.
       let candidate = try button("candidate-1", in: controller)
-      XCTAssertEqual(candidate.menu?.children.map(\.title), ["优先显示", "固定到首位", "取消固定", "删除词条…"])
-      XCTAssertEqual((candidate.menu?.children.last as? UIMenu)?.children.first?.title, "确认删除此词条")
+      XCTAssertTrue(candidate.menu?.children.first is UIDeferredMenuElement,
+                    "候选菜单应延迟到展开时构建")
+      let elements = controller.candidateMenuElements(at: 0)
+      XCTAssertEqual(elements.map(\.title), ["优先显示", "固定到首位", "取消固定", "删除词条…"])
+      XCTAssertEqual((elements.last as? UIMenu)?.children.first?.title, "确认删除此词条")
     }
   }
 
@@ -427,6 +432,60 @@ final class NineKeyKeyboardTests: XCTestCase {
     XCTAssertTrue(
       (split.gestureRecognizers ?? []).compactMap { $0 as? UILongPressGestureRecognizer }.isEmpty,
       "分词键不该有长按手势")
+  }
+
+  func testKeyboardHeightFollowsTheSetting() throws {
+    let previous = KeyboardLayoutPreference.heightAdjustment
+    defer { KeyboardLayoutPreference.heightAdjustment = previous }
+
+    func height(for adjustment: Double) -> CGFloat {
+      KeyboardLayoutPreference.heightAdjustment = adjustment
+      let controller = KeyboardViewController()
+      controller.loadViewIfNeeded()
+      controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 292)
+      controller.view.layoutIfNeeded()
+      return controller.view.constraints.first { $0.identifier == "keyboardHeight" }?.constant ?? 0
+    }
+
+    let standard = height(for: 0)
+    XCTAssertGreaterThan(standard, 0)
+    // The keys divide whatever the keyboard claims, so a taller keyboard is what makes them easier
+    // to hit -- the setting exists for that, not for the strip.
+    XCTAssertEqual(height(for: 24), standard + 24, accuracy: 0.5)
+    XCTAssertEqual(height(for: -12), standard - 12, accuracy: 0.5)
+
+    // Out-of-range values are clamped by the preference rather than reaching the constraint.
+    KeyboardLayoutPreference.heightAdjustment = 500
+    XCTAssertEqual(KeyboardLayoutPreference.heightAdjustment, 48)
+    KeyboardLayoutPreference.heightAdjustment = -500
+    XCTAssertEqual(KeyboardLayoutPreference.heightAdjustment, -12)
+  }
+
+  func testSymbolKeysShowThePunctuationTheyInsert() throws {
+    let previousScheme = InputSchemePreference.scheme
+    defer { InputSchemePreference.scheme = previousScheme }
+    InputSchemePreference.scheme = .quanpin
+    let controller = KeyboardViewController()
+    controller.loadViewIfNeeded()
+    controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 292)
+    try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
+    controller.view.layoutIfNeeded()
+
+    func face(_ label: String) -> UIButton? {
+      descendants(controller.view).first { $0.accessibilityLabel == "符号 \(label)" } as? UIButton
+    }
+
+    // Nothing on the keyboard said that a backslash is how you reach 、, which is what people ask.
+    for (ascii, chinese) in [("\\", "、"), (",", "，"), ("[", "【"), ("<", "《")] {
+      XCTAssertNotNil(face(chinese), "中文模式下应显示 \(chinese)")
+      XCTAssertNil(face(ascii), "中文模式下不该再显示 \(ascii)")
+    }
+
+    // English mode inserts the plain character, so that is what it has to show.
+    try button("bottomLanguageKey", in: controller).sendActions(for: .primaryActionTriggered)
+    controller.view.layoutIfNeeded()
+    XCTAssertNotNil(face("\\"), "英文模式下应显示反斜杠本身")
+    XCTAssertNil(face("、"))
   }
 
   func testNineKeyDigitLayerKeepsTheGridInsteadOfTheTwentySixKeyRows() throws {
@@ -1192,10 +1251,16 @@ final class NineKeyKeyboardTests: XCTestCase {
     attachment.lifetime = .keepAlways
     add(attachment)
 
-    try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
-    XCTAssertTrue(try XCTUnwrap(nine.superview).isHidden)
+    // The digit layer keeps this grid rather than swapping in the 26-key rows, so the container stays
+    // visible and only the faces change. testNineKeyDigitLayerKeepsTheGridInsteadOfTheTwentySixKeyRows
+    // owns that contract; this case asserted the container hid, which was true before the digit layer
+    // shared the grid and has contradicted the other case since.
     try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
     XCTAssertFalse(try XCTUnwrap(nine.superview).isHidden)
+    XCTAssertEqual(nine.configuration?.title, "6")
+    try button("layoutToggleButton", in: controller).sendActions(for: .primaryActionTriggered)
+    XCTAssertFalse(try XCTUnwrap(nine.superview).isHidden)
+    XCTAssertEqual(nine.configuration?.title, "MNO")
     try button("bottomLanguageKey", in: controller).sendActions(for: .primaryActionTriggered)
     XCTAssertTrue(try XCTUnwrap(nine.superview).isHidden)
     try button("bottomLanguageKey", in: controller).sendActions(for: .primaryActionTriggered)
@@ -1243,7 +1308,11 @@ final class NineKeyKeyboardTests: XCTestCase {
           XCTAssertTrue(try XCTUnwrap(button("candidate-1", in: controller).configuration?.title).contains("你好"))
         } else if phase == "cleared" {
           try button("nineKeyClear", in: controller).sendActions(for: .primaryActionTriggered)
-          XCTAssertFalse(descendants(controller.view).contains { $0.accessibilityIdentifier == "candidate-1" })
+          // The chips are reused rather than rebuilt, so an emptied strip hides them instead of
+          // removing them. What matters is that none of them is showing.
+          XCTAssertTrue(descendants(controller.view).allSatisfy {
+            $0.accessibilityIdentifier?.hasPrefix("candidate-") != true || $0.isHidden
+          })
         }
         controller.view.layoutIfNeeded()
         for (key, expected) in zip(keys, frames) {

@@ -368,6 +368,40 @@ class ReleaseConfigurationTests(unittest.TestCase):
         self.assertEqual((PROJECT_ROOT / "version.txt").read_text().strip(), match.group(1))
         self.assertIn("x-release-please-version", project_line)
 
+    def test_ios_symbol_faces_show_what_the_contract_will_insert(self):
+        # The iOS keys carry the Chinese punctuation they produce rather than the ASCII that
+        # produces it, so nobody has to guess that 、 is on the backslash. The faces are a literal
+        # copied out of the contract, and a contract edit that leaves it behind puts a wrong
+        # character on a key, so they are held together here.
+        policy = json.loads(
+            (PROJECT_ROOT / "vendor/MetasequoiaImeEngine/contracts/punctuation/policy.json").read_text()
+        )
+        expected = {entry["input"]: entry["output"] for entry in policy["simple"]}
+        expected.update({entry["input"]: entry["opening"] for entry in policy["alternating"]})
+        expected[policy["nested"]["openingInput"]] = policy["nested"]["opening"]
+        expected[policy["nested"]["closingInput"]] = policy["nested"]["closing"]
+
+        controller = (
+            PROJECT_ROOT / "platforms/ios/KeyboardExtension/Sources/KeyboardViewController.swift"
+        ).read_text()
+        # Take whole lines rather than splitting on a bracket: "[" is one of the keys, so a bracket
+        # scan stops halfway through the table and silently checks only what came before it.
+        body = controller.split("static let chineseSymbolFaces", 1)[1].split("= [", 1)[1]
+        table = "".join(
+            line for line in body.splitlines(keepends=True)[: body.count("\n")]
+            if not line.lstrip().startswith("]")
+        ).split("\n  ]")[0]
+        # Anchor each pair on what precedes it, or the match slides across the ", " between entries
+        # and invents a key out of the separator.
+        faces = dict(re.findall(r'(?:^|[\[,]\s*)"((?:[^"\\]|\\.)+)":\s*"([^"]+)"', table, re.MULTILINE))
+        faces = {key.replace('\\\\', '\\').replace('\\"', '"'): value for key, value in faces.items()}
+        self.assertTrue(faces, "the iOS keyboard must declare the punctuation faces")
+
+        for ascii_input, face in faces.items():
+            self.assertEqual(
+                face, expected.get(ascii_input),
+                f"the {ascii_input!r} key shows {face!r}, contract inserts {expected.get(ascii_input)!r}")
+
     def test_punctuation_dispatch_matches_the_pinned_engine_table(self):
         controller = (MACOS_ROOT / "src/MetasequoiaInputController.mm").read_text()
         # Read the contract itself. punctuation_policy.cpp only forwards to it through simple_output

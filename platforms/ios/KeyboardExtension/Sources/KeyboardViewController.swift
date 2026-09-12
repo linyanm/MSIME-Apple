@@ -69,6 +69,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var microsoftFinalKey: UIButton?
   private var letterRowViews: [UIView] = []
   private var symbolRowViews: [UIView] = []
+  // 有中文对应标点的符号键,随中英模式换脸。
+  private var symbolKeyFaces: [(key: UIButton, ascii: String, chinese: String)] = []
   private var layoutToggleButton: UIButton?
   private weak var shiftButton: UIButton?
   private weak var enterButton: UIButton?
@@ -159,6 +161,20 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     ["(", ")", "[", "]", "<", ">", "\\", "-", "_", "="],
   ]
 
+  /// 中文输入时这些键实际送出的标点,取自 Engine 的标点契约。
+  ///
+  /// The keys are labelled with the ASCII that produces them, so nothing on the keyboard says that
+  /// a backslash is how you type a 、 -- which is what people ask. Showing what the key will
+  /// actually produce answers it without spending a second key on it. Pairs show their opening
+  /// half; the engine alternates on its own. Characters the contract leaves out, @ / - =, keep
+  /// their own face because that is what they insert.
+  /// ReleaseConfigurationTests holds this to the contract these values were read from.
+  static let chineseSymbolFaces: [String: String] = [
+    ",": "，", ".": "。", "?": "？", "!": "！", ";": "；", ":": "：",
+    "(": "（", ")": "）", "[": "【", "]": "】", "\\": "、",
+    "<": "《", ">": "》", "'": "‘", "\"": "“", "_": "——",
+  ]
+
   override func loadView() {
     inputView = KeyboardInputView(frame: .zero, inputViewStyle: .keyboard)
   }
@@ -179,7 +195,11 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       skinBackdrop.bottomAnchor.constraint(equalTo: view.bottomAnchor),
     ])
     installKeyboard()
-    let height = view.heightAnchor.constraint(equalToConstant: 260 + Self.compositionRowHeight)
+    // Start at the height the setting asks for. updatePreferredKeyboardHeight settles it once the
+    // orientation is known; starting at the stock value would show one height and then jump.
+    let height = view.heightAnchor.constraint(
+      equalToConstant: 260 + Self.compositionRowHeight
+        + CGFloat(KeyboardLayoutPreference.heightAdjustment))
     height.priority = .init(999)
     height.identifier = "keyboardHeight"
     height.isActive = true
@@ -580,6 +600,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     let compositionRow = UIView()
     compositionRow.accessibilityIdentifier = "compositionRow"
     compositionRow.translatesAutoresizingMaskIntoConstraints = false
+    // The preedit button is centred here with no height of its own, so anything that makes it taller
+    // than this row lands on the candidates underneath. Keep whatever overflows inside the row.
+    compositionRow.clipsToBounds = true
     container.addSubview(compositionRow)
 
     var preeditConfiguration = UIButton.Configuration.plain()
@@ -592,7 +615,11 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     preeditConfiguration.titleTextAttributesTransformer =
       UIConfigurationTextAttributesTransformer { attributes in
         var attributes = attributes
-        attributes.font = .preferredFont(forTextStyle: .subheadline)
+        // Cap what Dynamic Type may do to this. The button is centred in a fixed-height row with no
+        // bound on its own height, so at the larger text sizes it outgrew the row and painted down
+        // over the candidates. 17pt plus the 8pt of insets stays inside compositionRowHeight.
+        attributes.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(
+          for: .systemFont(ofSize: 15), maximumPointSize: 17)
         return attributes
       }
     preeditButton.configuration = preeditConfiguration
@@ -940,6 +967,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     for symbol in symbols {
       let key = makeKey(title: symbol, accessibilityLabel: "符号 \(symbol)") { [weak self] in
         self?.handleSymbol(symbol)
+      }
+      if let chinese = Self.chineseSymbolFaces[symbol] {
+        symbolKeyFaces.append((key, symbol, chinese))
       }
       // Ten keys to a row leave about 32pt each, and the plain configuration's default 12pt on each
       // side leaves 8pt for a glyph that needs 12. The title line break mode is byClipping, so the
@@ -1850,6 +1880,15 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       NSLayoutConstraint.activate(usesNineKeyLayout ? nineKeyActionWidths : standardActionWidths)
     }
     symbolRowViews.forEach { $0.isHidden = !showsSymbols || (isChineseMode && inputScheme == .nineKey && !session.isInLocalMode) }
+    // Chinese punctuation only comes out in Chinese mode, and a local utility mode takes the plain
+    // character, so the face follows what the key is actually going to insert right now.
+    let sendsChinesePunctuation = isChineseMode && !session.isInLocalMode
+    for face in symbolKeyFaces {
+      let title = sendsChinesePunctuation ? face.chinese : face.ascii
+      guard face.key.configuration?.title != title else { continue }
+      face.key.configuration?.title = title
+      face.key.accessibilityLabel = "符号 \(title)"
+    }
     for (row, height) in standardRowHeights { height.isActive = !row.isHidden }
     if var configuration = layoutToggleButton?.configuration {
       configuration.title = showsSymbols ? (kana ? "あいう" : (nineKey ? "九键" : "ABC")) : "123"
@@ -2076,16 +2115,21 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     shortcutBar.isHidden = showsCandidates
     candidateContent?.isHidden = !showsCandidates
     updatePreeditButton()
-    for view in candidateStack.arrangedSubviews {
-      candidateStack.removeArrangedSubview(view)
-      view.removeFromSuperview()
+    // The chips are reused rather than rebuilt. Rebuilding them was 80-90% of the time a keystroke
+    // spent here -- measured at 8-11ms against 0.6-2.5ms for the engine query itself -- and most of
+    // that was constructing a UIMenu, with its nested destructive submenu, for every chip on every
+    // keystroke. A chip's position never changes, so only its text has to.
+    let page = Array(visibleCandidates.prefix(Self.candidatePageSize))
+    while candidateStack.arrangedSubviews.count < page.count {
+      let index = candidateStack.arrangedSubviews.count
+      candidateStack.addArrangedSubview(makeCandidateButton(index: index))
     }
-
-    let page = visibleCandidates.prefix(Self.candidatePageSize)
-    for (offset, candidate) in page.enumerated() {
-      candidateStack.addArrangedSubview(
-        makeCandidateButton(
-          candidate: candidate, hint: wubiCodeHint(at: offset), number: offset + 1, index: offset))
+    for (offset, chip) in candidateStack.arrangedSubviews.enumerated() {
+      guard let chip = chip as? UIButton else { continue }
+      chip.isHidden = offset >= page.count
+      guard offset < page.count else { continue }
+      updateCandidateButton(chip, candidate: page[offset], hint: wubiCodeHint(at: offset),
+                            number: offset + 1)
     }
     updateExpandControl()
 
@@ -2107,20 +2151,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     return WubiCodeHintPreference.hint(code: visibleCandidateCodes[index], typed: visiblePreedit)
   }
 
-  private func makeCandidateButton(candidate: String, hint: String, number: Int, index: Int) -> UIButton {
-    let display = chineseOutput(candidate)
+  /// 候选按钮的骨架。位置固定,只建一次,内容由 updateCandidateButton 每次刷新。
+  private func makeCandidateButton(index: Int) -> UIButton {
     var configuration = UIButton.Configuration.plain()
-    configuration.title = display
-    if !hint.isEmpty {
-      configuration.attributedTitle = AttributedString(
-        display, attributes: AttributeContainer([.font: UIFont.preferredFont(forTextStyle: .body)]))
-        + AttributedString(
-          " " + hint,
-          attributes: AttributeContainer([
-            .font: UIFont.preferredFont(forTextStyle: .caption1),
-            .foregroundColor: KeyboardSkinPreference.selected.keyForeground.withAlphaComponent(0.55),
-          ]))
-    }
     configuration.baseForegroundColor = KeyboardSkinPreference.selected.keyForeground
     configuration.contentInsets = NSDirectionalEdgeInsets(
       top: 4, leading: 9, bottom: 4, trailing: 9)
@@ -2136,37 +2169,73 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
         self.playInputClick()
         self.render(self.session.selectCandidate(at: UInt(index)))
       })
-    button.accessibilityLabel =
-      hint.isEmpty ? "候选词 \(number)：\(display)" : "候选词 \(number)：\(display)，还需输入 \(hint)"
-    button.accessibilityIdentifier = "candidate-\(number)"
-    if isChineseMode && !inputScheme.isJapanese && !session.isInLocalMode {
-      let revision = candidateRevision
-      func action(_ title: String, _ symbol: String, _ operation: MetasequoiaCandidateAction,
-                  destructive: Bool = false) -> UIAction {
-        UIAction(title: title, image: UIImage(systemName: symbol), attributes: destructive ? .destructive : []) { [weak self] _ in
-          guard let self, candidateRevision == revision,
-                visibleCandidates.indices.contains(index), visibleCandidates[index] == candidate else { return }
-          let result = session.editCandidate(at: UInt(index), expectedWord: candidate, action: operation)
-          render(result)
-          if !result.isHandled { showDiagnostic("当前候选不支持此操作") }
-          else if result.diagnosticText == nil {
-            playInputClick()
-            UIAccessibility.post(notification: .announcement, argument: "已\(title)")
-          }
-        }
+    button.accessibilityIdentifier = "candidate-\(index + 1)"
+    // Built when the menu is opened rather than on every keystroke. It reads the candidate standing
+    // at this position at that moment, so a reused chip never offers an action for a word that has
+    // since scrolled away.
+    button.menu = UIMenu(children: [
+      UIDeferredMenuElement.uncached { [weak self] completion in
+        completion(self?.candidateMenuElements(at: index) ?? [])
       }
-      button.menu = UIMenu(title: display, children: [
-        action("优先显示", "arrow.up", .promote),
-        action("固定到首位", "pin", .fixFirst),
-        action("取消固定", "pin.slash", .clearPosition),
-        UIMenu(title: "删除词条…", image: UIImage(systemName: "trash"), options: .destructive, children: [
-          action("确认删除此词条", "trash", .remove, destructive: true),
-        ]),
-      ])
-      button.accessibilityHint = "轻点输入，长按管理词条"
-    }
+    ])
     decorateKey(button)
     return button
+  }
+
+  // Not private: the keyboard tests are compiled into this target and check the menu here,
+  // since the button only holds a deferred placeholder until it is opened.
+  func candidateMenuElements(at index: Int) -> [UIMenuElement] {
+    guard isChineseMode, !inputScheme.isJapanese, !session.isInLocalMode,
+      visibleCandidates.indices.contains(index)
+    else { return [] }
+    let candidate = visibleCandidates[index]
+    let revision = candidateRevision
+    func action(_ title: String, _ symbol: String, _ operation: MetasequoiaCandidateAction,
+                destructive: Bool = false) -> UIAction {
+      UIAction(title: title, image: UIImage(systemName: symbol), attributes: destructive ? .destructive : []) { [weak self] _ in
+        guard let self, candidateRevision == revision,
+              visibleCandidates.indices.contains(index), visibleCandidates[index] == candidate else { return }
+        let result = session.editCandidate(at: UInt(index), expectedWord: candidate, action: operation)
+        render(result)
+        if !result.isHandled { showDiagnostic("当前候选不支持此操作") }
+        else if result.diagnosticText == nil {
+          playInputClick()
+          UIAccessibility.post(notification: .announcement, argument: "已\(title)")
+        }
+      }
+    }
+    return [
+      action("优先显示", "arrow.up", .promote),
+      action("固定到首位", "pin", .fixFirst),
+      action("取消固定", "pin.slash", .clearPosition),
+      UIMenu(title: "删除词条…", image: UIImage(systemName: "trash"), options: .destructive, children: [
+        action("确认删除此词条", "trash", .remove, destructive: true),
+      ]),
+    ]
+  }
+
+  /// 刷新一个候选按钮的文字,位置和动作都不变。
+  private func updateCandidateButton(_ button: UIButton, candidate: String, hint: String, number: Int) {
+    let display = chineseOutput(candidate)
+    guard var configuration = button.configuration else { return }
+    if hint.isEmpty {
+      configuration.attributedTitle = nil
+      configuration.title = display
+    } else {
+      configuration.attributedTitle = AttributedString(
+        display, attributes: AttributeContainer([.font: UIFont.preferredFont(forTextStyle: .body)]))
+        + AttributedString(
+          " " + hint,
+          attributes: AttributeContainer([
+            .font: UIFont.preferredFont(forTextStyle: .caption1),
+            .foregroundColor: KeyboardSkinPreference.selected.keyForeground.withAlphaComponent(0.55),
+          ]))
+    }
+    button.configuration = configuration
+    button.accessibilityLabel =
+      hint.isEmpty ? "候选词 \(number)：\(display)" : "候选词 \(number)：\(display)，还需输入 \(hint)"
+    button.accessibilityHint =
+      isChineseMode && !inputScheme.isJapanese && !session.isInLocalMode ? "轻点输入，长按管理词条" : nil
   }
 
   private func makeSymbolKey(
@@ -2265,9 +2334,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     // The composition line added a row to the candidate strip; the keyboard grew by it rather than
     // taking the space out of the keys.
     let extra = Self.compositionRowHeight
-    let height: CGFloat = handwriting.isHidden
+    let base: CGFloat = handwriting.isHidden
       ? (landscape ? 216 + extra : 260 + extra)
       : (landscape ? 260 + extra : 360 + extra)
+    // The rows divide whatever height the keyboard claims, so this reaches the key faces too --
+    // which is the point, since a key too small to hit is what this setting answers.
+    let height = base + CGFloat(KeyboardLayoutPreference.heightAdjustment)
     if keyboardHeightConstraint?.constant != height { keyboardHeightConstraint?.constant = height }
   }
 
@@ -2303,6 +2375,7 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     let picker = KeyboardLayoutPickerView(
       keySpacing: KeyboardLayoutPreference.keySpacing,
       rowSpacing: KeyboardLayoutPreference.rowSpacing,
+      height: KeyboardLayoutPreference.heightAdjustment,
       voiceEnabled: KeyboardLayoutPreference.voiceShortcutEnabled,
       onKeySpacing: { [weak self] spacing in
         KeyboardLayoutPreference.keySpacing = spacing
@@ -2311,6 +2384,12 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       onRowSpacing: { [weak self] spacing in
         KeyboardLayoutPreference.rowSpacing = spacing
         self?.applyLayoutPreferences()
+      },
+      // Applied live so the panel is being resized under the finger that is dragging the slider,
+      // which is the only way to judge the height being picked.
+      onHeight: { [weak self] adjustment in
+        KeyboardLayoutPreference.heightAdjustment = adjustment
+        self?.updatePreferredKeyboardHeight()
       },
       // Only the shortcut bar changes shape with this setting, so it is refreshed on its own. Going
       // through updateKeyboardLayout would rebuild the keys and drop a composition in progress.
