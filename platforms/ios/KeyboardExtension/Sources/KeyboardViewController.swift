@@ -2178,7 +2178,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     return button
   }
 
-  private func candidateMenuElements(at index: Int) -> [UIMenuElement] {
+  // Not private: the keyboard tests are compiled into this target and check the menu here,
+  // since the button only holds a deferred placeholder until it is opened.
+  func candidateMenuElements(at index: Int) -> [UIMenuElement] {
     guard isChineseMode, !inputScheme.isJapanese, !session.isInLocalMode,
       visibleCandidates.indices.contains(index)
     else { return [] }
