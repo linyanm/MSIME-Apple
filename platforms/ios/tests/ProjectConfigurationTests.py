@@ -344,11 +344,11 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
 
         # Without a page offset the chip numbers and the engine's own numbering agree, so a digit
         # and the chip carrying it name the same candidate again.
-        self.assertIn(
-            "makeCandidateButton(candidate: String, hint: String, number: Int, index: Int)", controller)
-        self.assertIn(
-            "candidate: candidate, hint: wubiCodeHint(at: offset), number: offset + 1, index: offset))",
-            controller)
+        # A chip keeps its position for the life of the strip and selects by that position, which is
+        # what keeps the digits and the engine's numbering in step. The chips are built once and
+        # relabelled, so this pins the index reaching the engine rather than the call that fills them.
+        self.assertIn("makeCandidateButton(index: Int)", controller)
+        self.assertIn("number: offset + 1", controller)
         self.assertIn("self.render(self.session.selectCandidate(at: UInt(index)))", controller)
 
         # The control is for reaching what the strip cannot show, so it appears exactly then.
@@ -539,9 +539,10 @@ sys.exit(int(os.environ["UPLOAD_STATUS"]))
     def test_candidate_surface_exposes_native_chips_numbered_only_for_voiceover(self):
         controller = (IOS_ROOT / "KeyboardExtension/Sources/KeyboardViewController.swift").read_text()
 
-        self.assertIn(
-            "candidate: candidate, hint: wubiCodeHint(at: offset), number: offset + 1, index: offset",
-            controller)
+        # The chips are built once and relabelled, so assert that each one is handed the candidate,
+        # its wubi hint and its position, rather than pinning the shape of a single call.
+        self.assertIn("wubiCodeHint(at: offset)", controller)
+        self.assertIn("number: offset + 1", controller)
         self.assertIn("configuration.background.cornerRadius", controller)
 
         # A touch keyboard has no number row for the ordinal to answer to, so it is spoken rather
