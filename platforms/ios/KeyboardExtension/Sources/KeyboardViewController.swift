@@ -69,6 +69,8 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
   private var microsoftFinalKey: UIButton?
   private var letterRowViews: [UIView] = []
   private var symbolRowViews: [UIView] = []
+  // 有中文对应标点的符号键,随中英模式换脸。
+  private var symbolKeyFaces: [(key: UIButton, ascii: String, chinese: String)] = []
   private var layoutToggleButton: UIButton?
   private weak var shiftButton: UIButton?
   private weak var enterButton: UIButton?
@@ -157,6 +159,20 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     Array("1234567890").map(String.init),
     [",", ".", "?", "!", ";", ":", "'", "\"", "@", "/"],
     ["(", ")", "[", "]", "<", ">", "\\", "-", "_", "="],
+  ]
+
+  /// 中文输入时这些键实际送出的标点,取自 Engine 的标点契约。
+  ///
+  /// The keys are labelled with the ASCII that produces them, so nothing on the keyboard says that
+  /// a backslash is how you type a 、 -- which is what people ask. Showing what the key will
+  /// actually produce answers it without spending a second key on it. Pairs show their opening
+  /// half; the engine alternates on its own. Characters the contract leaves out, @ / - =, keep
+  /// their own face because that is what they insert.
+  /// ReleaseConfigurationTests holds this to the contract these values were read from.
+  static let chineseSymbolFaces: [String: String] = [
+    ",": "，", ".": "。", "?": "？", "!": "！", ";": "；", ":": "：",
+    "(": "（", ")": "）", "[": "【", "]": "】", "\\": "、",
+    "<": "《", ">": "》", "'": "‘", "\"": "“", "_": "——",
   ]
 
   override func loadView() {
@@ -947,6 +963,9 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
     for symbol in symbols {
       let key = makeKey(title: symbol, accessibilityLabel: "符号 \(symbol)") { [weak self] in
         self?.handleSymbol(symbol)
+      }
+      if let chinese = Self.chineseSymbolFaces[symbol] {
+        symbolKeyFaces.append((key, symbol, chinese))
       }
       // Ten keys to a row leave about 32pt each, and the plain configuration's default 12pt on each
       // side leaves 8pt for a glyph that needs 12. The title line break mode is byClipping, so the
@@ -1857,6 +1876,15 @@ final class KeyboardViewController: UIInputViewController, UIGestureRecognizerDe
       NSLayoutConstraint.activate(usesNineKeyLayout ? nineKeyActionWidths : standardActionWidths)
     }
     symbolRowViews.forEach { $0.isHidden = !showsSymbols || (isChineseMode && inputScheme == .nineKey && !session.isInLocalMode) }
+    // Chinese punctuation only comes out in Chinese mode, and a local utility mode takes the plain
+    // character, so the face follows what the key is actually going to insert right now.
+    let sendsChinesePunctuation = isChineseMode && !session.isInLocalMode
+    for face in symbolKeyFaces {
+      let title = sendsChinesePunctuation ? face.chinese : face.ascii
+      guard face.key.configuration?.title != title else { continue }
+      face.key.configuration?.title = title
+      face.key.accessibilityLabel = "符号 \(title)"
+    }
     for (row, height) in standardRowHeights { height.isActive = !row.isHidden }
     if var configuration = layoutToggleButton?.configuration {
       configuration.title = showsSymbols ? (kana ? "あいう" : (nineKey ? "九键" : "ABC")) : "123"
